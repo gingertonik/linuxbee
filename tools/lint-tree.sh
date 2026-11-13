@@ -5,12 +5,15 @@ cd "$(dirname "$0")/.." || exit 2
 bad=0
 
 # 1. Locked files are byte-identical to what the reviewer committed.
-if [ -f tools/locked.sha256 ]; then
-    if ! sha256sum --quiet -c tools/locked.sha256; then
-        echo "lint: a locked file was changed. Restore it: git checkout -- <file>"
+#    tools/locked.sha256 covers the gate itself. Each plan adds its own list,
+#    tools/locked/<plan>.sha256, so two plans never edit the same file.
+for list in tools/locked.sha256 tools/locked/*.sha256; do
+    [ -f "$list" ] || continue
+    if ! sha256sum --quiet -c "$list"; then
+        echo "lint: a locked file listed in $list was changed. Restore it: git checkout -- <file>"
         bad=1
     fi
-fi
+done
 
 # 2. This tree is published. No home paths, user names or machine names.
 #    In a git worktree .git is a file that holds an absolute path, so it is
