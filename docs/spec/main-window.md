@@ -193,6 +193,17 @@ it could not be. The layout and hotkeys are saved as on a normal exit. It
 exists so that a person can judge the look of a build made on a machine
 with no display, and so that the gate can see that the window draws.
 
+**Options.** The whole command line is read before anything is done.
+These are mistakes: an option (a word that begins with `--`) the program
+does not know; `--screenshot` as the last word or followed by another
+option; `--screenshot` given twice. On a mistake the program prints a
+message and the line `usage: linuxbee [--version] [--screenshot FILE]
+[FILE...]` to standard error and ends with status 2: no window, nothing on
+standard output, no file written, and `--version` on the same line is not
+acted on. Words that are not options are files handed over by the desktop;
+they are accepted and, for now, ignored. Later plans add options of their
+own to the usage line.
+
 ## Not in this version
 
 - What goes into the panels: the navigator, the track list, playing
