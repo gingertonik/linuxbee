@@ -3,16 +3,6 @@
 // Stub. Plan 20 replaces every body in this file.
 namespace linuxbee {
 
-QString foldForSearch(const QString &text)
-{
-    return text;
-}
-
-QStringList defaultSearchFields()
-{
-    return { };
-}
-
 SearchQuery SearchQuery::parse(const QString &text)
 {
     Q_UNUSED(text);
