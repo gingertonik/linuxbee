@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 
@@ -307,6 +308,7 @@ WriteResult writeTags(
         return result;
     }
 
+    const QDateTime modified = QFileInfo(filePath).lastModified();
     bool saved = false;
     try {
         saved = saveChanges(
@@ -314,6 +316,12 @@ WriteResult writeTags(
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;
+    }
+    // W-MTIME: saveChanges has closed the file, so the old time can be put back.
+    if (saved && options.keepModificationTime) {
+        QFile file(filePath);
+        if (file.open(QIODevice::ReadOnly))
+            file.setFileTime(modified, QFileDevice::FileModificationTime);
     }
     result.status = saved ? WriteResult::Status::Ok : WriteResult::Status::Failed;
     return result;
