@@ -1,9 +1,12 @@
 #include "playback/player.h"
 
+#include <utility>
+
 // The player's state machine, the start of a track, moving through the
-// queue, and the end of a track. Contract: docs/spec/player.md (X-STATE,
-// X-QUEUE, X-NEXT, X-END). The rest of the rules arrive with their tasks;
-// until then their functions are still stubs.
+// queue, the end of a track, seeking and volume. Contract:
+// docs/spec/player.md (X-STATE, X-QUEUE, X-NEXT, X-END, X-SEEK, X-VOLUME).
+// Counting (X-LISTEN, X-COUNT) and the failure rules (X-ERROR) arrive with
+// their tasks; until then their functions are still stubs.
 namespace linuxbee {
 
 namespace {
@@ -30,11 +33,12 @@ struct Player::Private : public QObject {
     QString path; // the track last started
     qint64 entryId = 0; // the queue entry last started; 0 for none yet
     qint64 position = 0;
-    qint64 duration = 0;
+    qint64 duration = 0; // 0 until the backend says
     double volume = 1.0;
     bool muted = false;
     bool stopAfterCurrentOn = false;
     bool ownQueueMove = false; // true only while the player itself moves the queue
+    std::function<double(const QString &path)> trackVolume; // X-VOLUME; empty: 1
 
     void setState(State next)
     {
@@ -53,11 +57,37 @@ struct Player::Private : public QObject {
         emit q->positionChanged(ms);
     }
 
+    // X-SEEK: a duration is kept, and passed on when it changes.
+    void setDuration(qint64 ms)
+    {
+        if (ms == duration)
+            return;
+        duration = ms;
+        emit q->durationChanged(ms);
+    }
+
     // Reports that arrive while nothing is being played are ignored.
     void onBackendPosition(qint64 ms)
     {
         if (state != State::Stopped)
             setPosition(ms);
+    }
+
+    void onBackendDuration(qint64 ms)
+    {
+        if (state != State::Stopped)
+            setDuration(ms);
+    }
+
+    // X-VOLUME: the backend gets 0 when muted, else the volume times the
+    // track's factor (a factor below 0 counts as 0), held between 0 and 1.
+    // With no track there is no factor to ask about, so it is 1.
+    void applyVolume()
+    {
+        double factor = 1.0;
+        if (trackVolume && !path.isEmpty())
+            factor = qMax(0.0, trackVolume(path));
+        backend->setVolume(muted ? 0.0 : qBound(0.0, volume * factor, 1.0));
     }
 
     // X-STATE: load the file, set the volume, play. Position and duration
@@ -68,9 +98,9 @@ struct Player::Private : public QObject {
         entryId = entry.entryId;
         path = entry.path;
         setPosition(0);
-        duration = 0;
+        setDuration(0);
         backend->load(path);
-        backend->setVolume(volume);
+        applyVolume();
         backend->play();
         setState(State::Playing);
         if (newTrack)
@@ -108,12 +138,21 @@ struct Player::Private : public QObject {
             startEntry(entry);
     }
 
-    // X-NEXT: back to the start of the track (a seek to 0).
-    void restartTrack()
+    // X-SEEK: the target is held between 0 and the duration (no upper limit
+    // while the duration is unknown). Only while Playing or Paused.
+    void seek(qint64 ms)
     {
-        backend->seek(0);
-        setPosition(0);
+        if (state == State::Stopped)
+            return;
+        qint64 target = qMax<qint64>(0, ms);
+        if (duration > 0)
+            target = qMin(target, duration);
+        backend->seek(target);
+        setPosition(target);
     }
+
+    // X-NEXT: back to the start of the track.
+    void restartTrack() { seek(0); }
 
     // X-NEXT: the user's Next, whatever the state. Nowhere to go: nothing.
     void next()
@@ -203,6 +242,33 @@ struct Player::Private : public QObject {
         setPosition(0);
         setState(State::Stopped);
     }
+
+    // X-VOLUME: the user's volume, held between 0 and 1. The backend is told
+    // at once, with or without a track.
+    void setVolume(double next)
+    {
+        const double clamped = qBound(0.0, next, 1.0);
+        if (clamped == volume)
+            return;
+        volume = clamped;
+        emit q->volumeChanged(volume);
+        applyVolume();
+    }
+
+    void setMuted(bool on)
+    {
+        if (on == muted)
+            return;
+        muted = on;
+        emit q->mutedChanged(muted);
+        applyVolume();
+    }
+
+    void setTrackVolume(std::function<double(const QString &path)> factor)
+    {
+        trackVolume = std::move(factor);
+        applyVolume();
+    }
 };
 
 Player::Player(PlayQueue *queue, AudioBackend *backend, QObject *parent)
@@ -213,6 +279,8 @@ Player::Player(PlayQueue *queue, AudioBackend *backend, QObject *parent)
         [this](int index) { d->onQueueCurrentChanged(index); });
     connect(backend, &AudioBackend::positionChanged, this,
         [this](qint64 ms) { d->onBackendPosition(ms); });
+    connect(backend, &AudioBackend::durationChanged, this,
+        [this](qint64 ms) { d->onBackendDuration(ms); });
     connect(backend, &AudioBackend::ended, this, [this]() { d->onEnded(); });
 }
 
@@ -253,7 +321,7 @@ bool Player::stopAfterCurrent() const
 
 void Player::setTrackVolume(std::function<double(const QString &path)> factor)
 {
-    Q_UNUSED(factor);
+    d->setTrackVolume(std::move(factor));
 }
 
 void Player::setCountRule(const PlayCountRule &rule)
@@ -294,17 +362,17 @@ void Player::previous()
 
 void Player::seek(qint64 ms)
 {
-    Q_UNUSED(ms);
+    d->seek(ms);
 }
 
 void Player::setVolume(double volume)
 {
-    Q_UNUSED(volume);
+    d->setVolume(volume);
 }
 
 void Player::setMuted(bool muted)
 {
-    Q_UNUSED(muted);
+    d->setMuted(muted);
 }
 
 void Player::setStopAfterCurrent(bool on)
