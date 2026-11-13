@@ -3,20 +3,6 @@
 // Stub. Plan 09 replaces every body in this file.
 namespace linuxbee {
 
-TagChanges removeTags(const TrackTags &tags, const RemoveOptions &options)
-{
-    Q_UNUSED(tags);
-    Q_UNUSED(options);
-    return { };
-}
-
-QList<TagChanges> renumberTracks(const QList<TrackTags> &tracks, const RenumberOptions &options)
-{
-    Q_UNUSED(tracks);
-    Q_UNUSED(options);
-    return { };
-}
-
 QString validateInferPattern(const QString &pattern)
 {
     Q_UNUSED(pattern);
@@ -37,22 +23,6 @@ TagChanges inferTags(
     Q_UNUSED(path);
     Q_UNUSED(pattern);
     Q_UNUSED(blankFieldsOnly);
-    return { };
-}
-
-TagChanges copyTag(const TrackTags &tags, const QString &from, const QString &to)
-{
-    Q_UNUSED(tags);
-    Q_UNUSED(from);
-    Q_UNUSED(to);
-    return { };
-}
-
-TagChanges swapTags(const TrackTags &tags, const QString &a, const QString &b)
-{
-    Q_UNUSED(tags);
-    Q_UNUSED(a);
-    Q_UNUSED(b);
     return { };
 }
 
