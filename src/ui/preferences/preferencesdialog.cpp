@@ -51,6 +51,14 @@ PreferencesDialog::PreferencesDialog(QWidget *parent)
     connect(d->pageList, &QListWidget::currentRowChanged, d->pageStack,
         &QStackedWidget::setCurrentIndex);
 
+    // The buttons (PF-APPLY, PF-CANCEL).
+    connect(d->applyButton, &QPushButton::clicked, this, &PreferencesDialog::apply);
+    connect(d->saveButton, &QPushButton::clicked, this, [this] {
+        if (apply())
+            accept(); // Save closes when every modified page stored its edits
+    });
+    connect(d->cancelButton, &QPushButton::clicked, this, &PreferencesDialog::reject);
+
     auto *pagesRow = new QHBoxLayout;
     pagesRow->addWidget(d->pageList);
     pagesRow->addWidget(d->pageStack, 1);
@@ -120,12 +128,33 @@ bool PreferencesDialog::selectPage(const QString &title)
 
 bool PreferencesDialog::apply()
 {
-    return false; // Task 3: PF-APPLY
+    d->errorLabel->clear(); // the message goes with the next try
+    bool stored = false;
+    for (PreferencesPage *page : d->pageOrder) {
+        if (!page->isModified())
+            continue; // pages not modified are left alone
+        const QString reason = page->apply();
+        if (!reason.isEmpty()) {
+            d->errorLabel->setText(page->title() + QStringLiteral(": ") + reason);
+            selectPage(page->title()); // the page that refused is shown
+            if (stored) // what stored before the refusal counts
+                emit applied();
+            return false;
+        }
+        stored = true;
+    }
+    if (stored)
+        emit applied();
+    return true;
 }
 
 void PreferencesDialog::reject()
 {
-    QDialog::reject(); // Task 3: PF-CANCEL
+    // Qt calls this for Escape and the close button too, so Cancel is one path.
+    for (PreferencesPage *page : d->pageOrder)
+        page->load(); // every page forgets its edits, in the order added
+    d->errorLabel->clear();
+    QDialog::reject();
 }
 
 }
