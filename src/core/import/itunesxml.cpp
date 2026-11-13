@@ -9,19 +9,6 @@ ImportedLibrary parseItunesLibrary(const QByteArray &xml)
     return { };
 }
 
-QString pathFromItunesLocation(const QString &location)
-{
-    Q_UNUSED(location);
-    return { };
-}
-
-QString mapImportedPath(const QString &path, const PathMapping &mapping)
-{
-    Q_UNUSED(path);
-    Q_UNUSED(mapping);
-    return { };
-}
-
 ImportPlan planImport(const ImportedLibrary &imported, const QList<LibraryTrack> &libraryTracks,
     const PathMapping &mapping)
 {
