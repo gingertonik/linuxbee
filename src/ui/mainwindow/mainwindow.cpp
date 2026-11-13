@@ -108,13 +108,16 @@ static QHBoxLayout *panelLayout(QWidget *panel)
 
 void MainWindow::setPanelWidget(Panel panel, QWidget *widget)
 {
-    // W-PANELS: replace what is there (the old widget is deleted); null empties the panel.
+    // W-PANELS: replace what is there (the old widget is deleted at once); null empties the panel.
+    // Putting in the widget that is there already changes nothing.
+    if (d->contents.value(panel) == widget)
+        return;
     captureWidths(); // a relayout must not lose a panel's width
     QWidget *container = d->containers.value(panel);
     QHBoxLayout *layout = panelLayout(container);
     if (QWidget *old = d->contents.take(panel)) {
         layout->removeWidget(old);
-        old->deleteLater(); // the window owned it; the replacement deletes it
+        delete old; // at once: the player bar must not outlive the player it points to
     }
     if (widget) {
         widget->setParent(container);
