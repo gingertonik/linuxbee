@@ -73,6 +73,95 @@ QString rateProblem(const EncoderSettings &s)
     return { };
 }
 
+// C-DEPTH: the bit depth a lossless target is written at.
+int losslessDepth(const EncoderSettings &s, int sourceBits)
+{
+    int depth = s.bitDepth;
+    if (depth == 0)
+        depth = (sourceBits == 24 || sourceBits == 32) ? sourceBits : 16;
+    if (s.format == AudioFormat::Alac && depth == 32)
+        depth = 24; // Apple Lossless has no 32-bit mode.
+    return depth;
+}
+
+// C-ARGS: a quality with no trailing zeros: 0, 6.5, -1.
+QString formatQuality(double quality)
+{
+    QString text = QString::number(quality, 'f', 6);
+    while (text.endsWith(QLatin1Char('0')))
+        text.chop(1);
+    if (text.endsWith(QLatin1Char('.')))
+        text.chop(1);
+    return text;
+}
+
+// C-ARGS depth arguments. `planar` selects the s16p and s32p forms that
+// Apple Lossless and WavPack use.
+void appendDepth(QStringList &args, int depth, bool planar)
+{
+    if (depth == 16) {
+        args << QStringLiteral("-sample_fmt")
+             << (planar ? QStringLiteral("s16p") : QStringLiteral("s16"));
+        return;
+    }
+    args << QStringLiteral("-sample_fmt")
+         << (planar ? QStringLiteral("s32p") : QStringLiteral("s32"));
+    if (depth == 24)
+        args << QStringLiteral("-bits_per_raw_sample") << QStringLiteral("24");
+}
+
+// C-ARGS: the encoder arguments for one format. The settings must be valid.
+QStringList encoderArguments(const EncoderSettings &s, int sourceBits)
+{
+    const bool byBitrate = s.rateControl == RateControl::Bitrate;
+    const QString kbps = QStringLiteral("%1k").arg(s.bitrateKbps);
+    QStringList args;
+    switch (s.format) {
+    case AudioFormat::Mp3:
+        args << QStringLiteral("-c:a") << QStringLiteral("libmp3lame");
+        if (byBitrate)
+            args << QStringLiteral("-b:a") << kbps;
+        else
+            args << QStringLiteral("-q:a") << formatQuality(s.quality);
+        return args;
+    case AudioFormat::OggVorbis:
+        args << QStringLiteral("-c:a") << QStringLiteral("libvorbis");
+        if (byBitrate)
+            args << QStringLiteral("-b:a") << kbps;
+        else
+            args << QStringLiteral("-q:a") << formatQuality(s.quality);
+        return args;
+    case AudioFormat::Opus:
+        return { QStringLiteral("-c:a"), QStringLiteral("libopus"), QStringLiteral("-b:a"), kbps };
+    case AudioFormat::Aac:
+        return { QStringLiteral("-c:a"), QStringLiteral("aac"), QStringLiteral("-b:a"), kbps };
+    case AudioFormat::Flac:
+        args << QStringLiteral("-c:a") << QStringLiteral("flac");
+        if (s.compressionLevel != -1)
+            args << QStringLiteral("-compression_level") << QString::number(s.compressionLevel);
+        appendDepth(args, losslessDepth(s, sourceBits), false);
+        return args;
+    case AudioFormat::Alac:
+        args << QStringLiteral("-c:a") << QStringLiteral("alac");
+        appendDepth(args, losslessDepth(s, sourceBits), true);
+        return args;
+    case AudioFormat::WavPack:
+        args << QStringLiteral("-c:a") << QStringLiteral("wavpack");
+        appendDepth(args, losslessDepth(s, sourceBits), true);
+        return args;
+    case AudioFormat::Wav: {
+        const int depth = losslessDepth(s, sourceBits);
+        QString codec = QStringLiteral("pcm_s32le");
+        if (depth == 16)
+            codec = QStringLiteral("pcm_s16le");
+        else if (depth == 24)
+            codec = QStringLiteral("pcm_s24le");
+        return { QStringLiteral("-c:a"), codec };
+    }
+    }
+    return { };
+}
+
 }
 
 // C-VALID: one line per problem, each starting with the name of the setting.
@@ -138,6 +227,40 @@ QStringList validateSettings(const EncoderSettings &settings)
             QStringLiteral("channels: %1 is not 0 (keep), 1 or 2").arg(settings.channels));
 
     return problems;
+}
+
+// C-ARGS: the arguments ffmpeg is run with (the program name is not included).
+QStringList ffmpegArguments(const QString &inputPath, const QString &outputPath,
+    const EncoderSettings &settings, int sourceBitsPerSample)
+{
+    QStringList args = {
+        QStringLiteral("-nostdin"),
+        QStringLiteral("-hide_banner"),
+        QStringLiteral("-loglevel"),
+        QStringLiteral("error"),
+        QStringLiteral("-nostats"),
+        QStringLiteral("-progress"),
+        QStringLiteral("pipe:1"),
+        QStringLiteral("-y"),
+        QStringLiteral("-i"),
+        inputPath,
+        QStringLiteral("-map"),
+        QStringLiteral("0:a:0"),
+        QStringLiteral("-map_metadata"),
+        QStringLiteral("-1"),
+        QStringLiteral("-map_chapters"),
+        QStringLiteral("-1"),
+        QStringLiteral("-fflags"),
+        QStringLiteral("+bitexact"),
+    };
+    args += encoderArguments(settings, sourceBitsPerSample);
+    if (settings.sampleRateHz != 0)
+        args << QStringLiteral("-ar") << QString::number(settings.sampleRateHz);
+    if (settings.channels != 0)
+        args << QStringLiteral("-ac") << QString::number(settings.channels);
+    args << QStringLiteral("-f") << QString::fromLatin1(formatInfo(settings.format).muxer)
+         << outputPath;
+    return args;
 }
 
 }
