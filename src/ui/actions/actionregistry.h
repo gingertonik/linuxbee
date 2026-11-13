@@ -72,6 +72,10 @@ signals:
 private:
     struct Private;
     Private *d;
+
+    // H-MENU helpers (actionmenus.cpp).
+    static QMenu *branchMenu(QMenu *root, const QString &rootPath, const QString &path);
+    static void fillBranch(const Private *d, QMenu *root, const QString &rootPath);
 };
 
 }

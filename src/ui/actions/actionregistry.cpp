@@ -1,4 +1,5 @@
 #include "actions/actionregistry.h"
+#include "actionregistry_p.h"
 
 #include <QAction>
 #include <QEvent>
@@ -12,31 +13,6 @@
 // Plan 10: the command catalogue made live. Contract: docs/spec/main-window.md
 // (H-CATALOGUE to H-STORE). The menu building (H-MENU) lives in actionmenus.cpp.
 namespace linuxbee::ui {
-
-struct ActionRegistry::Private {
-    struct Entry {
-        ActionInfo info;
-        QAction *action = nullptr;
-        QKeySequence def; // the catalogue's hotkey, parsed
-        QObject *owner = nullptr; // H-IMPLEMENT: the object that gave this command its behaviour
-    };
-    QList<Entry> entries; // catalogue order
-    QHash<QString, int> index; // id -> position in entries
-
-    int indexOf(const QString &id) const { return index.value(id, -1); }
-    static bool sameKeys(const QKeySequence &a, const QKeySequence &b)
-    {
-        // QKeySequence() == QKeySequence() is false in Qt; empty matches empty only by convention.
-        if (a.isEmpty() || b.isEmpty())
-            return a.isEmpty() && b.isEmpty();
-        return a == b;
-    }
-    QKeySequence keyOf(const QString &id) const
-    {
-        const int i = indexOf(id);
-        return i < 0 ? QKeySequence() : entries.at(i).action->shortcut();
-    }
-};
 
 ActionRegistry::ActionRegistry(QObject *parent)
     : QObject(parent)
@@ -202,19 +178,6 @@ void ActionRegistry::load(QSettings &settings)
             continue; // unreadable, empty, a chord of keys: it ends with none
         setShortcut(entry.info.id, seq); // refused if another command holds it: it ends with none
     }
-}
-
-void ActionRegistry::populateMenuBar(QMenuBar *menuBar) const
-{
-    // H-MENU. Implemented in actionmenus.cpp (task 3).
-    Q_UNUSED(menuBar);
-}
-
-void ActionRegistry::populateMenu(QMenu *menu, const QString &menuPath) const
-{
-    // H-MENU. Implemented in actionmenus.cpp (task 3).
-    Q_UNUSED(menu);
-    Q_UNUSED(menuPath);
 }
 
 } // namespace linuxbee::ui
