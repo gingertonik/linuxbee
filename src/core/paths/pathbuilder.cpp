@@ -162,13 +162,4 @@ BuiltPath buildRelativePath(const Template &pathTemplate, const TagSource &tags,
     return result;
 }
 
-QString uniqueRelativePath(const QString &relativePath,
-    const std::function<bool(const QString &)> &exists, const PathRules &rules)
-{
-    Q_UNUSED(relativePath);
-    Q_UNUSED(exists);
-    Q_UNUSED(rules);
-    return { };
-}
-
 } // namespace linuxbee
