@@ -41,6 +41,26 @@ QList<QStringList> rowsFor(const EditTarget &target, const TagChanges &changes)
     return rows;
 }
 
+// TT-APPLY, step 4: what a saved track now says, so the next preview shows only
+// what is left. An empty list removes the field or key, as the saver does.
+void applySaved(TrackTags &tags, const TagChanges &changes)
+{
+    for (auto it = changes.fields.constBegin(); it != changes.fields.constEnd(); ++it) {
+        if (it.value().isEmpty())
+            tags.fields.remove(it.key());
+        else
+            tags.fields.insert(it.key(), it.value());
+    }
+    for (auto it = changes.other.constBegin(); it != changes.other.constEnd(); ++it) {
+        if (it.value().isEmpty())
+            tags.other.remove(it.key());
+        else
+            tags.other.insert(it.key(), it.value());
+    }
+    if (changes.pictures.has_value())
+        tags.pictures = *changes.pictures;
+}
+
 }
 
 struct TagToolDialog::Private {
@@ -143,7 +163,12 @@ TagToolDialog::TagToolDialog(
     };
 
     connect(panel, &ToolPanel::optionsChanged, this, [this] { d->refresh(); });
+    connect(d->applyButton, &QPushButton::clicked, this, [this] { apply(); });
+    connect(d->cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 
+    // TT-REMEMBER: the stored options are loaded before the first preview.
+    if (settings)
+        panel->load(*settings);
     d->refresh();
 }
 
@@ -169,6 +194,48 @@ QList<TagChanges> TagToolDialog::pendingChanges() const
 
 bool TagToolDialog::apply()
 {
+    if (!d->problem.isEmpty() || d->changedTracks == 0)
+        return false;
+
+    // TT-APPLY, step 1: every track with changes goes to the saver, in order.
+    // A failure does not stop the others.
+    QList<qint64> written;
+    QStringList failedNames;
+    for (int i = 0; i < d->targets.size(); ++i) {
+        const TagChanges changes = d->pending.at(i);
+        if (changes.isEmpty())
+            continue;
+        EditTarget &target = d->targets[i];
+        const WriteResult result = d->saver(target.path, changes);
+        if (!result.ok()) {
+            failedNames.append(QFileInfo(target.path).fileName());
+            continue;
+        }
+        applySaved(target.tags, changes);
+        if (result.status == WriteResult::Status::Ok)
+            written.append(target.id);
+    }
+
+    // TT-APPLY, step 2.
+    if (!written.isEmpty())
+        emit saved(written);
+
+    // TT-APPLY, step 3: a complete success stores the options and closes.
+    if (failedNames.isEmpty()) {
+        if (d->settings) {
+            d->panel->save(*d->settings);
+            d->settings->sync();
+        }
+        accept();
+        return true;
+    }
+
+    // TT-APPLY, step 4: the dialog stays open on what is still to do.
+    d->refresh();
+    d->summary->setText(tr("Could not save %1 of %2: %3")
+            .arg(failedNames.size())
+            .arg(d->targets.size())
+            .arg(failedNames.join(QStringLiteral(", "))));
     return false;
 }
 
