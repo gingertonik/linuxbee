@@ -48,6 +48,12 @@ protected:
 private:
     struct Private;
     Private *d;
+
+    // W-COMMANDS / W-LAYOUT (mainwindow_commands.cpp).
+    void implementWindowCommands();
+    void setPanelVisibility(int panelIndex, bool shown);
+    void applyPanelVisibility();
+    void captureWidths();
 };
 
 }

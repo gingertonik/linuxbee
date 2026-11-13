@@ -1,38 +1,21 @@
 #include "mainwindow/mainwindow.h"
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
+#include "mainwindow_p.h"
 
 #include <QAction>
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QMenuBar>
-#include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include <QHash>
-#include <QStringList>
-
 // Plan 10: the frame every other part is put into. Contract: docs/spec/main-window.md
-// (W-FRAME, W-PANELS, W-PAGES). The window's own commands and its remembered
-// layout live in mainwindow_commands.cpp.
+// (W-FRAME, W-PANELS, W-PAGES). The window's own commands (W-COMMANDS) and its
+// remembered layout (W-LAYOUT) live in mainwindow_commands.cpp.
 namespace linuxbee::ui {
-
-struct MainWindow::Private {
-    ActionRegistry *actions = nullptr;
-    QSettings *settings = nullptr;
-    QSplitter *splitter = nullptr;
-    QStackedWidget *stack = nullptr;
-    QWidget *navigator = nullptr;
-    QWidget *right = nullptr;
-    QWidget *playerBar = nullptr;
-    QHash<QWidget *, QString> pageIds; // pages carry their id; the stack holds their order
-    QStringList order; // page ids, in the order added
-    QHash<Panel, QWidget *> contents; // W-PANELS: the widget filling each panel, if any
-};
 
 MainWindow::MainWindow(ActionRegistry *actions, QSettings *settings, QWidget *parent)
     : QMainWindow(parent)
@@ -75,11 +58,6 @@ MainWindow::MainWindow(ActionRegistry *actions, QSettings *settings, QWidget *pa
     d->splitter->addWidget(d->navigator);
     d->splitter->addWidget(d->stack);
     d->splitter->addWidget(d->right);
-    // W-LAYOUT's first-run widths: the main panel takes the room the others do not use.
-    d->splitter->setStretchFactor(0, 0);
-    d->splitter->setStretchFactor(1, 1);
-    d->splitter->setStretchFactor(2, 0);
-    d->splitter->setSizes({ 220, -1, 300 });
 
     d->playerBar = new QWidget(central);
     d->playerBar->setObjectName(QStringLiteral("playerBar"));
@@ -87,11 +65,25 @@ MainWindow::MainWindow(ActionRegistry *actions, QSettings *settings, QWidget *pa
     auto *barLayout = new QHBoxLayout(d->playerBar);
     barLayout->setContentsMargins(0, 0, 0, 0);
 
+    d->containers.insert(Panel::Navigator, d->navigator);
+    d->containers.insert(Panel::Right, d->right);
+    d->containers.insert(Panel::PlayerBar, d->playerBar);
+
+    // W-LAYOUT's first-run widths: the main panel takes the room the others do not use.
+    d->splitter->setStretchFactor(0, 0);
+    d->splitter->setStretchFactor(1, 1);
+    d->splitter->setStretchFactor(2, 0);
+    d->splitter->setSizes({ 220, 680, 300 });
+
     frame->addWidget(d->splitter);
     frame->addWidget(d->playerBar);
     setCentralWidget(central);
 
     statusBar()->setObjectName(QStringLiteral("statusBar"));
+
+    resize(1200, 760); // W-LAYOUT: the first-run size; restoreLayout may overrule it
+    restoreLayout(); // W-LAYOUT: the constructor applies what was saved
+    implementWindowCommands(); // W-COMMANDS
 
     // W-FRAME: the menu bar is the registry's, and the window listens for
     // every command's hotkey, whichever part has the focus.
@@ -117,9 +109,8 @@ static QHBoxLayout *panelLayout(QWidget *panel)
 void MainWindow::setPanelWidget(Panel panel, QWidget *widget)
 {
     // W-PANELS: replace what is there (the old widget is deleted); null empties the panel.
-    QWidget *container = panel == Panel::Navigator
-        ? d->navigator
-        : (panel == Panel::Right ? d->right : d->playerBar);
+    captureWidths(); // a relayout must not lose a panel's width
+    QWidget *container = d->containers.value(panel);
     QHBoxLayout *layout = panelLayout(container);
     if (QWidget *old = d->contents.take(panel)) {
         layout->removeWidget(old);
@@ -173,21 +164,6 @@ QString MainWindow::currentPage() const
 QStringList MainWindow::pages() const
 {
     return d->order;
-}
-
-void MainWindow::saveLayout()
-{
-    // W-LAYOUT. Implemented in mainwindow_commands.cpp (task 5).
-}
-
-void MainWindow::restoreLayout()
-{
-    // W-LAYOUT. Implemented in mainwindow_commands.cpp (task 5).
-}
-
-void MainWindow::closeEvent(QCloseEvent *event)
-{
-    QMainWindow::closeEvent(event);
 }
 
 } // namespace linuxbee::ui
