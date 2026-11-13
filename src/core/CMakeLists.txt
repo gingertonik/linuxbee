@@ -1,6 +1,11 @@
 add_library(linuxbee_core STATIC
   version.cpp
   version.h
+  template/evaluator.cpp
+  template/evaluator.h
+  template/node.h
+  template/parser.cpp
+  template/parser.h
   template/template.cpp
   template/template.h
 )

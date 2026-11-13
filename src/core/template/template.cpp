@@ -1,14 +1,28 @@
 #include "template.h"
 
+#include "evaluator.h"
+#include "node.h"
+#include "parser.h"
+
+#include <memory>
+#include <utility>
+
 namespace linuxbee {
 
-struct Template::Node { };
+struct Template::Node {
+    tmpl::Sequence children;
+};
 
 Template Template::parse(const QString &text)
 {
-    Q_UNUSED(text);
+    tmpl::ParseResult parsed = tmpl::parseTemplate(text);
     Template t;
-    t.m_error = { 0, QStringLiteral("not implemented") };
+    t.m_error = parsed.error;
+    if (parsed.error.position < 0) {
+        Node root;
+        root.children = std::move(parsed.root);
+        t.m_root = std::make_shared<Node>(std::move(root));
+    }
     return t;
 }
 
@@ -24,9 +38,10 @@ TemplateError Template::error() const
 
 QString Template::evaluate(const TagSource &tags, const TemplateOptions &options) const
 {
-    Q_UNUSED(tags);
-    Q_UNUSED(options);
-    return { };
+    if (!isValid())
+        return { };
+    const tmpl::EvalContext context { tags, options };
+    return tmpl::evaluateSequence(m_root->children, context, true);
 }
 
 QStringList Template::referencedFields() const
@@ -34,4 +49,4 @@ QStringList Template::referencedFields() const
     return { };
 }
 
-}
+} // namespace linuxbee
