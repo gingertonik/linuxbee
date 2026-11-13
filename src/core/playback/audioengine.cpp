@@ -5,20 +5,6 @@ namespace linuxbee {
 
 struct FfmpegAudioBackend::Private { };
 
-PcmFormat playbackFormat(const AudioInfo &info)
-{
-    Q_UNUSED(info);
-    return { 0, 0 };
-}
-
-QStringList decodeArguments(const QString &path, qint64 startMs, const PcmFormat &format)
-{
-    Q_UNUSED(path);
-    Q_UNUSED(startMs);
-    Q_UNUSED(format);
-    return { };
-}
-
 FfmpegAudioBackend::FfmpegAudioBackend(PcmSink *sink, QObject *parent, const QString &ffmpegProgram)
     : AudioBackend(parent)
     , d(nullptr)
