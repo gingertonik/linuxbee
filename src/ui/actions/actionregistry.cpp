@@ -160,11 +160,14 @@ void ActionRegistry::save(QSettings &settings) const
 
 void ActionRegistry::load(QSettings &settings)
 {
-    // H-STORE: start from the defaults, then apply the stored keys in catalogue order.
+    // H-STORE: start from the defaults. Every command named in the group first
+    // loses its hotkey; then, in catalogue order, each gets the one stored for it.
     resetAllShortcuts();
     settings.beginGroup(QStringLiteral("hotkeys"));
     const QStringList stored = settings.childKeys();
     settings.endGroup();
+    for (const QString &id : stored)
+        setShortcut(id, QKeySequence()); // clearing per entry mid-loop loses one of a swapped pair
     for (const Private::Entry &entry :
         d->entries) { // catalogue order: of two claims, the earlier wins
         if (!stored.contains(entry.info.id))
@@ -172,7 +175,6 @@ void ActionRegistry::load(QSettings &settings)
         settings.beginGroup(QStringLiteral("hotkeys"));
         const QString text = settings.value(entry.info.id).toString();
         settings.endGroup();
-        setShortcut(entry.info.id, QKeySequence()); // it first loses its hotkey
         const QKeySequence seq(text, QKeySequence::PortableText);
         if (seq.isEmpty() || seq.count() != 1)
             continue; // unreadable, empty, a chord of keys: it ends with none

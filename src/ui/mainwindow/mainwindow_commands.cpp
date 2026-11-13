@@ -135,29 +135,43 @@ void MainWindow::restoreLayout()
     d->settings->beginGroup(QStringLiteral("window"));
     const QSize size = d->settings->value(QStringLiteral("size")).toSize();
     const QVariant splitter = d->settings->value(QStringLiteral("splitter"));
-    // A value that is not a plain true/false is ignored in favour of the default.
-    const auto flag = [this](const QString &key) {
-        const QVariant stored = d->settings->value(key);
-        if (stored.typeId() != QMetaType::Bool)
-            return true;
-        return stored.toBool();
-    };
-    d->navigatorShown = flag(QStringLiteral("navigatorVisible"));
-    d->rightShown = flag(QStringLiteral("rightPanelVisible"));
-    d->statusBarShown = flag(QStringLiteral("statusBarVisible"));
+    const QVariant navigator = d->settings->value(QStringLiteral("navigatorVisible"));
+    const QVariant right = d->settings->value(QStringLiteral("rightPanelVisible"));
+    const QVariant status = d->settings->value(QStringLiteral("statusBarVisible"));
     d->settings->endGroup();
+
+    // A file written by an earlier run hands every value back as text: accept the
+    // plain bool and the words true/false; anything else means the default (shown).
+    const auto flag = [](const QVariant &stored) {
+        if (stored.typeId() == QMetaType::Bool)
+            return stored.toBool();
+        const QString text = stored.toString().trimmed();
+        if (text.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0)
+            return true;
+        if (text.compare(QStringLiteral("false"), Qt::CaseInsensitive) == 0)
+            return false;
+        return true;
+    };
+    d->navigatorShown = flag(navigator);
+    d->rightShown = flag(right);
+    d->statusBarShown = flag(status);
 
     if (size.width() >= minimumWidth() && size.height() >= minimumHeight()
         && size.width() < kMaxSize && size.height() < kMaxSize)
         resize(size);
 
-    const QVariantList widths = splitter.toList();
+    // Three panel widths, as a list written by this program or as the text a file
+    // gives back ("180, 500, 320" arrives as a QStringList of strings). Each entry
+    // must be a whole number; one bad entry rejects the whole value.
     QList<int> sizes;
-    bool sane = splitter.typeId() == QMetaType::QVariantList && widths.size() == 3;
+    bool sane = (splitter.typeId() == QMetaType::QVariantList
+                    || splitter.typeId() == QMetaType::QStringList)
+        && splitter.toList().size() == 3;
     if (sane) {
-        for (const QVariant &v : widths) {
-            const int width = v.toInt();
-            if (width < 0 || width >= kMaxSize) {
+        for (const QVariant &v : splitter.toList()) {
+            bool ok = false;
+            const int width = v.toString().trimmed().toInt(&ok);
+            if (!ok || width < 0 || width >= kMaxSize) {
                 sane = false;
                 break;
             }
