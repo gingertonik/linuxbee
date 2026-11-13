@@ -122,4 +122,45 @@ CheckedChanges checkChanges(const TagChanges &changes)
     return out;
 }
 
+TrackTags applyTo(const TrackTags &now, const CheckedChanges &changes,
+    const std::optional<QList<Picture>> &pictures)
+{
+    TrackTags after = now;
+    for (auto it = changes.fields.cbegin(); it != changes.fields.cend(); ++it) {
+        if (it.value().isEmpty())
+            after.fields.remove(it.key());
+        else
+            after.fields.insert(it.key(), it.value());
+    }
+    for (auto it = changes.other.cbegin(); it != changes.other.cend(); ++it) {
+        if (it.value().isEmpty())
+            after.other.remove(it.key());
+        else
+            after.other.insert(it.key(), it.value());
+    }
+    if (pictures.has_value())
+        after.pictures = *pictures;
+    return after;
+}
+
+bool sameTags(const TrackTags &a, const TrackTags &b)
+{
+    if (a.fields != b.fields || a.other != b.other)
+        return false;
+    if (a.pictures.size() != b.pictures.size())
+        return false;
+
+    // W-UNCHANGED: MPEG-4 stores neither a picture type nor a description.
+    const bool typed = a.format != QLatin1String("m4a");
+    for (qsizetype i = 0; i < a.pictures.size(); ++i) {
+        const Picture &x = a.pictures.at(i);
+        const Picture &y = b.pictures.at(i);
+        if (x.data != y.data || x.mimeType != y.mimeType)
+            return false;
+        if (typed && (x.type != y.type || x.description != y.description))
+            return false;
+    }
+    return true;
+}
+
 }

@@ -27,4 +27,14 @@ void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &ta
 // W-INVALID uses this to refuse an other-tag key that belongs to a field.
 bool isCatalogueKey(const QString &upperKey);
 
+// The tag family decides which key a field is written under (W-TABLE).
+enum class KeyFamily { Id3v2, Vorbis, Mp4Ape };
+
+// W-TABLE: the key a field is written under. Rating gives "RATING" here; the
+// ID3v2 POPM frame is written separately.
+QString writeKey(const QString &field, KeyFamily family);
+
+// W-ONEHOME: every key the field is read from, WORK first for ID3v2 Grouping.
+QStringList readKeys(const QString &field, KeyFamily family);
+
 }
