@@ -82,6 +82,7 @@ struct NavigatorPanel::Private {
     QTreeWidgetItem *playlistsRoot = nullptr;
     QMap<QString, int> counts;
     QString current;
+    bool rebuilding = false; // set while setPlaylists rebuilds rows; the tree's signals stay quiet
 };
 
 NavigatorPanel::NavigatorPanel(QWidget *parent)
@@ -118,6 +119,8 @@ NavigatorPanel::NavigatorPanel(QWidget *parent)
     // Connected after the opening choice, so the opening itself says nothing.
     // The current row is the choice: a row with no id (a heading) is not a choice.
     connect(d->tree, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *current) {
+        if (d->rebuilding)
+            return;
         const QString nodeId = current ? current->data(0, kNodeRole).toString() : QString();
         if (nodeId.isEmpty() || nodeId == d->current)
             return;
@@ -152,6 +155,7 @@ void NavigatorPanel::setLibraryCounts(const QMap<QString, int> &counts)
 void NavigatorPanel::setPlaylists(const QStringList &names)
 {
     // Replace the whole list: drop the old rows under Playlists, then build the new ones.
+    d->rebuilding = true;
     qDeleteAll(d->playlistsRoot->takeChildren());
 
     QStringList seenPaths;
@@ -180,6 +184,19 @@ void NavigatorPanel::setPlaylists(const QStringList &names)
         }
         addRow(d->tree, parent, parts.last(), QStringLiteral("playlist:") + path);
     }
+
+    // V-PLAYLISTS: the choice stays when its node still exists, and nothing is said.
+    // When the chosen playlist is gone, Music becomes the choice, and that is said once.
+    QTreeWidgetItem *chosen = findNode(d->tree, d->current);
+    const bool kept = chosen != nullptr;
+    if (!kept) {
+        d->current = QStringLiteral("library:Music");
+        chosen = findNode(d->tree, d->current);
+    }
+    d->tree->setCurrentItem(chosen);
+    d->rebuilding = false;
+    if (!kept)
+        emit nodeSelected(d->current);
 }
 
 QString NavigatorPanel::currentNode() const
