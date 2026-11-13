@@ -79,7 +79,16 @@ QStringList Template::referencedFields() const
 
 QStringList Template::topLevelFields() const
 {
-    return { };
+    if (!isValid())
+        return { };
+    // P-MISSING: the root sequence only. Fields inside function arguments
+    // are in the Call nodes' arguments, which this walk never enters.
+    QStringList names;
+    for (const tmpl::Node &node : m_root->children) {
+        if (node.kind == tmpl::Node::Kind::Field && !names.contains(node.text))
+            names.append(node.text);
+    }
+    return names;
 }
 
 } // namespace linuxbee
