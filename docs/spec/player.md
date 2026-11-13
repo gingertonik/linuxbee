@@ -140,6 +140,21 @@ nothing. `setCountRule` replaces the rule's numbers.
 
 Going back to the start of the same track (X-NEXT) does not end it.
 
+## X-BACKEND
+
+What the player may assume of any backend:
+
+- No signal is emitted from inside a call to `load`, `play`, `pause`,
+  `stop`, `seek` or `setVolume`. Whatever a call leads to, a failure
+  included, is reported from the event loop afterwards.
+- After `stop()` or a new `load()`, nothing more is reported about the
+  file that was loaded before.
+
+A backend that breaks the first rule can make the player ignore a failure
+or lose count of failures in a row (X-ERROR). The player does not guard
+against it; the audio engine's own tests hold it to both rules
+(audio-engine.md, AE-ASYNC).
+
 ## X-ERROR
 
 When the backend reports that the file cannot be played:

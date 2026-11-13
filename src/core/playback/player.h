@@ -14,6 +14,9 @@ namespace linuxbee {
 
 // One file at a time. Implemented over an audio library elsewhere, and by a
 // recording stand-in in the tests.
+// A backend never emits a signal from inside one of the calls below: what a
+// call leads to (a failure included) is reported from the event loop
+// afterwards. The player relies on this (docs/spec/player.md, X-BACKEND).
 class AudioBackend : public QObject {
     Q_OBJECT
 public:

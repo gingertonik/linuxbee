@@ -61,9 +61,11 @@ A catalogue field gives its values joined with `"; "`, exactly as
 
 - Take the first value of Track# and of Disc#, trimmed.
 - No track number: the field is blank, whatever the disc.
-- A value that is a whole number is padded with zeros on the left to
-  `trackDigits` (track) or `discDigits` (disc); both default to 2. A longer
-  number is not cut. A value that is not a whole number is used as written.
+- A value that is a whole number is read by its value, so zeros it
+  already has in front are dropped (`007` is 7), and is then padded with
+  zeros on the left to `trackDigits` (track) or `discDigits` (disc); both
+  default to 2. A number with more digits than that is not cut (`123`
+  stays `123`). A value that is not a whole number is used as written.
 - No disc number: the padded track alone. Otherwise disc, `-`, track.
 
 Disc 1, track 11 is `01-11` (W-H).
@@ -91,7 +93,9 @@ The path uses `/`. Filename is the text after the last `/`. `.Ext` is the
 text after the last dot of Filename, with its case unchanged, and is blank
 when Filename has no dot or only a leading one. Path is the text before the
 last `/`, without a trailing separator; for a file directly under the root
-it is `/`. With an empty path, all four file fields are blank.
+it is `/`. With an empty path, all four file fields are blank. Paths are
+meant to be absolute; for a text with no `/` in it, Path is blank and the
+whole text is the Filename.
 
 ### F-KIND
 
