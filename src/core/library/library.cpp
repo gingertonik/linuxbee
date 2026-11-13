@@ -94,7 +94,7 @@ std::optional<LibraryTrack> Library::track(qint64 id) const
 // L-STORE: paths are stored clean, so a lookup is cleaned the same way.
 std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 {
-    return d->store.byPath(QDir::cleanPath(path));
+    return d->store.byPath(libraryPath(path));
 }
 
 // L-EDIT remove: forgets the tracks. No music file is touched.
@@ -139,14 +139,19 @@ bool Library::refresh(qint64 id)
 // everything the library knows about it.
 bool Library::setPath(qint64 id, const QString &newPath)
 {
-    if (!d->store.byId(id))
+    const std::optional<LibraryTrack> known = d->store.byId(id);
+    if (!known)
         return false;
-    const QString clean = QDir::cleanPath(newPath);
+    const QString clean = libraryPath(newPath);
     const std::optional<LibraryTrack> other = d->store.byPath(clean);
     if (other && other->id != id)
         return false; // L-EDIT: another track has that path
     // L-MISSING: missing is set by whether a file is at the new path.
-    if (!d->store.setPath(id, clean, !QFileInfo::exists(clean)))
+    const bool missing = !QFileInfo::exists(clean);
+    // L-SIGNALS: a call that changes nothing emits nothing.
+    if (known->path == clean && known->missing == missing)
+        return true;
+    if (!d->store.setPath(id, clean, missing))
         return false;
     emit tracksUpdated(QList<qint64> { id });
     return true;
@@ -157,8 +162,8 @@ bool Library::setPath(qint64 id, const QString &newPath)
 // and ".../a" is not a prefix of ".../ab/x.mp3".
 int Library::relinkPaths(const QString &oldPrefix, const QString &newPrefix)
 {
-    const QString from = QDir::cleanPath(oldPrefix);
-    const QString to = QDir::cleanPath(newPrefix);
+    const QString from = libraryPath(oldPrefix);
+    const QString to = libraryPath(newPrefix);
     if (from.isEmpty() || to.isEmpty())
         return 0;
     QList<qint64> changed;

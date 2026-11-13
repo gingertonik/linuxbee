@@ -67,7 +67,7 @@ QStringList filesToScan(const QStringList &folders)
 // piece of text, so ".../a" does not reach ".../ab/x.mp3".
 bool insideFolder(const QString &path, const QString &folder)
 {
-    const QString clean = QDir::cleanPath(folder);
+    const QString clean = libraryPath(folder);
     return !clean.isEmpty() && path.startsWith(clean + QLatin1Char('/'));
 }
 
@@ -187,7 +187,7 @@ qint64 Library::addFile(const QString &path, const QString &category, const QDat
     // and a file that is not audio all answer 0 and store nothing.
     if (!now.isValid() || !categories().contains(category))
         return 0;
-    const QString clean = QDir::cleanPath(path);
+    const QString clean = libraryPath(path);
     const std::optional<LibraryTrack> known = d->store.byPath(clean);
     if (known)
         return known->id; // L-ADD: the file is in already; nothing changes
