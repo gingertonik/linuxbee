@@ -34,18 +34,30 @@ bool isLetterOrDigit(QChar ch)
     return ch.isLetter() || ch.isDigit();
 }
 
+// The code point at `i`, joining a surrogate pair. `width` gets the number of
+// QChars it takes.
+char32_t codePointAt(const QString &text, qsizetype i, qsizetype *width)
+{
+    const QChar ch = text.at(i);
+    if (ch.isHighSurrogate() && i + 1 < text.size() && text.at(i + 1).isLowSurrogate()) {
+        *width = 2;
+        return QChar::surrogateToUcs4(ch, text.at(i + 1));
+    }
+    *width = 1;
+    return char32_t(ch.unicode());
+}
+
 // G-CASE: the first letter becomes a capital, unless a digit comes before any letter.
 QString capitaliseFirstLetter(const QString &word)
 {
-    for (qsizetype i = 0; i < word.size(); ++i) {
-        const QChar ch = word.at(i);
-        if (ch.isDigit())
+    for (qsizetype i = 0; i < word.size();) {
+        qsizetype width = 1;
+        const char32_t cp = codePointAt(word, i, &width);
+        if (QChar::isDigit(cp))
             return word;
-        if (ch.isLetter()) {
-            QString out = word;
-            out.replace(i, 1, QString(ch).toUpper());
-            return out;
-        }
+        if (QChar::isLetter(cp))
+            return word.left(i) + QString::fromUcs4(&cp, 1).toUpper() + word.mid(i + width);
+        i += width;
     }
     return word;
 }
@@ -62,10 +74,13 @@ QString eachWord(const QString &text)
 bool hasCapitalAfterFirstLetter(const QString &word)
 {
     bool seenLetter = false;
-    for (const QChar ch : word) {
-        if (!ch.isLetter())
+    for (qsizetype i = 0; i < word.size();) {
+        qsizetype width = 1;
+        const char32_t cp = codePointAt(word, i, &width);
+        i += width;
+        if (!QChar::isLetter(cp))
             continue;
-        if (seenLetter && ch.isUpper())
+        if (seenLetter && QChar::isUpper(cp))
             return true;
         seenLetter = true;
     }

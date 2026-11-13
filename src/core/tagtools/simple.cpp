@@ -49,7 +49,7 @@ QList<TagChanges> renumberTracks(const QList<TrackTags> &tracks, const RenumberO
 
     const QString total = QString::number(int(tracks.size()));
     for (qsizetype i = 0; i < tracks.size(); ++i) {
-        const QString number = QString::number(options.start + int(i))
+        const QString number = QString::number(qint64(options.start) + qint64(i))
                                    .rightJustified(options.digits, QLatin1Char('0'));
         TagChanges changes;
         setIfChanged(&changes, tracks.at(i), QStringLiteral("Track#"), { number });

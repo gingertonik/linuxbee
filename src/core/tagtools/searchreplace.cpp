@@ -102,6 +102,13 @@ QString validateSearchReplace(const SearchReplaceOptions &options)
         if (canonicalField(name).isEmpty())
             return QStringLiteral("no field named \"%1\"").arg(name);
     }
+    // The find text alone must be a valid expression, so a stray parenthesis
+    // cannot be balanced by the whole-word wrapper.
+    if (options.regex) {
+        const QRegularExpression bare(options.find, searchOptions(options));
+        if (!bare.isValid())
+            return bare.errorString();
+    }
     const QRegularExpression expression(searchPattern(options), searchOptions(options));
     if (!expression.isValid())
         return expression.errorString();
