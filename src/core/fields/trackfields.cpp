@@ -67,13 +67,61 @@ PathParts splitPath(const QString &path)
     return parts;
 }
 
-// The value of one computed field. Fields whose rule is not yet implemented
-// are blank.
-QString computedValue(const TrackTags &tags, const QString &path, const QString &name)
+// F-DISCTRACK: "01-11", "07", or blank when there is no track number.
+QString discTrack(const TrackTags &tags, const TrackFieldOptions &options)
+{
+    const QString track = tags.first(QStringLiteral("Track#")).trimmed();
+    if (track.isEmpty())
+        return { };
+
+    const QString paddedTrack = fieldformat::padWholeNumber(track, options.trackDigits);
+    const QString disc = tags.first(QStringLiteral("Disc#")).trimmed();
+    if (disc.isEmpty())
+        return paddedTrack;
+    return fieldformat::padWholeNumber(disc, options.discDigits) + QLatin1Char('-') + paddedTrack;
+}
+
+// The value of one computed field. Names are the canonical spellings from
+// computedFieldNames().
+QString computedValue(const TrackTags &tags, const QString &path, const QString &name,
+    const TrackFieldOptions &options)
 {
     const PathParts parts = splitPath(path);
     // F-AUDIO: tags that did not come from a file have blank audio fields.
     const bool fromFile = !tags.format.isEmpty();
+
+    if (name == QLatin1String("Disc-Track#"))
+        return discTrack(tags, options);
+
+    // F-YEAR and F-DECADE.
+    const QString year = fieldformat::fourDigitYear(tags.first(QStringLiteral("Year")));
+    if (name == QLatin1String("Year (yyyy)"))
+        return year;
+    if (name == QLatin1String("Decade"))
+        return year.isEmpty() ? QString() : year.left(3) + QStringLiteral("0s");
+
+    // W-SF: "<Album> [yyyy]", just the album without a year, blank without an album.
+    if (name == QLatin1String("Album [Year]")) {
+        const QString album = tags.joined(QStringLiteral("Album"));
+        if (album.isEmpty())
+            return { };
+        if (year.isEmpty())
+            return album;
+        return album + QStringLiteral(" [") + year + QLatin1Char(']');
+    }
+
+    // F-DISPLAY: until artist roles exist, the Artist values joined.
+    if (name == QLatin1String("Display Artist"))
+        return tags.joined(QStringLiteral("Artist"));
+
+    // W-SF: "Artist - Title" when both are set, otherwise the filename.
+    if (name == QLatin1String("Artist & Title") || name == QLatin1String("ArtistAndTitle")) {
+        const QString artist = tags.joined(QStringLiteral("Artist"));
+        const QString title = tags.joined(QStringLiteral("Title"));
+        if (artist.isEmpty() || title.isEmpty())
+            return parts.filename;
+        return artist + QStringLiteral(" - ") + title;
+    }
 
     if (name == QLatin1String("Filename"))
         return parts.filename;
@@ -128,7 +176,7 @@ std::optional<QString> TrackFieldSource::value(const QString &fieldName) const
     const QString name = canonicalComputedName(fieldName);
     if (name.isEmpty())
         return std::nullopt;
-    return computedValue(m_tags, m_filePath, name);
+    return computedValue(m_tags, m_filePath, name, m_options);
 }
 
 QStringList trackFieldNames()

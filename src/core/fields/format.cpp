@@ -5,6 +5,15 @@
 
 namespace linuxbee::fieldformat {
 
+namespace {
+
+bool isAsciiDigit(QChar c)
+{
+    return c >= QLatin1Char('0') && c <= QLatin1Char('9');
+}
+
+}
+
 QString duration(qint64 milliseconds)
 {
     const qint64 ms = milliseconds < 0 ? 0 : milliseconds;
@@ -47,6 +56,44 @@ QString sampleRate(int hertz)
     if (text.endsWith(QLatin1Char('.')))
         text.chop(1);
     return text + QStringLiteral(" kHz");
+}
+
+QString padWholeNumber(const QString &text, int width)
+{
+    if (text.isEmpty())
+        return text;
+    for (const QChar c : text) {
+        if (!isAsciiDigit(c))
+            return text;
+    }
+
+    // Drop leading zeros, but keep one digit so "000" stays "0".
+    qsizetype start = 0;
+    while (start < text.size() - 1 && text.at(start) == QLatin1Char('0'))
+        ++start;
+    QString digits = text.mid(start);
+    if (digits.size() < width)
+        digits.prepend(QString(width - digits.size(), QLatin1Char('0')));
+    return digits;
+}
+
+QString fourDigitYear(const QString &text)
+{
+    const qsizetype size = text.size();
+    qsizetype i = 0;
+    while (i < size) {
+        if (!isAsciiDigit(text.at(i))) {
+            ++i;
+            continue;
+        }
+        qsizetype end = i;
+        while (end < size && isAsciiDigit(text.at(end)))
+            ++end;
+        if (end - i == 4)
+            return text.mid(i, 4);
+        i = end;
+    }
+    return { };
 }
 
 }

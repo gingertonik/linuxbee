@@ -15,4 +15,13 @@ QString kind(const QString &format);
 // "44.1 kHz", 48000 gives "48 kHz". The caller handles 0.
 QString sampleRate(int hertz);
 
+// F-DISCTRACK: a text made only of ASCII digits is read as a whole number
+// (leading zeros dropped) and padded with zeros on the left to `width`; a
+// longer number is not cut. Any other text is returned as written.
+QString padWholeNumber(const QString &text, int width);
+
+// F-YEAR: the first run of exactly four ASCII digits in `text`, or empty when
+// there is none. A run of five or more digits does not count.
+QString fourDigitYear(const QString &text);
+
 }
