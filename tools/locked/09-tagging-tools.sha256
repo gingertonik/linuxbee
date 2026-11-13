@@ -1,0 +1,3 @@
+14d43744bb5ab0d07d80985ef48cff9d5d9a220da1965377d5d39bf060b7e72b  tests/locked/tst_tagtools.cpp
+366a3e382120f22bc50af90e29612b4615dcc9de30a975ec7e035537652f0c73  tests/locked/cli_tagtool.sh
+7ae58d3805e144ced2130fb8f76f827ee55c156e55edfc440b1a8a9ad0cf961c  docs/spec/tagging-tools.md
