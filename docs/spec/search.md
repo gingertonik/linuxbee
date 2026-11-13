@@ -71,7 +71,8 @@ a phrase does not run from one field into the next.
 
 A term with a field asks the track for that field by the name given. It
 holds when the track knows the field and the text is found inside its
-folded value; with an empty text, when the value is not blank. A field the
+folded value; with an empty text, when the value is not blank (blank: empty
+once white space is trimmed from both ends). A field the
 track does not know never holds.
 
 A negated term holds exactly when it would not have held.
