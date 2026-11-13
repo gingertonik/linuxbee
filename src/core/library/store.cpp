@@ -38,12 +38,33 @@ QDateTime toDateTime(qint64 secs)
     return QDateTime::fromSecsSinceEpoch(secs, QTimeZone::UTC);
 }
 
+qint64 toSecs(const QDateTime &when)
+{
+    return when.isValid() ? when.toSecsSinceEpoch() : kNoTime;
+}
+
+QJsonArray toJsonArray(const QStringList &values)
+{
+    QJsonArray array;
+    for (const QString &value : values)
+        array.append(value);
+    return array;
+}
+
 QStringList toStringList(const QJsonArray &array)
 {
     QStringList values;
     for (const QJsonValue &value : array)
         values.append(value.toString());
     return values;
+}
+
+QJsonObject mapToJson(const QMap<QString, QStringList> &map)
+{
+    QJsonObject object;
+    for (auto entry = map.cbegin(); entry != map.cend(); ++entry)
+        object.insert(entry.key(), toJsonArray(entry.value()));
+    return object;
 }
 
 QMap<QString, QStringList> mapFromJson(const QJsonObject &object)
@@ -58,6 +79,25 @@ QMap<QString, QStringList> mapFromJson(const QJsonObject &object)
 // unsupported, format, tagTypes, audio) as JSON text. The catalogue of field
 // names is open-ended, so there is no column per field. Picture data is not
 // stored; the count of pictures is a column of its own.
+QString tagsToJson(const TrackTags &tags)
+{
+    QJsonObject audio;
+    audio.insert(QStringLiteral("durationMs"), tags.audio.durationMs);
+    audio.insert(QStringLiteral("bitrateKbps"), tags.audio.bitrateKbps);
+    audio.insert(QStringLiteral("sampleRateHz"), tags.audio.sampleRateHz);
+    audio.insert(QStringLiteral("channels"), tags.audio.channels);
+    audio.insert(QStringLiteral("bitsPerSample"), tags.audio.bitsPerSample);
+
+    QJsonObject root;
+    root.insert(QStringLiteral("format"), tags.format);
+    root.insert(QStringLiteral("tagTypes"), toJsonArray(tags.tagTypes));
+    root.insert(QStringLiteral("audio"), audio);
+    root.insert(QStringLiteral("fields"), mapToJson(tags.fields));
+    root.insert(QStringLiteral("other"), mapToJson(tags.other));
+    root.insert(QStringLiteral("unsupported"), toJsonArray(tags.unsupported));
+    return QString::fromUtf8(QJsonDocument(root).toJson(QJsonDocument::Compact));
+}
+
 TrackTags tagsFromJson(const QString &text)
 {
     const QJsonObject root = QJsonDocument::fromJson(text.toUtf8()).object();
@@ -82,6 +122,14 @@ TrackTags tagsFromJson(const QString &text)
 const QLatin1String kSelectTrack(
     "SELECT id, path, category, size_bytes, modified_secs, date_added_secs, play_count, "
     "skip_count, last_played_secs, missing, picture_count, tags_json FROM tracks");
+
+// L-SCAN, L-ADD: one row, from a track the caller read off a file. Every value
+// is bound, so no path, tag, category or time is ever part of the text.
+const QLatin1String kInsertTrack(
+    "INSERT INTO tracks (path, category, size_bytes, modified_secs, date_added_secs, play_count, "
+    "skip_count, last_played_secs, missing, picture_count, tags_json)"
+    " VALUES (:path, :category, :size, :modified, :added, :plays, :skips, :lastPlayed, :missing, "
+    ":pictures, :tags)");
 
 LibraryTrack rowFromRead(const QSqlQuery &query)
 {
@@ -115,17 +163,17 @@ bool createSchema(QSqlDatabase &database, QString *error)
     QSqlQuery query(database);
     const QString statements[] = {
         QStringLiteral("CREATE TABLE tracks ("
-                       "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                       "path TEXT NOT NULL UNIQUE,"
-                       "category TEXT NOT NULL,"
-                       "size_bytes INTEGER NOT NULL,"
-                       "modified_secs INTEGER NOT NULL,"
-                       "date_added_secs INTEGER NOT NULL,"
-                       "play_count INTEGER NOT NULL DEFAULT 0,"
-                       "skip_count INTEGER NOT NULL DEFAULT 0,"
-                       "last_played_secs INTEGER NOT NULL DEFAULT (-1),"
-                       "missing INTEGER NOT NULL DEFAULT 0,"
-                       "picture_count INTEGER NOT NULL DEFAULT 0,"
+                       "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                       "path TEXT NOT NULL UNIQUE, "
+                       "category TEXT NOT NULL, "
+                       "size_bytes INTEGER NOT NULL, "
+                       "modified_secs INTEGER NOT NULL, "
+                       "date_added_secs INTEGER NOT NULL, "
+                       "play_count INTEGER NOT NULL DEFAULT 0, "
+                       "skip_count INTEGER NOT NULL DEFAULT 0, "
+                       "last_played_secs INTEGER NOT NULL DEFAULT (-1), "
+                       "missing INTEGER NOT NULL DEFAULT 0, "
+                       "picture_count INTEGER NOT NULL DEFAULT 0, "
                        "tags_json TEXT NOT NULL)"),
         QStringLiteral("CREATE INDEX tracks_by_category ON tracks (category)"),
         // The schema number lives in SQLite's user_version. It is this
@@ -197,6 +245,7 @@ struct Store::Private {
 
     QString connection; // empty while closed
     bool opened = false;
+    bool inBatch = false;
 };
 
 Store::Store()
@@ -228,6 +277,7 @@ void Store::close()
     QSqlDatabase::removeDatabase(d->connection);
     d->connection.clear();
     d->opened = false;
+    d->inBatch = false;
 }
 
 bool Store::open(const QString &databasePath, QString *error)
@@ -264,6 +314,18 @@ std::optional<LibraryTrack> Store::byId(qint64 id) const
     return rowFromRead(query);
 }
 
+std::optional<LibraryTrack> Store::byPath(const QString &path) const
+{
+    if (!d->opened)
+        return std::nullopt;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("%1 WHERE path = :path").arg(QLatin1String(kSelectTrack)));
+    query.bindValue(QStringLiteral(":path"), path);
+    if (!query.exec() || !query.next())
+        return std::nullopt;
+    return rowFromRead(query);
+}
+
 QList<LibraryTrack> Store::all(const QString &category) const
 {
     QList<LibraryTrack> list;
@@ -282,6 +344,47 @@ QList<LibraryTrack> Store::all(const QString &category) const
     while (query.next())
         list.append(rowFromRead(query));
     return list;
+}
+
+bool Store::beginBatch()
+{
+    if (!d->opened || d->inBatch)
+        return false;
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+    if (!database.transaction())
+        return false;
+    d->inBatch = true;
+    return true;
+}
+
+bool Store::commitBatch()
+{
+    if (!d->inBatch)
+        return false;
+    d->inBatch = false;
+    return QSqlDatabase::database(d->connection).commit();
+}
+
+qint64 Store::insert(const LibraryTrack &track)
+{
+    if (!d->opened)
+        return -1;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QLatin1String(kInsertTrack));
+    query.bindValue(QStringLiteral(":path"), track.path);
+    query.bindValue(QStringLiteral(":category"), track.category);
+    query.bindValue(QStringLiteral(":size"), track.sizeBytes);
+    query.bindValue(QStringLiteral(":modified"), toSecs(track.modified));
+    query.bindValue(QStringLiteral(":added"), toSecs(track.dateAdded));
+    query.bindValue(QStringLiteral(":plays"), track.playCount);
+    query.bindValue(QStringLiteral(":skips"), track.skipCount);
+    query.bindValue(QStringLiteral(":lastPlayed"), toSecs(track.lastPlayed));
+    query.bindValue(QStringLiteral(":missing"), track.missing);
+    query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
+    query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
+    if (!query.exec())
+        return -1;
+    return query.lastInsertId().toLongLong();
 }
 
 } // namespace linuxbee::library

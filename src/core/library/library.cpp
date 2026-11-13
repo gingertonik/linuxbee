@@ -1,13 +1,10 @@
 #include "library.h"
 
-#include "store.h"
+#include <QDir>
+
+#include "library_p.h"
 
 namespace linuxbee {
-
-// The library's state is one open store. No SQL type reaches this file.
-struct Library::Private {
-    library::Store store;
-};
 
 Library::Library()
     : d(std::make_unique<Private>())
@@ -44,20 +41,7 @@ int Library::currentSchemaVersion()
     return library::Store::schemaVersion();
 }
 
-ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
-{
-    Q_UNUSED(folders);
-    Q_UNUSED(options);
-    return { };
-}
-
-qint64 Library::addFile(const QString &path, const QString &category, const QDateTime &now)
-{
-    Q_UNUSED(path);
-    Q_UNUSED(category);
-    Q_UNUSED(now);
-    return 0;
-}
+// L-SCAN and L-ADD live in scan.cpp.
 
 int Library::count() const
 {
@@ -74,10 +58,10 @@ std::optional<LibraryTrack> Library::track(qint64 id) const
     return d->store.byId(id);
 }
 
+// L-STORE: paths are stored clean, so a lookup is cleaned the same way.
 std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 {
-    Q_UNUSED(path);
-    return std::nullopt;
+    return d->store.byPath(QDir::cleanPath(path));
 }
 
 int Library::remove(const QList<qint64> &ids)

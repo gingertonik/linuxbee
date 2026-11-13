@@ -34,8 +34,21 @@ public:
 
     std::optional<LibraryTrack> byId(qint64 id) const;
 
+    // The track stored at this exact path, if there is one.
+    std::optional<LibraryTrack> byPath(const QString &path) const;
+
     // Every track in ascending order of path. An empty category means all.
     QList<LibraryTrack> all(const QString &category) const;
+
+    // L-SCAN: a whole scan is one transaction. SQLite writes a journal per
+    // statement otherwise, which costs a hundred times over a folder.
+    bool beginBatch();
+    bool commitBatch();
+
+    // L-SCAN, L-ADD: store one track and return its id. Ids are positive,
+    // grow, and are never used again, so AUTOINCREMENT is the point.
+    // Returns -1 when the row did not go in.
+    qint64 insert(const LibraryTrack &track);
 
 private:
     // Closes and removes this store's own connection, which Qt keys by name.
