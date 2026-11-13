@@ -7,8 +7,6 @@
 #include <QTextStream>
 #include <QTimer>
 
-#include <cstring>
-
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
 #include "mainwindow/mainwindow.h"
@@ -17,15 +15,48 @@
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
 // and on exit the hotkeys saved. --version prints and leaves no trace;
 // --screenshot FILE pictures the window for a person (and the gate) to judge.
+// W-MAIN "Options": the whole command line is read before anything is done,
+// and a mistake ends the program with a usage message and status 2.
 int main(int argc, char *argv[])
 {
+    const QString usage
+        = QStringLiteral("usage: linuxbee [--version] [--screenshot FILE] [FILE...]");
+    bool wantVersion = false;
+    QString shotFile;
+    bool wantShot = false;
     for (int i = 1; i < argc; ++i) {
-        if (qstrcmp(argv[i], "--version") == 0) {
-            // Print the version line and exit without opening a window or writing a file.
-            QTextStream(stdout) << linuxbee::ui::versionLine() << '\n';
-            return 0;
+        const QString word = QString::fromLocal8Bit(argv[i]);
+        if (word == QStringLiteral("--version")) {
+            wantVersion = true;
+        } else if (word == QStringLiteral("--screenshot")) {
+            // A mistake: given twice, the last word, or followed by an option.
+            QString problem;
+            if (wantShot)
+                problem = QStringLiteral("--screenshot given twice");
+            else if (i + 1 >= argc)
+                problem = QStringLiteral("--screenshot needs a file");
+            else if (QString::fromLocal8Bit(argv[i + 1]).startsWith(QStringLiteral("--")))
+                problem = QStringLiteral("--screenshot needs a file, not an option");
+            if (!problem.isEmpty()) {
+                QTextStream(stderr) << QStringLiteral("linuxbee: ") + problem << '\n'
+                                    << usage << '\n';
+                return 2;
+            }
+            shotFile = QString::fromLocal8Bit(argv[++i]); // the next word is the file
+            wantShot = true;
+        } else if (word.startsWith(QStringLiteral("--"))) {
+            QTextStream(stderr) << QStringLiteral("linuxbee: unknown option ") + word << '\n'
+                                << usage << '\n';
+            return 2;
         }
+        // Any other word is a file handed over by the desktop: accepted, and for now ignored.
     }
+    if (wantVersion) {
+        // Print the version line and exit without opening a window or writing a file.
+        QTextStream(stdout) << linuxbee::ui::versionLine() << '\n';
+        return 0;
+    }
+
     QApplication application(argc, argv);
     linuxbee::ui::applyApplicationInfo(application);
 
@@ -48,14 +79,12 @@ int main(int argc, char *argv[])
         settings.sync();
     });
 
-    if (const int shot = application.arguments().indexOf(QStringLiteral("--screenshot"));
-        shot >= 0 && shot + 1 < application.arguments().size()) {
-        const QString file = application.arguments().at(shot + 1);
+    if (wantShot) {
         // Give the event loop a moment so the window is laid out and drawn, then
         // save the picture and exit: 0 when it was saved, 3 when it could not be.
-        QTimer::singleShot(300, [&window, file, &application] {
+        QTimer::singleShot(300, [&window, shotFile, &application] {
             const QPixmap pm = window.grab();
-            const bool saved = pm.save(file, "PNG");
+            const bool saved = pm.save(shotFile, "PNG");
             application.exit(saved ? 0 : 3);
         });
     }
