@@ -6,3 +6,4 @@
 061c9a5dab6a9658c342128891d18f4cd99cda4bff5184a9d2595e2854263084  tests/data/convert/MANIFEST.txt
 da9c7bebacdb1a26e72065f6b8f50aeb997fdba783d221c0ca8fa13d7555fbad  tests/data/convert/tone.flac
 fe8df3d7801cda10b4e401923980c97454533a41a0cc2458cd88460a17bd7ac9  tests/data/convert/tone.mp3
+bd631dc893f5f635e4d787510c9c239989ff3a7ecc55af8778433270b86813af  tests/locked/tst_convert_names.cpp
