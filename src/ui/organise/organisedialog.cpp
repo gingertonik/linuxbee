@@ -1,4 +1,4 @@
-#include "organise/organisedialog.h"
+#include "organise/organisedialog_p.h"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -16,30 +16,6 @@
 #include <QVBoxLayout>
 
 namespace linuxbee::ui {
-
-struct OrganiseDialog::Private {
-    QSettings *settings = nullptr;
-    QStringList files;
-    Planner planner;
-    Executor executor;
-
-    QLineEdit *targetEdit = nullptr;
-    QPushButton *browseButton = nullptr;
-    QLineEdit *templateEdit = nullptr;
-    QLabel *problemLabel = nullptr;
-    QRadioButton *moveRadio = nullptr;
-    QRadioButton *copyRadio = nullptr;
-    QCheckBox *replaceCheck = nullptr;
-    QCheckBox *otherFilesCheck = nullptr;
-    QCheckBox *removeEmptyCheck = nullptr;
-    QCheckBox *skipMissingCheck = nullptr;
-    QTreeWidget *previewTable = nullptr;
-    QLabel *summaryLabel = nullptr;
-    QProgressBar *progressBar = nullptr;
-    QDialogButtonBox *buttons = nullptr;
-    QPushButton *runButton = nullptr;
-    QPushButton *closeButton = nullptr;
-};
 
 namespace {
 
@@ -165,6 +141,17 @@ OrganiseDialog::OrganiseDialog(const QStringList &files, QSettings *settings, QW
             d->targetEdit->setText(chosen);
     });
     connect(d->closeButton, &QPushButton::clicked, this, &QDialog::reject);
+
+    // OD-PREVIEW: every control that changes what the planner is asked gets a fresh preview.
+    connect(d->targetEdit, &QLineEdit::textChanged, this, [this] { refreshPreview(); });
+    connect(d->templateEdit, &QLineEdit::textChanged, this, [this] { refreshPreview(); });
+    for (QAbstractButton *b : { static_cast<QAbstractButton *>(d->moveRadio),
+             static_cast<QAbstractButton *>(d->copyRadio) })
+        connect(b, &QAbstractButton::toggled, this, [this] { refreshPreview(); });
+    for (QCheckBox *c :
+        { d->replaceCheck, d->otherFilesCheck, d->removeEmptyCheck, d->skipMissingCheck })
+        connect(c, &QCheckBox::toggled, this, [this] { refreshPreview(); });
+    refreshPreview();
 }
 
 OrganiseDialog::~OrganiseDialog()
@@ -175,6 +162,7 @@ OrganiseDialog::~OrganiseDialog()
 void OrganiseDialog::setPlanner(Planner planner)
 {
     d->planner = std::move(planner);
+    refreshPreview();
 }
 
 void OrganiseDialog::setExecutor(Executor executor)
@@ -200,11 +188,6 @@ OrganiseOptions OrganiseDialog::options() const
     o.moveOtherFiles = !copy && d->otherFilesCheck->isChecked();
     o.removeEmptyFolders = !copy && d->removeEmptyCheck->isChecked();
     return o;
-}
-
-QList<PlannedMove> OrganiseDialog::preview() const
-{
-    return { };
 }
 
 bool OrganiseDialog::run()

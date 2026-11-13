@@ -43,6 +43,9 @@ signals:
 private:
     struct Private;
     Private *d;
+    // Added by plan 13 (private, not public API): asks the planner and fills
+    // the table, the summary and the problem label (OD-TEMPLATE, OD-PREVIEW).
+    void refreshPreview();
 };
 
 }
