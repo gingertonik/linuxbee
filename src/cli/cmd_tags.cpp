@@ -120,7 +120,31 @@ int runWrite(const QStringList &arguments)
             QStringLiteral("linuxbeectl: give --picture or --no-pictures, not both.\n%1")
                 .arg(QLatin1String(kWriteUsage)));
 
-    // A clear is applied first, so a set of the same name keeps its values.
+    // W-CLI: one field cannot be both set and cleared in one command, whatever
+    // the order and the letter case. Nothing is built or written in that case.
+    auto refuseBoth = [](const QString &name) {
+        QTextStream err(stderr);
+        err << "linuxbeectl: " << name << " cannot be both set and cleared in one command.\n";
+        err.flush();
+        return 2;
+    };
+    for (const QString &clearName : parser.values(clearOption)) {
+        for (const QString &pair : parser.values(setOption)) {
+            QString name;
+            QString value;
+            if (splitPair(pair, name, value) && name.compare(clearName, Qt::CaseInsensitive) == 0)
+                return refuseBoth(clearName);
+        }
+    }
+    for (const QString &clearKey : parser.values(clearOtherOption)) {
+        for (const QString &pair : parser.values(setOtherOption)) {
+            QString key;
+            QString value;
+            if (splitPair(pair, key, value) && key.compare(clearKey, Qt::CaseInsensitive) == 0)
+                return refuseBoth(clearKey);
+        }
+    }
+
     linuxbee::TagChanges changes;
     for (const QString &name : parser.values(clearOption))
         changes.fields.insert(name, QStringList());
