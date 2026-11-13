@@ -1,6 +1,8 @@
 #include "desktop/mprisservice.h"
 #include "desktop/mprisservice_p.h"
 
+#include <random>
+
 // The two MPRIS interfaces, seen from the bus. They hold no state of their
 // own: they read and write the player and the queue through DesktopState.
 // Contract: docs/spec/desktop-mpris.md (MP-x).
@@ -83,8 +85,17 @@ QString PlayerAdaptor::playbackStatus() const
     return QStringLiteral("Stopped");
 }
 
+// MP-PROPS: the queue's repeat, in the words the desktop uses.
 QString PlayerAdaptor::loopStatus() const
 {
+    switch (m_state.queue->repeat()) {
+    case PlayQueue::Repeat::All:
+        return QStringLiteral("Playlist");
+    case PlayQueue::Repeat::One:
+        return QStringLiteral("Track");
+    case PlayQueue::Repeat::Off:
+        return QStringLiteral("None");
+    }
     return QStringLiteral("None");
 }
 
@@ -106,7 +117,7 @@ double PlayerAdaptor::maximumRate() const
 
 bool PlayerAdaptor::shuffle() const
 {
-    return false;
+    return m_state.queue->shuffle();
 }
 
 QVariantMap PlayerAdaptor::metadata() const
@@ -116,12 +127,13 @@ QVariantMap PlayerAdaptor::metadata() const
 
 double PlayerAdaptor::volume() const
 {
-    return 1.0;
+    return m_state.player->volume();
 }
 
+// MP-SEEK: the player's position, in microseconds on the bus; 0 when stopped.
 qlonglong PlayerAdaptor::position() const
 {
-    return 0;
+    return qlonglong(m_state.player->positionMs()) * 1000;
 }
 
 // MP-CAN: what the desktop may ask for, read from the queue and the player.
@@ -198,21 +210,74 @@ void PlayerAdaptor::OpenUri(const QString &uri)
     Q_UNUSED(uri);
 }
 
+// MP-SEEK: Seek moves by the offset from where the track is now. Before the
+// start is the start; past the end is the next track; nothing happens when
+// there is nothing to seek in.
+void PlayerAdaptor::Seek(qlonglong offsetUs)
+{
+    if (!canSeek())
+        return;
+    const qint64 target = m_state.player->positionMs() + offsetUs / 1000;
+    if (target > m_state.player->durationMs()) {
+        m_state.player->next();
+        return;
+    }
+    const qint64 landing = target < 0 ? 0 : target;
+    m_state.player->seek(landing);
+    // MP-SEEK: a seek that lands on the very start is announced as 0; the
+    // player's own report of 0 is a track starting, and says nothing.
+    if (landing == 0)
+        emit Seeked(0);
+}
+
+// MP-SEEK: SetPosition goes to a place in a track the caller names. A track
+// it does not name, a place outside the track, and any place at all in a
+// track that cannot be sought in are all ignored. The length itself is inside.
+void PlayerAdaptor::SetPosition(const QDBusObjectPath &trackId, qlonglong positionUs)
+{
+    if (!canSeek())
+        return;
+    if (trackId.path() != currentTrackIdOf(m_state))
+        return;
+    if (positionUs < 0)
+        return;
+    // MP-SEEK: compared in microseconds, before the dividing: the end of a
+    // 200 s track is 200000000, and 200000001 is past it.
+    const qint64 lengthUs = m_state.player->durationMs() * 1000;
+    if (positionUs > lengthUs)
+        return;
+    m_state.player->seek(positionUs / 1000);
+    if (positionUs == 0)
+        emit Seeked(0);
+}
+
 // MP-PROPS: the writers. A property that only reports the player's state has
 // no writer, so the bus refuses the write, as it should.
 void PlayerAdaptor::setLoopStatus(const QString &text)
 {
-    Q_UNUSED(text);
+    // MP-PROPS: the three words of the queue's repeat. Any other text changes
+    // nothing, and the write is still accepted: it asked for something
+    // linuxBee has no name for.
+    if (text == QStringLiteral("Playlist"))
+        m_state.queue->setRepeat(PlayQueue::Repeat::All);
+    else if (text == QStringLiteral("Track"))
+        m_state.queue->setRepeat(PlayQueue::Repeat::One);
+    else if (text == QStringLiteral("None"))
+        m_state.queue->setRepeat(PlayQueue::Repeat::Off);
 }
 
 void PlayerAdaptor::setShuffle(bool on)
 {
-    Q_UNUSED(on);
+    // MP-PROPS: switching shuffle starts a fresh round, so it gets a fresh seed.
+    std::random_device source;
+    m_state.queue->setShuffle(on, quint32(source()));
 }
 
 void PlayerAdaptor::setVolume(double volume)
 {
-    Q_UNUSED(volume);
+    // MP-PROPS: the player holds the volume between 0 and 1, so below nothing
+    // is nothing and above full is full.
+    m_state.player->setVolume(volume);
 }
 
 // MP-PROPS: a write of Rate is accepted and ignored: 1.0 is the only speed.

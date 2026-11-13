@@ -1,6 +1,7 @@
 #pragma once
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnection>
+#include <QDBusObjectPath>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -15,6 +16,8 @@
 // Not part of the public API: nothing here is visible outside src/ui/desktop.
 namespace linuxbee::ui {
 
+class PlayerAdaptor;
+
 struct DesktopState {
     // Neither pointer is owned; both outlive the service (the header's contract).
     Player *player = nullptr;
@@ -26,7 +29,14 @@ struct DesktopState {
 
     QString trackId; // MP-METADATA: the id of the track last started; empty: none
     qint64 trackSerial = 0; // MP-METADATA: the N of that id, a new one for every play
+
+    PlayerAdaptor *playerAdaptor = nullptr; // MP-SEEK: where the Seeked signal lives
+    qint64 lastReportMs = 0; // MP-SEEK: the last position the player reported
 };
+
+// MP-METADATA: the id the desktop is given for the track that is playing, and
+// the id a SetPosition has to carry for it to be that track.
+QString currentTrackIdOf(const DesktopState &state);
 
 // MP-METADATA: the map the bus is handed for what is playing. A track that is
 // not known is reported by its id alone. Defined with the service, because
@@ -120,6 +130,14 @@ public slots:
     void setShuffle(bool on);
     void setVolume(double volume);
     void setRate(double rate);
+
+    // MP-SEEK: both take and give positions in microseconds.
+    void Seek(qlonglong offsetUs);
+    void SetPosition(const QDBusObjectPath &trackId, qlonglong positionUs);
+
+signals:
+    // MP-SEEK: tells listeners that the position jumped.
+    void Seeked(qlonglong positionUs);
 
 private:
     DesktopState &m_state;

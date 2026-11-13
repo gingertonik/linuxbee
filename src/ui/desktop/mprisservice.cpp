@@ -47,6 +47,16 @@ QString fileUrl(const QString &path)
 
 }
 
+// MP-METADATA: the id of what is playing. With nothing playing it is the id
+// MPRIS reserves for that, which is also what a track that is somehow
+// nameless gets, so the id on the bus is always one the desktop was given.
+QString currentTrackIdOf(const DesktopState &state)
+{
+    if (state.player->currentPath().isEmpty() || state.trackId.isEmpty())
+        return noTrackId();
+    return state.trackId;
+}
+
 // MP-METADATA. What is not known is left out of the map, not sent empty; with
 // nothing playing, the map holds the track id and nothing else.
 QVariantMap metadataOf(const DesktopState &state)
@@ -57,8 +67,7 @@ QVariantMap metadataOf(const DesktopState &state)
         map.insert(kTrackIdKey, QVariant::fromValue(QDBusObjectPath(noTrackId())));
         return map;
     }
-    const QString id = state.trackId.isEmpty() ? noTrackId() : state.trackId;
-    map.insert(kTrackIdKey, QVariant::fromValue(QDBusObjectPath(id)));
+    map.insert(kTrackIdKey, QVariant::fromValue(QDBusObjectPath(currentTrackIdOf(state))));
     map.insert(kUrlKey, fileUrl(path));
 
     MprisService::Track known;
@@ -91,7 +100,7 @@ MprisService::MprisService(Player *player, PlayQueue *queue, Hooks hooks, QObjec
     // The adaptors are children of this object, so registering it with
     // ExportAdaptors puts both interfaces on the bus.
     new RootAdaptor(this, d->state);
-    new PlayerAdaptor(this, d->state);
+    d->state.playerAdaptor = new PlayerAdaptor(this, d->state);
 
     // MP-METADATA: every play is a new track to the desktop, the same file
     // played twice included, so each track that starts takes a new id.
@@ -100,6 +109,17 @@ MprisService::MprisService(Player *player, PlayQueue *queue, Hooks hooks, QObjec
             d->state.trackId.clear();
         else
             d->state.trackId = newTrackId(++d->state.trackSerial);
+    });
+
+    // MP-SEEK: a position report that jumps is a seek, and the desktop hears
+    // it. Playing along is not: the step has to be backwards, or forwards by
+    // more than 1500 ms, and a report of 0 is a track starting, not a seek.
+    connect(player, &Player::positionChanged, this, [this](qint64 ms) {
+        const qint64 before = d->state.lastReportMs;
+        d->state.lastReportMs = ms;
+        const bool playing = d->state.player->state() != Player::State::Stopped;
+        if (playing && ms > 0 && (ms < before || ms - before > 1500))
+            emit d->state.playerAdaptor->Seeked(ms * 1000);
     });
 }
 
