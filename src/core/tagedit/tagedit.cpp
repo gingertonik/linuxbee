@@ -166,9 +166,35 @@ QString editProblem(const QString &fieldName, const QString &text)
 
 QList<TagChanges> buildEdits(const QList<TrackTags> &tracks, const QMap<QString, QString> &edits)
 {
-    Q_UNUSED(tracks);
-    Q_UNUSED(edits);
-    return { };
+    // The edits E-CHECK accepts, by catalogue name, with the values they stand for.
+    QMap<QString, QStringList> wanted;
+    for (auto it = edits.constBegin(); it != edits.constEnd(); ++it) {
+        if (!editProblem(it.key(), it.value()).isEmpty())
+            continue;
+        const QString name = catalogueName(it.key());
+        QStringList values = valuesFromText(name, it.value());
+        if (name == QLatin1String("Track#") || name == QLatin1String("Track Count")
+            || name == QLatin1String("Disc#") || name == QLatin1String("Disc Count")) {
+            for (QString &value : values)
+                value = QString::number(value.toInt());
+        } else if (name == QLatin1String("Rating")) {
+            for (QString &value : values)
+                value = ratingToString(value.toDouble());
+        }
+        wanted.insert(name, values);
+    }
+
+    // Name a field for a track only where its values would really change.
+    QList<TagChanges> result;
+    for (const TrackTags &track : tracks) {
+        TagChanges change;
+        for (auto it = wanted.constBegin(); it != wanted.constEnd(); ++it) {
+            if (track.fields.value(it.key()) != it.value())
+                change.fields.insert(it.key(), it.value());
+        }
+        result.append(change);
+    }
+    return result;
 }
 
 }
