@@ -111,7 +111,24 @@ void HotkeysPage::resetAll()
 
 QString HotkeysPage::apply()
 {
-    return { }; // Task 6: HK-APPLY
+    // HK-APPLY: the end state is exactly the pending keys. Take the key
+    // away from every command that changed, then give each its new one,
+    // so that commands which swapped keys cannot block each other.
+    QStringList changed;
+    for (auto it = d->pending.constBegin(); it != d->pending.constEnd(); ++it)
+        if (d->actions->shortcut(it.key()) != it.value())
+            changed.append(it.key());
+    for (const QString &id : changed)
+        d->actions->setShortcut(id, QKeySequence());
+    for (const QString &id : changed) {
+        if (d->actions->setShortcut(id, d->pending.value(id)).status != ShortcutResult::Status::Ok)
+            return tr("The hotkey for %1 was refused by the registry.")
+                .arg(commandLabel(d->actions->info(id)));
+    }
+    if (d->settings)
+        d->actions->save(*d->settings); // H-STORE: the next start has them
+    checkModified();
+    return { };
 }
 
 }

@@ -80,6 +80,8 @@ HotkeysPage::HotkeysPage(ActionRegistry *actions, QSettings *settings, QWidget *
     layout->addLayout(editRow);
     layout->addWidget(d->conflictLabel);
 
+    connect(d->filterEdit, &QLineEdit::textChanged, this, &HotkeysPage::applyFilter);
+
     load(); // HK-EDIT: the pending keys start as the registry's
 }
 
@@ -146,9 +148,19 @@ void HotkeysPage::refreshHotkeyCells()
 
 void HotkeysPage::applyFilter()
 {
-    // Task 6: HK-FILTER. Until then every row shows.
-    for (int r = 0; r < d->table->rowCount(); ++r)
-        d->table->setRowHidden(r, false);
+    // HK-FILTER: a row stays when the trimmed text is found, whatever the
+    // case, in its command cell or its hotkey cell. Rows are hidden, not
+    // removed, and the cells carry the unapplied edits, so the filter sees them.
+    const QString needle = d->filterEdit->text().trimmed();
+    for (int r = 0; r < d->table->rowCount(); ++r) {
+        bool show = needle.isEmpty(); // empty text shows every row
+        for (int c = 0; !show && c < 2; ++c) {
+            const QTableWidgetItem *item = d->table->item(r, c);
+            if (item && item->text().contains(needle, Qt::CaseInsensitive))
+                show = true;
+        }
+        d->table->setRowHidden(r, !show);
+    }
 }
 
 }
