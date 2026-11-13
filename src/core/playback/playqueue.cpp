@@ -1,6 +1,7 @@
 #include "playqueue.h"
 
-// Stub. Plan 14 replaces every body in this file.
+// Q-EDIT and Q-SIGNALS. Next, Previous and repeat live in playqueue_order.cpp;
+// classifyPlay lives in playcount.cpp. Spec: docs/spec/play-queue.md.
 namespace linuxbee {
 
 PlayQueue::PlayQueue(QObject *parent)
@@ -15,7 +16,7 @@ QList<PlayQueue::Entry> PlayQueue::entries() const
 
 int PlayQueue::count() const
 {
-    return 0;
+    return int(m_entries.size());
 }
 
 int PlayQueue::currentIndex() const
@@ -25,13 +26,27 @@ int PlayQueue::currentIndex() const
 
 QString PlayQueue::currentPath() const
 {
-    return { };
+    if (m_current < 0 || m_current >= count())
+        return { };
+    return m_entries.at(m_current).path;
 }
 
+// Replaces the list. A start outside the list means the first entry; an
+// empty list has no current entry. Always announces the new current entry.
 void PlayQueue::playNow(const QStringList &paths, int startAt)
 {
-    Q_UNUSED(paths);
-    Q_UNUSED(startAt);
+    m_entries.clear();
+    for (const QString &path : paths)
+        m_entries.append(Entry { m_nextId++, path });
+    const int n = count();
+    m_current = -1;
+    m_resumeAt = 0;
+    if (n > 0) {
+        m_current = (startAt < 0 || startAt >= n) ? 0 : startAt;
+        m_resumeAt = m_current;
+    }
+    emit entriesChanged();
+    emit currentChanged(m_current);
 }
 
 void PlayQueue::queueNext(const QStringList &paths)
@@ -63,35 +78,10 @@ void PlayQueue::clear()
 
 bool PlayQueue::setCurrent(int index)
 {
-    Q_UNUSED(index);
-    return false;
-}
-
-int PlayQueue::next(bool automatic)
-{
-    Q_UNUSED(automatic);
-    return -1;
-}
-
-int PlayQueue::previous()
-{
-    return -1;
-}
-
-bool PlayQueue::hasNext(bool automatic) const
-{
-    Q_UNUSED(automatic);
-    return false;
-}
-
-PlayQueue::Repeat PlayQueue::repeat() const
-{
-    return m_repeat;
-}
-
-void PlayQueue::setRepeat(Repeat repeat)
-{
-    Q_UNUSED(repeat);
+    if (index < 0 || index >= count())
+        return false;
+    setCurrentInternal(index);
+    return true;
 }
 
 bool PlayQueue::shuffle() const
@@ -111,19 +101,15 @@ void PlayQueue::reshuffle()
     Q_UNUSED(m_nextId);
 }
 
+// Moves the current entry and remembers the place. Announces only a real change.
 void PlayQueue::setCurrentInternal(int index)
 {
-    Q_UNUSED(index);
-}
-
-PlayOutcome classifyPlay(
-    qint64 listenedMs, qint64 durationMs, bool endedByUser, const PlayCountRule &rule)
-{
-    Q_UNUSED(listenedMs);
-    Q_UNUSED(durationMs);
-    Q_UNUSED(endedByUser);
-    Q_UNUSED(rule);
-    return PlayOutcome::Neither;
+    if (index == m_current)
+        return;
+    m_current = index;
+    if (index >= 0)
+        m_resumeAt = index;
+    emit currentChanged(index);
 }
 
 }
