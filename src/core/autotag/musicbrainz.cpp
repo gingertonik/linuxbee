@@ -3,29 +3,14 @@
 // Stub. Plan 18 replaces every body in this file.
 namespace linuxbee {
 
-ReleaseSearch parseReleaseSearch(const QByteArray &json)
-{
-    Q_UNUSED(json);
-    return { };
-}
-
-int Release::tracksOnDisc(int disc) const
-{
-    Q_UNUSED(disc);
-    return 0;
-}
-
-Release parseRelease(const QByteArray &json)
-{
-    Q_UNUSED(json);
-    return { };
-}
-
+// M-MATCH: an answer that is not ok matches no file (releaseTrack -1, score 0).
+// The rest of matching is task 4.
 QList<TrackMatch> matchTracks(const QList<LocalTrack> &local, const Release &release)
 {
-    Q_UNUSED(local);
-    Q_UNUSED(release);
-    return { };
+    QList<TrackMatch> result;
+    if (!release.ok)
+        result.resize(local.size());
+    return result;
 }
 
 TagChanges releaseTagChanges(
