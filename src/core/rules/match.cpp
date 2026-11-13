@@ -1,6 +1,8 @@
 #include "rules.h"
 #include "values.h"
 
+#include "rules/compiledrules_p.h"
+
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -42,8 +44,22 @@ bool sameText(const QString &value, const QString &wanted)
     return a && b && *a == *b;
 }
 
+// The expression's answer for one value. An expression held ready is used as it
+// is; one that is not held is built now, ignoring case.
+bool regexMatches(const QString &text, const QString &value, const HeldPatterns *held)
+{
+    if (held) {
+        const auto found = held->constFind(text);
+        if (found != held->constEnd())
+            return found->match(value).hasMatch();
+    }
+    const QRegularExpression pattern(text, QRegularExpression::CaseInsensitiveOption);
+    return pattern.isValid() && pattern.match(value).hasMatch();
+}
+
 // Whether one value passes the test of a positive text operator.
-bool valuePasses(RuleOperator positive, const QString &value, const QStringList &wanted)
+bool valuePasses(RuleOperator positive, const QString &value, const QStringList &wanted,
+    const HeldPatterns *held)
 {
     if (wanted.isEmpty())
         return false;
@@ -60,10 +76,8 @@ bool valuePasses(RuleOperator positive, const QString &value, const QStringList 
     case RuleOperator::IsAnyOf:
         return std::any_of(
             wanted.cbegin(), wanted.cend(), [&](const QString &w) { return sameText(value, w); });
-    case RuleOperator::Matches: {
-        const QRegularExpression pattern(first, QRegularExpression::CaseInsensitiveOption);
-        return pattern.isValid() && pattern.match(value).hasMatch();
-    }
+    case RuleOperator::Matches:
+        return regexMatches(first, value, held);
     default:
         return false;
     }
@@ -71,11 +85,11 @@ bool valuePasses(RuleOperator positive, const QString &value, const QStringList 
 
 // U-EMPTY: a positive operator holds when one value passes; a negative one
 // when none does. With no values, positive fails and negative holds.
-bool textHolds(const Rule &rule, const QStringList &values)
+bool textHolds(const Rule &rule, const QStringList &values, const HeldPatterns *held)
 {
     const RuleOperator positive = positiveOf(rule.op);
     const bool anyPasses = std::any_of(values.cbegin(), values.cend(),
-        [&](const QString &value) { return valuePasses(positive, value, rule.values); });
+        [&](const QString &value) { return valuePasses(positive, value, rule.values, held); });
     return isNegativeText(rule.op) ? !anyPasses : anyPasses;
 }
 
@@ -117,7 +131,8 @@ bool inTheLast(const Rule &rule, const QStringList &values, const RuleContext &c
 }
 
 // One rule's own condition, against the track's values for its field.
-bool conditionHolds(const Rule &rule, const QStringList &values, const RuleContext &context)
+bool conditionHolds(const Rule &rule, const QStringList &values, const RuleContext &context,
+    const HeldPatterns *held)
 {
     switch (rule.op) {
     case RuleOperator::Is:
@@ -130,7 +145,7 @@ bool conditionHolds(const Rule &rule, const QStringList &values, const RuleConte
     case RuleOperator::IsNotAnyOf:
     case RuleOperator::Matches:
     case RuleOperator::DoesNotMatch:
-        return textHolds(rule, values);
+        return textHolds(rule, values, held);
     case RuleOperator::HasValue:
         return !values.isEmpty();
     case RuleOperator::HasNoValue:
@@ -174,13 +189,27 @@ bool conditionHolds(const Rule &rule, const QStringList &values, const RuleConte
 }
 
 // U-SUB: the rule's own condition and every sub-rule must hold.
-bool ruleHolds(const Rule &rule, const TagSource &track, const RuleContext &context)
+bool ruleHolds(
+    const Rule &rule, const TagSource &track, const RuleContext &context, const HeldPatterns *held)
 {
     const QStringList values = rules::splitValues(track.value(rule.field).value_or(QString()));
-    if (!conditionHolds(rule, values, context))
+    if (!conditionHolds(rule, values, context, held))
         return false;
     return std::all_of(rule.subRules.cbegin(), rule.subRules.cend(),
-        [&](const Rule &sub) { return ruleHolds(sub, track, context); });
+        [&](const Rule &sub) { return ruleHolds(sub, track, context, held); });
+}
+
+// U-MATCH without the validity check: the set against one track. The caller
+// has checked the set. held supplies the expressions already built, or is null.
+bool evaluate(const RuleSet &set, const TagSource &track, const RuleContext &context,
+    const HeldPatterns *held)
+{
+    if (set.rules.isEmpty())
+        return true;
+    const auto holds = [&](const Rule &rule) { return ruleHolds(rule, track, context, held); };
+    if (set.match == RuleSet::Match::Any)
+        return std::any_of(set.rules.cbegin(), set.rules.cend(), holds);
+    return std::all_of(set.rules.cbegin(), set.rules.cend(), holds);
 }
 
 }
@@ -190,12 +219,16 @@ bool matchesRules(const RuleSet &rules, const TagSource &track, const RuleContex
 {
     if (!validateRules(rules).isEmpty())
         return false;
-    if (rules.rules.isEmpty())
-        return true;
-    const auto holds = [&](const Rule &rule) { return ruleHolds(rule, track, context); };
-    if (rules.match == RuleSet::Match::Any)
-        return std::any_of(rules.rules.cbegin(), rules.rules.cend(), holds);
-    return std::all_of(rules.rules.cbegin(), rules.rules.cend(), holds);
+    return evaluate(rules, track, context, nullptr);
+}
+
+// RC-MATCH: the same evaluation as matchesRules, with the set checked when it
+// was made and the expressions taken from the object.
+bool CompiledRules::matches(const TagSource &track, const RuleContext &context) const
+{
+    if (!isValid())
+        return false;
+    return evaluate(d->rules, track, context, &d->patterns);
 }
 
 }

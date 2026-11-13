@@ -1,37 +1,34 @@
 #include "rules/compiledrules.h"
 
-// Stub. Plan 06b replaces every body in this file.
-namespace linuxbee {
+#include "rules/compiledrules_p.h"
+#include "rules/rules.h"
 
-struct CompiledRules::Data { };
+namespace linuxbee {
 
 CompiledRules::CompiledRules() = default;
 
+// RC-VALID: the set is checked once, here, and the answer is kept.
 CompiledRules::CompiledRules(const RuleSet &rules)
 {
-    Q_UNUSED(rules);
+    const auto data = QSharedPointer<Data>::create();
+    data->rules = rules;
+    data->problems = validateRules(rules);
+    d = data;
 }
 
 bool CompiledRules::isValid() const
 {
-    return false;
+    return d && d->problems.isEmpty();
 }
 
 QStringList CompiledRules::problems() const
 {
-    return { };
+    return d ? d->problems : QStringList();
 }
 
 int CompiledRules::patternCount() const
 {
-    return 0;
-}
-
-bool CompiledRules::matches(const TagSource &track, const RuleContext &context) const
-{
-    Q_UNUSED(track);
-    Q_UNUSED(context);
-    return false;
+    return d ? int(d->patterns.size()) : 0;
 }
 
 }
