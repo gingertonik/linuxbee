@@ -9,6 +9,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <algorithm>
 #include <array>
 #include <optional>
 
@@ -194,9 +195,113 @@ QString callIsMatch(const std::vector<Argument> &arguments, const EvalContext &c
     return boolean(pattern.match(argText(arguments, 0, context)).hasMatch());
 }
 
-// The table, in the order of the spec's section 4 rows. Tasks 5 to 7 add the
+// T-RANGE: the index of a split is a count from 1; 0, a value beyond the
+// number of sections, or a count that is not a whole number gives an empty
+// string.
+QString pickSection(const QStringList &sections, const QString &indexText)
+{
+    const std::optional<int> index = toCount(indexText);
+    if (!index.has_value() || *index < 1 || *index > sections.size())
+        return { };
+    return sections[*index - 1];
+}
+
+QString callReplace(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const QString from = argText(arguments, 1, context);
+    if (from.isEmpty())
+        return x; // T-RANGE
+    QString out = x;
+    out.replace(from, argText(arguments, 2, context), Qt::CaseSensitive); // T-CASE
+    return out;
+}
+
+// T-REGEX: in the `to` text, '$' followed by a digit 0 to 9 is the whole match
+// or that capture group; every other character is literal.
+QString expandGroups(const QString &replacement, const QRegularExpressionMatch &match)
+{
+    QString out;
+    for (qsizetype index = 0; index < replacement.size(); ++index) {
+        const QChar ch = replacement.at(index);
+        const QChar next = index + 1 < replacement.size() ? replacement.at(index + 1) : QChar();
+        if (ch == u'$' && next >= u'0' && next <= u'9') {
+            out += match.captured(next.digitValue());
+            ++index;
+            continue;
+        }
+        out += ch;
+    }
+    return out;
+}
+
+QString callRxReplace(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const QRegularExpression pattern(argText(arguments, 1, context));
+    if (!pattern.isValid())
+        return x; // T-REGEX
+    const QString replacement = argText(arguments, 2, context);
+    // The replacement is built by walking the matches: QString::replace with a
+    // QRegularExpression writes group references as "\1", not "$1".
+    QString out;
+    qsizetype doneTo = 0;
+    QRegularExpressionMatchIterator matches = pattern.globalMatch(x);
+    while (matches.hasNext()) {
+        const QRegularExpressionMatch match = matches.next();
+        out += x.mid(doneTo, match.capturedStart() - doneTo);
+        out += expandGroups(replacement, match);
+        doneTo = match.capturedStart() + match.capturedLength();
+    }
+    out += x.mid(doneTo);
+    return out;
+}
+
+QString callRxMatch(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QRegularExpression pattern(argText(arguments, 1, context));
+    if (!pattern.isValid())
+        return { }; // T-REGEX
+    const QRegularExpressionMatch match = pattern.match(argText(arguments, 0, context));
+    if (!match.hasMatch())
+        return { }; // T-RANGE
+    return match.captured(0);
+}
+
+QString callSplit(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const QString separator = argText(arguments, 1, context);
+    if (separator.isEmpty())
+        return pickSection({ x }, argText(arguments, 2, context)); // T-RANGE: do not split
+    // T-CASE: $Split is case-sensitive.
+    return pickSection(
+        x.split(separator, Qt::KeepEmptyParts, Qt::CaseSensitive), argText(arguments, 2, context));
+}
+
+QString callRSplit(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const QString separator = argText(arguments, 1, context);
+    QStringList sections = separator.isEmpty()
+        ? QStringList { x }
+        : x.split(separator, Qt::KeepEmptyParts, Qt::CaseSensitive);
+    std::reverse(sections.begin(), sections.end()); // W-F: counting from the right
+    return pickSection(sections, argText(arguments, 2, context));
+}
+
+QString callRxSplit(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const QRegularExpression pattern(argText(arguments, 1, context));
+    if (!pattern.isValid())
+        return pickSection({ x }, argText(arguments, 2, context)); // T-REGEX: x is one section
+    return pickSection(x.split(pattern, Qt::KeepEmptyParts), argText(arguments, 2, context));
+}
+
+// The table, in the order of the spec's section 4 rows. Tasks 6 and 7 add the
 // rest of the rows.
-constexpr std::array<FunctionSpec, 18> kFunctions { {
+constexpr std::array<FunctionSpec, 24> kFunctions { {
     { QLatin1StringView("Upper"), 1, 0, &callUpper },
     { QLatin1StringView("Lower"), 1, 0, &callLower },
     { QLatin1StringView("Trim"), 1, 0, &callTrim },
@@ -217,6 +322,12 @@ constexpr std::array<FunctionSpec, 18> kFunctions { {
     { QLatin1StringView("Not"), 1, -1, &callNot },
     { QLatin1StringView("Contains"), 2, 0, &callContains },
     { QLatin1StringView("IsMatch"), 2, 0, &callIsMatch },
+    { QLatin1StringView("Replace"), 3, 0, &callReplace },
+    { QLatin1StringView("RxReplace"), 3, 0, &callRxReplace },
+    { QLatin1StringView("RxMatch"), 2, 0, &callRxMatch },
+    { QLatin1StringView("Split"), 3, 0, &callSplit },
+    { QLatin1StringView("RSplit"), 3, 0, &callRSplit },
+    { QLatin1StringView("RxSplit"), 3, 0, &callRxSplit },
 } };
 
 } // namespace
