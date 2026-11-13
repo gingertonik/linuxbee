@@ -1,6 +1,9 @@
 #include "audio/devicesink.h"
 
-// Stub. Plan 14d replaces every body in this file.
+// Task 2 of plan 14d: the calls that need no session. A sink that is not
+// started takes nothing, offers no room and has nothing left to play (AD-IDLE),
+// and every format outside the engine's range is refused (AD-START). Opening
+// the default output device, the session and its buffer come in task 3.
 namespace linuxbee::ui {
 
 struct DeviceSink::Private { };
@@ -18,33 +21,45 @@ DeviceSink::~DeviceSink()
 
 bool DeviceSink::start(const PcmFormat &format)
 {
-    Q_UNUSED(format);
-    return true;
+    // AD-START: a start ends any old session first, and a refused start leaves none.
+    stop();
+    if (format.sampleRate < 8000 || format.sampleRate > 192000)
+        return false;
+    if (format.channels != 1 && format.channels != 2)
+        return false;
+    // Opening the default output device is task 3. Until then a valid format is refused too.
+    return false;
 }
 
 void DeviceSink::stop()
 {
+    // No session exists yet, so there is nothing to end (AD-STOP comes in task 3).
 }
 
 void DeviceSink::setPaused(bool paused)
 {
+    // Without a session pausing does nothing (AD-PAUSE).
     Q_UNUSED(paused);
 }
 
 qint64 DeviceSink::bytesFree() const
 {
-    return -1;
+    // Not started: no room (AD-WRITE).
+    return 0;
 }
 
 qint64 DeviceSink::write(const char *data, qint64 bytes)
 {
+    // Not started: takes nothing (AD-WRITE).
     Q_UNUSED(data);
-    return bytes;
+    Q_UNUSED(bytes);
+    return 0;
 }
 
 bool DeviceSink::idle() const
 {
-    return false;
+    // Without a session there is nothing left to play (AD-IDLE).
+    return true;
 }
 
 bool DeviceSink::isStarted() const
@@ -54,7 +69,8 @@ bool DeviceSink::isStarted() const
 
 PcmFormat DeviceSink::format() const
 {
-    return { };
+    // { 0, 0 } when there is no session (AD-START).
+    return { 0, 0 };
 }
 
 }
