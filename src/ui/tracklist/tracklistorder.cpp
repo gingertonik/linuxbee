@@ -1,0 +1,92 @@
+#include "tracklist/tracklistmodel_p.h"
+
+#include <algorithm>
+
+// Sorting and filtering inside the model. Contract: docs/spec/track-list.md (T-MODEL).
+namespace linuxbee::ui {
+
+namespace {
+
+struct SortKey {
+    QString field;
+    bool descending = false;
+};
+
+// One track that passed the filter, with the text of each sort key already read.
+struct Candidate {
+    int position = 0;
+    QStringList values;
+    QString path;
+};
+
+}
+
+void TrackListModel::Private::reorder()
+{
+    QList<SortKey> keys;
+    for (const QString &name : std::as_const(sortFields)) {
+        const bool descending = name.startsWith(QLatin1Char('-'));
+        keys.append(SortKey { descending ? name.mid(1) : name, descending });
+    }
+
+    QList<Candidate> candidates;
+    for (int i = 0; i < tracks.size(); ++i) {
+        const LibraryTrack &track = tracks.at(i);
+        const LibraryFieldSource source(track);
+        if (!filter.isEmpty() && !filter.matches(source))
+            continue;
+        Candidate candidate;
+        candidate.position = i;
+        candidate.path = track.path;
+        for (const SortKey &key : std::as_const(keys))
+            candidate.values.append(source.value(key.field).value_or(QString()));
+        candidates.append(candidate);
+    }
+
+    // A blank value comes last in both directions. Tracks that tie on every
+    // key are in order of path.
+    std::stable_sort(
+        candidates.begin(), candidates.end(), [&keys](const Candidate &a, const Candidate &b) {
+            for (int k = 0; k < keys.size(); ++k) {
+                const QString &valueA = a.values.at(k);
+                const QString &valueB = b.values.at(k);
+                const bool blankA = valueA.trimmed().isEmpty();
+                const bool blankB = valueB.trimmed().isEmpty();
+                if (blankA != blankB)
+                    return blankB;
+                if (blankA)
+                    continue;
+                const int order = compareFieldValues(keys.at(k).field, valueA, valueB);
+                if (order != 0)
+                    return keys.at(k).descending ? order > 0 : order < 0;
+            }
+            return a.path < b.path;
+        });
+
+    shown.clear();
+    rowOf.clear();
+    shownBytes = 0;
+    shownMs = 0;
+    for (const Candidate &candidate : std::as_const(candidates)) {
+        const LibraryTrack &track = tracks.at(candidate.position);
+        rowOf.insert(track.id, int(shown.size()));
+        shown.append(candidate.position);
+        shownBytes += track.sizeBytes;
+        shownMs += static_cast<qint64>(track.tags.audio.durationMs);
+    }
+}
+
+void TrackListModel::sort(int column, Qt::SortOrder order)
+{
+    if (column < 0 || column >= d->columns.size())
+        return;
+    const QString field = d->columns.at(column);
+    QStringList keys = { (order == Qt::DescendingOrder ? QStringLiteral("-") : QString()) + field };
+    for (const QString &name : defaultSort()) {
+        if (name.compare(field, Qt::CaseInsensitive) != 0)
+            keys.append(name);
+    }
+    setSortFields(keys);
+}
+
+}
