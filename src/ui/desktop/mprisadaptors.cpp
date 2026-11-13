@@ -170,6 +170,28 @@ bool PlayerAdaptor::canControl() const
     return true;
 }
 
+// MP-CHANGED: the properties a change can move, under the names the bus uses,
+// read by the same functions the bus reads them with.
+QVariantMap PlayerAdaptor::announcedProperties() const
+{
+    QVariantMap map;
+    map.insert(QStringLiteral("PlaybackStatus"), playbackStatus());
+    map.insert(QStringLiteral("LoopStatus"), loopStatus());
+    map.insert(QStringLiteral("Rate"), rate());
+    map.insert(QStringLiteral("Shuffle"), shuffle());
+    map.insert(QStringLiteral("Metadata"), metadata());
+    map.insert(QStringLiteral("Volume"), volume());
+    map.insert(QStringLiteral("MinimumRate"), minimumRate());
+    map.insert(QStringLiteral("MaximumRate"), maximumRate());
+    map.insert(QStringLiteral("CanGoNext"), canGoNext());
+    map.insert(QStringLiteral("CanGoPrevious"), canGoPrevious());
+    map.insert(QStringLiteral("CanPlay"), canPlay());
+    map.insert(QStringLiteral("CanPause"), canPause());
+    map.insert(QStringLiteral("CanSeek"), canSeek());
+    map.insert(QStringLiteral("CanControl"), canControl());
+    return map;
+}
+
 // MP-METHODS: every one of these is the player's function of the same name.
 // The player decides what a step means (player.md); the service only passes it on.
 void PlayerAdaptor::Play()

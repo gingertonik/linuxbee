@@ -32,7 +32,14 @@ struct DesktopState {
 
     PlayerAdaptor *playerAdaptor = nullptr; // MP-SEEK: where the Seeked signal lives
     qint64 lastReportMs = 0; // MP-SEEK: the last position the player reported
+
+    QVariantMap sent; // MP-CHANGED: what was last announced, to announce what differs
 };
+
+// MP-CHANGED: after anything the player or the queue reports, work the Player
+// interface's properties out again and send the ones that differ, in one
+// signal. A service that is not running keeps up quietly, ready to be started.
+void announceChanges(DesktopState &state);
 
 // MP-METADATA: the id the desktop is given for the track that is playing, and
 // the id a SetPosition has to carry for it to be that track.
@@ -114,6 +121,11 @@ public:
     bool canPause() const;
     bool canSeek() const;
     bool canControl() const;
+
+    // MP-CHANGED: every property of this interface that a change can move,
+    // under its MPRIS name. Position is not among them: MP-SEEK's signal
+    // covers moving along, and a panel asks for Position when it wants it.
+    QVariantMap announcedProperties() const;
 
 public slots:
     // MP-METHODS: the player's own functions, under the names the desktop uses.

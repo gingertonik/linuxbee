@@ -1,14 +1,15 @@
 #include "desktop/mprisservice.h"
 
 #include <QDBusConnectionInterface>
+#include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QFileInfo>
 #include <QUrl>
 
 #include "desktop/mprisservice_p.h"
 
-// Being on the bus: MP-START, MP-ROOT and MP-METADATA. The requests
-// themselves are in mprisadaptors.cpp.
+// Being on the bus: MP-START, MP-ROOT, MP-METADATA and MP-CHANGED. The
+// requests themselves are in mprisadaptors.cpp.
 namespace linuxbee::ui {
 
 namespace {
@@ -16,6 +17,11 @@ namespace {
 // MP-START: the name and the object every desktop media control knows.
 const QString kServiceName = QStringLiteral("org.mpris.MediaPlayer2.linuxbee");
 const QString kObjectPath = QStringLiteral("/org/mpris/MediaPlayer2");
+
+// MP-CHANGED: a change is announced over the standard Properties interface,
+// naming the interface whose properties moved.
+const QString kPropertiesInterface = QStringLiteral("org.freedesktop.DBus.Properties");
+const QString kPlayerInterface = QStringLiteral("org.mpris.MediaPlayer2.Player");
 
 // MP-METADATA: the keys of the map, as MPRIS names them.
 const QString kTrackIdKey = QStringLiteral("mpris:trackid");
@@ -43,6 +49,30 @@ QString noTrackId()
 QString fileUrl(const QString &path)
 {
     return QString::fromLatin1(QUrl::fromLocalFile(path).toEncoded());
+}
+
+// MP-CHANGED: two values of one property, compared as what they mean: a map
+// entry by entry, an artist list item by item, a track id by its path.
+bool sameValue(const QVariant &one, const QVariant &other)
+{
+    const QMetaType trackIdType = QMetaType::fromType<QDBusObjectPath>();
+    if (one.metaType() == trackIdType && one.metaType() == other.metaType())
+        return one.value<QDBusObjectPath>().path() == other.value<QDBusObjectPath>().path();
+    if (one.typeId() == QMetaType::QVariantMap && other.typeId() == QMetaType::QVariantMap) {
+        const QVariantMap a = one.toMap();
+        const QVariantMap b = other.toMap();
+        if (a.size() != b.size())
+            return false;
+        for (auto it = a.constBegin(); it != a.constEnd(); ++it) {
+            const auto found = b.constFind(it.key());
+            if (found == b.constEnd() || !sameValue(it.value(), found.value()))
+                return false;
+        }
+        return true;
+    }
+    if (one.typeId() == QMetaType::QStringList && other.typeId() == QMetaType::QStringList)
+        return one.toStringList() == other.toStringList();
+    return one == other;
 }
 
 }
@@ -86,6 +116,34 @@ QVariantMap metadataOf(const DesktopState &state)
     return map;
 }
 
+// MP-CHANGED: after anything the player or the queue reports, the properties
+// are worked out again and the ones that moved are sent, in one signal.
+// Nothing moved: nothing said. Position is never among them, and starting the
+// service says nothing, because start() records the values it starts with.
+void announceChanges(DesktopState &state)
+{
+    const QVariantMap now = state.playerAdaptor->announcedProperties();
+    if (!state.running) {
+        // MP-START: a service that is not running follows quietly, so that a
+        // start later has something to compare against.
+        state.sent = now;
+        return;
+    }
+    QVariantMap moved;
+    for (auto it = now.constBegin(); it != now.constEnd(); ++it) {
+        const auto last = state.sent.constFind(it.key());
+        if (last == state.sent.constEnd() || !sameValue(last.value(), it.value()))
+            moved.insert(it.key(), it.value());
+    }
+    state.sent = now;
+    if (moved.isEmpty())
+        return;
+    QDBusMessage signal = QDBusMessage::createSignal(
+        kObjectPath, kPropertiesInterface, QStringLiteral("PropertiesChanged"));
+    signal.setArguments({ QVariant(kPlayerInterface), QVariant(moved), QVariant(QStringList()) });
+    state.bus.send(signal);
+}
+
 struct MprisService::Private {
     DesktopState state;
 };
@@ -121,10 +179,29 @@ MprisService::MprisService(Player *player, PlayQueue *queue, Hooks hooks, QObjec
         if (playing && ms > 0 && (ms < before || ms - before > 1500))
             emit d->state.playerAdaptor->Seeked(ms * 1000);
     });
+
+    // MP-CHANGED: every report of the player or the queue is a reason to work
+    // the properties out again. Nothing is timed and nothing is polled: an
+    // announcement is only ever a reaction to one of these.
+    connect(
+        player, &Player::stateChanged, this, [this](Player::State) { announceChanges(d->state); });
+    connect(player, &Player::trackChanged, this,
+        [this](const QString &) { announceChanges(d->state); });
+    connect(player, &Player::positionChanged, this, [this](qint64) { announceChanges(d->state); });
+    connect(player, &Player::durationChanged, this, [this](qint64) { announceChanges(d->state); });
+    connect(player, &Player::volumeChanged, this, [this](double) { announceChanges(d->state); });
+    connect(player, &Player::mutedChanged, this, [this](bool) { announceChanges(d->state); });
+    connect(player, &Player::stopAfterCurrentChanged, this,
+        [this](bool) { announceChanges(d->state); });
+    connect(queue, &PlayQueue::entriesChanged, this, [this] { announceChanges(d->state); });
+    connect(queue, &PlayQueue::currentChanged, this, [this](int) { announceChanges(d->state); });
+    connect(queue, &PlayQueue::modeChanged, this, [this] { announceChanges(d->state); });
 }
 
 MprisService::~MprisService()
 {
+    // MP-START: going out of existence gives the name and the object back, the
+    // same as stop() does, so a second linuxBee can start after this one ends.
     stop();
     delete d;
 }
@@ -176,6 +253,9 @@ bool MprisService::start(const QDBusConnection &connection, QString *error)
     // given an id of its own, the same as one that starts while it runs.
     if (d->state.trackId.isEmpty() && !d->state.player->currentPath().isEmpty())
         d->state.trackId = newTrackId(++d->state.trackSerial);
+    // MP-CHANGED: starting announces nothing, so what the properties are
+    // right now counts as already said.
+    d->state.sent = d->state.playerAdaptor->announcedProperties();
     if (error)
         error->clear();
     return true;
