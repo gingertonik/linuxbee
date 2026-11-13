@@ -1,0 +1,152 @@
+# The tagging-tool dialog
+
+One dialog serves every tagging tool: the tool's options on top, a
+preview of what would change below, and Apply. This document covers the
+dialog and the first two tools in it, Search and Replace and Capitalise.
+
+It is the contract for the headers in `src/ui/tagtools/`. The locked
+test `tests/locked/tst_ui_tagtools.cpp` checks it. What the tools do to
+tags is in tagging-tools.md (G-x); nothing of that is decided here.
+
+## Sources
+
+| Tag | Source |
+|---|---|
+| W-TM, W-TT | MusicBee wiki, "Tools Menu" and "Tagging Tools" (see tagging-tools.md): the tools exist, Search and Replace has a preview |
+| TT-… | A linuxBee decision. The layout of MusicBee's own dialogs is not documented in what could be read. |
+
+## TT-PANEL: what a tool supplies
+
+A tool is a `ToolPanel`: a widget with the tool's controls, which also
+answers
+
+- `title()`: the dialog's window title;
+- `problem()`: empty when the options can be used, otherwise one sentence
+  saying why not;
+- `changes(targets)`: for each track handed in, in order, the changes the
+  options would make;
+- `load(settings)` and `save(settings)`: TT-REMEMBER.
+
+It emits `optionsChanged` whenever one of its options changed.
+
+## TT-STRUCTURE
+
+The dialog's object name is `tagToolDialog`, its title the panel's. It
+owns the panel and shows it above these widgets:
+
+| Name | Widget | |
+|---|---|---|
+| `previewTable` | table, not editable | columns `File`, `Field`, `Now`, `Becomes` |
+| `summaryLabel` | label | TT-PREVIEW, TT-APPLY |
+| `applyButton` | button | |
+| `cancelButton` | button | closes the dialog as rejected; nothing is saved |
+
+## TT-PREVIEW
+
+The preview is worked out when the dialog is built and again at every
+`optionsChanged`. `pendingChanges()` is what it shows: one entry per
+track, in order.
+
+While the panel has a problem: the table is empty, `summaryLabel` shows
+the problem, Apply is disabled and `pendingChanges()` is all empty.
+
+Otherwise the table has one row for each thing that would change, tracks
+in the order given, and within a track: the fields in code-point order
+of their names, then the `other` keys in code-point order, then the
+pictures.
+
+| Change | File | Field | Now | Becomes |
+|---|---|---|---|---|
+| a field | the file's name, without its folder | the field's name | its values now, joined with `; ` | its new values, joined the same way |
+| an `other` key | same | `other ` and the key | same | same |
+| the pictures | same | `Pictures` | how many there are | how many there will be |
+
+`summaryLabel` says `M of T tracks would change` (M the tracks with at
+least one change, T the tracks open), and Apply is enabled. When M is 0
+it says `Nothing to change` and Apply is disabled.
+
+## TT-APPLY
+
+Apply (the button, or `apply()`) does nothing and returns false while
+there is a problem or nothing to change. Otherwise:
+
+1. Each track that has changes is handed to the saver, in order. A
+   failure does not stop the others.
+2. `saved(ids)` is emitted once with the tracks whose files were written
+   (status `Ok`), if there are any. A file that turned out unchanged
+   counts as a success and is not listed.
+3. If every save succeeded, the panel's options are stored (TT-REMEMBER)
+   and the dialog closes as accepted.
+4. Otherwise the dialog stays open. The tracks that were saved now have
+   their new tags, so the preview shows only what is still to do, and
+   `summaryLabel` says `Could not save F of T: NAMES` (F the number of
+   failures, T the tracks open, NAMES the file names with `, ` between).
+   Applying again writes only what is still to do.
+
+The saver is `writeTags` with default options unless `setSaver` replaced
+it. The dialog reads no file and does not touch the library; the caller
+acts on `saved`.
+
+## TT-REMEMBER
+
+When the dialog was given settings, it calls the panel's `load` before
+the first preview, and the panel's `save` when an Apply succeeded
+completely. Cancel stores nothing. Values are read as a later run finds
+them, which is as text.
+
+## TT-REPLACE: the Search and Replace panel
+
+Title `Search and Replace`.
+
+| Name | Widget | Option (G-REPLACE) |
+|---|---|---|
+| `findEdit` | line edit | `find` |
+| `replaceEdit` | line edit | `replace` |
+| `fieldCombo` | combo box | `fields`: the first entry, `All fields`, means an empty list; then one entry for each catalogue field except Rating, in catalogue order, meaning that field alone |
+| `regexBox` | check box | `regex` |
+| `matchCaseBox` | check box | `matchCase` |
+| `wholeWordBox` | check box | `wholeWord` |
+
+`options()` is what the controls say. `problem()` is
+`validateSearchReplace(options())`; `changes` is `searchReplace` for each
+track. A new panel has empty texts, `All fields`, and nothing checked.
+
+Remembered, in the group `tagtools/replace`: `field` (the field's name,
+or empty for all), `regex`, `matchCase`, `wholeWord`. The two texts are
+not remembered. A stored field that is not offered means `All fields`.
+
+## TT-CASE: the Capitalise panel
+
+Title `Capitalise`.
+
+| Name | Widget | Option (G-CASE) |
+|---|---|---|
+| `styleCombo` | combo box | `style`. Entries, in order, with their item data: `Each Word` (`each-word`), `Title Case` (`title`), `Sentence case` (`sentence`), `UPPER CASE` (`upper`), `lower case` (`lower`) |
+| `fieldList` | list of rows that can be ticked | `fields`: the ticked rows, in list order. One row for each catalogue field except Rating, in catalogue order |
+
+A new panel has `Each Word` and ticks at Title, Artist, Album and Album
+Artist. `smallWords` is always left empty (the default list).
+
+With no row ticked, `problem()` is `Choose at least one field` and
+`changes` are all empty. Otherwise there is no problem and `changes` is
+`capitalise` for each track.
+
+Remembered, in the group `tagtools/case`: `style` (the item data) and
+`fields` (the ticked names). An unknown style means `Each Word`. When
+none of the stored names is a row, the four default rows are ticked.
+
+## Not in this version
+
+- The other tools (Remove Tags, Renumber Tracks, Infer From Filename):
+  panels of a later plan, in this same dialog.
+- Editing the small-word list; choosing several fields in Search and
+  Replace; remembering the texts searched for.
+- Unticking single rows of the preview to leave them out.
+- Undo.
+
+## Open parity questions
+
+| Rule | Question for someone with MusicBee |
+|---|---|
+| TT-PREVIEW | Whether MusicBee's preview lets single changes be left out. |
+| TT-CASE | Which styles and fields MusicBee's Capitalise dialog offers. |
