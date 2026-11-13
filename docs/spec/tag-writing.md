@@ -191,6 +191,11 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 
 - `--set` given several times for one NAME gives that field several values.
 - `--clear NAME` removes the field.
+- One field cannot be both set and cleared in one command: naming the
+  same NAME in a `--set` and a `--clear`, in either order and whatever
+  the case of the letters, is a usage mistake. The same holds for one KEY
+  in `--set-other` and `--clear-other`. The message names the field, and
+  the file is not touched.
 - `--picture IMAGE` makes the image file the only picture, a front cover.
   An IMAGE that cannot be read: `not found: IMAGE`, exit 3. One that
   `imageMimeType` does not know is a usage mistake.
