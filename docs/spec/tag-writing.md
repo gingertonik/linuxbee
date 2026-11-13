@@ -1,8 +1,9 @@
 # Writing tags
 
 `writeTags(path, changes, options)` changes the tags and pictures of one
-music file, in place, and leaves everything it was not asked to change
-exactly as it was.
+music file and leaves everything it was not asked to change exactly as
+it was. The file is never changed in place: how a save reaches the disk
+is in `docs/spec/tag-safe-save.md`.
 
 This document is the contract for `src/core/tags/tagwriter.h`. The locked
 tests `tests/locked/tst_tagwriter.cpp` and `tests/locked/cli_tagwrite.sh`

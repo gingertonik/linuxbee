@@ -5,12 +5,14 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <optional>
 
 #include "tags/tagreader.h"
 
 // Changes the tags and pictures of one music file, in place.
-// Contract: docs/spec/tag-writing.md. No TagLib type appears in this header.
+// Contract: docs/spec/tag-writing.md; how a save reaches the disk: docs/spec/tag-safe-save.md. No
+// TagLib type appears in this header.
 namespace linuxbee {
 
 struct TagChanges {
@@ -33,6 +35,11 @@ struct WriteOptions {
     bool writeId3v1 = true;
     // W-MTIME: true puts the file's modification time back after saving.
     bool keepModificationTime = false;
+    // WS-HOOK: called once, when the new version of the file is complete
+    // and about to replace the original; `newVersion` is its path. Returning
+    // false abandons the save: the original stays as it is and the result is
+    // Failed. Not called when nothing is written.
+    std::function<bool(const QString &newVersion)> beforeReplace;
 };
 
 struct WriteResult {
