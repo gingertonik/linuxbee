@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 
+#include "aftermath.h"
 #include "transfer.h"
 
 namespace linuxbee {
@@ -146,6 +147,14 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
         else
             ++report.failed;
         report.outcomes.append(outcome);
+    }
+
+    // O-OTHER, then O-EMPTY: only for moves, and never after a cancelled run.
+    if (!report.cancelled && options.mode == OrganiseOptions::Mode::Move) {
+        if (options.moveOtherFiles)
+            organise::takeAlongOtherFiles(&report);
+        if (options.removeEmptyFolders)
+            organise::removeEmptiedFolders(&report);
     }
     return report;
 }
