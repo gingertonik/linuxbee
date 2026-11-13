@@ -12,6 +12,7 @@
 #include <id3v2tag.h>
 #include <mp4file.h>
 #include <mp4properties.h>
+#include <popularimeterframe.h>
 #include <mpegfile.h>
 #include <opusfile.h>
 #include <tdebuglistener.h>
@@ -107,6 +108,29 @@ QStringList tagTypesOf(TagLib::File *file)
     return types;
 }
 
+// R-RATING, ID3v2: the rating byte of the first POPM frame. Returns true when
+// the file has a POPM frame; `stars` is set when that byte is a rating.
+bool popmRatingOf(TagLib::File *file, std::optional<double> &stars)
+{
+    const TagLib::ID3v2::Tag *tag = nullptr;
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
+        if (mpeg->hasID3v2Tag())
+            tag = mpeg->ID3v2Tag();
+    } else if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
+        if (wav->hasID3v2Tag())
+            tag = wav->ID3v2Tag();
+    }
+    if (!tag)
+        return false;
+
+    const TagLib::ID3v2::FrameList frames = tag->frameList(TagLib::ByteVector("POPM"));
+    if (frames.isEmpty())
+        return false;
+    if (auto *popm = dynamic_cast<const TagLib::ID3v2::PopularimeterFrame *>(frames.front()))
+        stars = ratingFromPopm(popm->rating());
+    return true;
+}
+
 // TagLib's property keys and values, as UTF-8 Qt strings.
 QMap<QString, QStringList> toQtProperties(const TagLib::PropertyMap &propertyMap)
 {
@@ -199,7 +223,26 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
         const TagLib::PropertyMap propertyMap = file->properties();
         tags.unsupported = unsupportedNames(propertyMap);
         const bool id3 = tags.format == QLatin1String("mp3") || tags.format == QLatin1String("wav");
-        tags::assignFields(toQtProperties(propertyMap), id3, tags);
+
+        // R-RATING: POPM wins over a RATING text. The losing text is kept in other.
+        QMap<QString, QStringList> fieldProperties = toQtProperties(propertyMap);
+        std::optional<double> popmStars;
+        const bool hasPopm = popmRatingOf(file, popmStars);
+        const QStringList ratingText
+            = hasPopm ? fieldProperties.take(QStringLiteral("RATING")) : QStringList { };
+        tags::assignFields(fieldProperties, id3, tags);
+        if (hasPopm) {
+            tags.fields.remove(QStringLiteral("Rating"));
+            if (popmStars)
+                tags.fields.insert(QStringLiteral("Rating"), { ratingToString(*popmStars) });
+            QStringList losing;
+            for (const QString &value : ratingText) {
+                if (!value.trimmed().isEmpty())
+                    losing.append(value);
+            }
+            if (!losing.isEmpty())
+                tags.other.insert(QStringLiteral("RATING"), losing);
+        }
         return result;
     } catch (...) {
         // readTags never throws; a file TagLib cannot handle is not audio here.
