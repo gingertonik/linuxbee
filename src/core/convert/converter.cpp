@@ -118,9 +118,11 @@ bool moveIntoPlace(const QString &partPath, const QString &destination)
 {
     if (!QFileInfo::exists(destination))
         return QFile::rename(partPath, destination);
-    const QString aside = destination + QStringLiteral(".replaced");
-    QFile::remove(aside);
-    if (!QFile::rename(destination, aside))
+    // The old file goes aside under a name no file has. A file that already
+    // has the name is someone else's, so it is never removed.
+    const QString aside = uniqueRelativePath(destination + QStringLiteral(".replaced"),
+        [](const QString &path) { return QFileInfo::exists(path); });
+    if (aside.isEmpty() || !QFile::rename(destination, aside))
         return false;
     if (QFile::rename(partPath, destination)) {
         QFile::remove(aside);
