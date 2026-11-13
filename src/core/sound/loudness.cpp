@@ -1,5 +1,7 @@
 #include "replaygain.h"
 
+#include <QFileInfo>
+#include <QProcess>
 #include <QRegularExpression>
 
 #include <cmath>
@@ -12,6 +14,20 @@ namespace {
 bool isInfinite(const QString &text)
 {
     return text.contains(QLatin1String("inf"), Qt::CaseInsensitive);
+}
+
+// The file: protocol makes ffmpeg read a name that begins with '-' or holds
+// ':' as a plain file, never as an option or another protocol.
+QString asInput(const QString &file)
+{
+    return QStringLiteral("file:") + file;
+}
+
+// The last line ffmpeg printed, for a reason the user can read.
+QString lastLine(const QString &text)
+{
+    const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    return lines.isEmpty() ? QStringLiteral("no output") : lines.last().trimmed();
 }
 
 }
@@ -87,6 +103,54 @@ Loudness parseLoudnessSummary(const QString &ffmpegOutput)
     l.integratedLufs = integrated;
     l.truePeakDbfs = peakDbfs;
     return l;
+}
+
+// N-MEASURE: ffmpeg runs with an argument list, never through a shell. Several
+// files are brought to one rate and layout and joined, so an album is measured
+// as one programme.
+Loudness measureLoudness(const QStringList &files, const QString &ffmpegProgram)
+{
+    Loudness fail;
+    if (files.isEmpty()) {
+        fail.error = QStringLiteral("no file to measure");
+        return fail;
+    }
+    for (const QString &file : files) {
+        if (!QFileInfo(file).isFile()) {
+            fail.error = QStringLiteral("not a file: %1").arg(file);
+            return fail;
+        }
+    }
+
+    QStringList args { QStringLiteral("-nostdin"), QStringLiteral("-hide_banner") };
+    QString graph;
+    for (qsizetype i = 0; i < files.size(); ++i) {
+        args << QStringLiteral("-i") << asInput(files.at(i));
+        graph += QStringLiteral("[%1:a:0]aresample=48000,aformat=channel_layouts=stereo[a%1];")
+                     .arg(i);
+    }
+    for (qsizetype i = 0; i < files.size(); ++i)
+        graph += QStringLiteral("[a%1]").arg(i);
+    graph
+        += QStringLiteral("concat=n=%1:v=0:a=1,ebur128=peak=true:framelog=quiet").arg(files.size());
+    args << QStringLiteral("-filter_complex") << graph << QStringLiteral("-f")
+         << QStringLiteral("null") << QStringLiteral("-");
+
+    QProcess ffmpeg;
+    ffmpeg.start(ffmpegProgram, args);
+    if (!ffmpeg.waitForStarted()) {
+        fail.error = QStringLiteral("cannot start ffmpeg: %1").arg(ffmpeg.errorString());
+        return fail;
+    }
+    ffmpeg.waitForFinished(-1);
+
+    // ffmpeg prints its summary on standard error.
+    const QString output = QString::fromUtf8(ffmpeg.readAllStandardError());
+    if (ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0) {
+        fail.error = QStringLiteral("ffmpeg could not read the audio: %1").arg(lastLine(output));
+        return fail;
+    }
+    return parseLoudnessSummary(output);
 }
 
 }
