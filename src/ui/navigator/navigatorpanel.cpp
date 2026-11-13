@@ -114,6 +114,21 @@ NavigatorPanel::NavigatorPanel(QWidget *parent)
     // V-NODES: the panel opens on the music library.
     d->current = QStringLiteral("library:Music");
     d->tree->setCurrentItem(findNode(d->tree, d->current));
+
+    // Connected after the opening choice, so the opening itself says nothing.
+    // The current row is the choice: a row with no id (a heading) is not a choice.
+    connect(d->tree, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *current) {
+        const QString nodeId = current ? current->data(0, kNodeRole).toString() : QString();
+        if (nodeId.isEmpty() || nodeId == d->current)
+            return;
+        d->current = nodeId;
+        emit nodeSelected(nodeId);
+    });
+    connect(d->tree, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem *item) {
+        const QString nodeId = item ? item->data(0, kNodeRole).toString() : QString();
+        if (!nodeId.isEmpty())
+            emit nodeActivated(nodeId);
+    });
 }
 
 NavigatorPanel::~NavigatorPanel()
@@ -177,7 +192,8 @@ bool NavigatorPanel::selectNode(const QString &nodeId)
     QTreeWidgetItem *item = findNode(d->tree, nodeId);
     if (!item)
         return false;
-    d->current = nodeId;
+    // The current-row handler records the choice and says so, once; choosing the same row says
+    // nothing.
     d->tree->setCurrentItem(item);
     return true;
 }
