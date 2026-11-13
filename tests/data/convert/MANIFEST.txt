@@ -1,0 +1,9 @@
+== tone.flac (17063 bytes)
+ffprobe: flac,44100,2,1.000000,16 | png,1.000000,N/A
+decoded as 32-bit PCM: MD5=7c64f1b4c51d13b477d7968f678daf4c
+== hires.flac (60132 bytes)
+ffprobe: flac,96000,2,0.500000,24
+decoded as 32-bit PCM: MD5=cd4340aa95ed4a289368f4c84ceed5d8
+== tone.mp3 (18363 bytes)
+ffprobe: mp3,44100,2,1.000000,N/A
+decoded as 32-bit PCM: MD5=052f96005289d192453c4b5f860cf6cd
