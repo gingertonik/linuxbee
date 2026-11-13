@@ -23,4 +23,8 @@ const QList<FieldKeys> &fieldTable();
 // `tags.fields`, the rest into `tags.other`. `id3` selects R-GROUPING.
 void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &tags);
 
+// True when `upperKey` is a key a field is read from (RATING included).
+// W-INVALID uses this to refuse an other-tag key that belongs to a field.
+bool isCatalogueKey(const QString &upperKey);
+
 }

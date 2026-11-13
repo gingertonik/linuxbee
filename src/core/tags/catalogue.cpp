@@ -149,6 +149,17 @@ void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &ta
     }
 }
 
+bool isCatalogueKey(const QString &upperKey)
+{
+    if (upperKey == QLatin1String("RATING"))
+        return true;
+    for (const FieldKeys &entry : fieldTable()) {
+        if (entry.keys.contains(upperKey))
+            return true;
+    }
+    return false;
+}
+
 }
 
 namespace linuxbee {
