@@ -97,6 +97,25 @@ if [ -d src/ui ]; then
         printf '%s' "$hits"
         bad=1
     fi
+    # The ui never includes the app.
+    hits=""
+    for header in $(find src/app -name '*.h' 2>/dev/null | sed 's|^src/app/||'); do
+        found=$(grep -rnF "#include \"$header\"" src/ui src/core src/cli 2>/dev/null || true)
+        [ -n "$found" ] && hits="$hits$found
+"
+    done
+    if [ -n "$hits" ]; then
+        echo "lint: only src/app may include headers from src/app:"
+        printf '%s' "$hits"
+        bad=1
+    fi
+    # A path that climbs out of its directory would get round both checks.
+    hits=$(grep -rnE '#[[:space:]]*include[[:space:]]*["<][^">]*\.\./' src tests 2>/dev/null || true)
+    if [ -n "$hits" ]; then
+        echo "lint: an include may not contain ../ (name the header from its include root):"
+        echo "$hits"
+        bad=1
+    fi
     hits=$(grep -rnE '#include <Qt(Widgets|Gui)|#include <Q(Widget|Application|MainWindow|Dialog)>' src/cli || true)
     if [ -n "$hits" ]; then
         echo "lint: src/cli must not include QtWidgets or QtGui:"

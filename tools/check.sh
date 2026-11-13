@@ -20,6 +20,10 @@ if ! cmake --preset dev > build/configure.log 2>&1; then
     echo "rc=1 (configure failed)"
     exit 1
 fi
+# A header that gains or loses Q_OBJECT between two builds of the same build
+# directory (a merge, a branch switch) is not always noticed by the moc step.
+# Removing its stamp makes that step look again; it costs well under a second.
+find build/dev -path '*_autogen/timestamp' -delete 2> /dev/null
 if ! nice -n 10 cmake --build --preset dev > build/build.log 2>&1; then
     grep -E "error|FAILED" build/build.log | grep -v "^/usr/bin/" | head -n 40
     echo "rc=1 (build failed)"
