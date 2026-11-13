@@ -98,7 +98,21 @@ BuiltPath buildRelativePath(const Template &pathTemplate, const TagSource &tags,
         return result;
     }
 
-    // Task 4 implements P-MISSING here.
+    // P-MISSING: blank top-level fields on the caller's source. A field the
+    // source does not know is not blank (T-UNKNOWN prints it later).
+    if (rules.skipWhenTagsMissing) {
+        QStringList missing;
+        for (const QString &field : pathTemplate.topLevelFields()) {
+            const std::optional<QString> value = tags.value(field);
+            if (value.has_value() && value->trimmed().isEmpty())
+                missing.append(field);
+        }
+        if (!missing.isEmpty()) {
+            result.status = BuiltPath::Status::MissingTags;
+            result.missingFields = missing; // in template order
+            return result;
+        }
+    }
 
     FilteredTagSource filtered(tags, rules.characterMap);
     TemplateOptions options = rules.templateOptions;
