@@ -4,6 +4,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <cstring>
 
 namespace linuxbee {
 
@@ -38,7 +39,9 @@ struct FfmpegAudioBackend::Private {
     AudioInfo info; // its audio properties, from the tag reader
     bool loaded = false; // a file is loaded and not yet ended or stopped
     bool playing = false; // the sink is started and ffmpeg feeds it
+    bool paused = false; // playing, but the sink has been told to pause
     bool decoderDone = false; // ffmpeg has exited
+    double volume = 1.0; // AE-VOLUME: applied to samples as they are handed over
     PcmFormat format;
     QByteArray pending; // decoded bytes the sink has not taken yet
     qint64 startMs = 0; // where the current decode started
@@ -53,26 +56,51 @@ struct FfmpegAudioBackend::Private {
         return startMs + (handedBytes / bytesPerFrame) * 1000 / format.sampleRate;
     }
 
-    // Stops everything at once and forgets the file.
-    void halt()
+    // Ends ffmpeg and drops what it had written. Emits nothing.
+    void stopDecoder()
     {
-        ++generation;
-        timer.stop();
         if (process.state() != QProcess::NotRunning) {
             process.kill();
             process.waitForFinished(1000); // the one short wait: a child being killed
         }
+        process.readAll(); // whatever it wrote before it died
+        decoderDone = false;
+    }
+
+    // Stops everything at once and forgets the file. Emits nothing.
+    void halt()
+    {
+        ++generation;
+        timer.stop();
+        stopDecoder();
         if (playing)
             sink->stop();
         playing = false;
-        decoderDone = false;
+        paused = false;
         loaded = false;
         pending.clear();
     }
 
+    // AE-VOLUME: the samples handed over are scaled on the way out. What the sink
+    // does not take stays unscaled in pending, so it is scaled once, at the volume
+    // in force when it is handed over.
+    qint64 writeToSink(qint64 bytes)
+    {
+        if (volume >= 1.0)
+            return sink->write(pending.constData(), bytes);
+        QByteArray scaled(pending.constData(), bytes);
+        for (qint64 i = 0; i + 4 <= bytes; i += 4) {
+            float v = 0;
+            std::memcpy(&v, scaled.constData() + i, 4);
+            v *= static_cast<float>(volume);
+            std::memcpy(scaled.data() + i, &v, 4);
+        }
+        return sink->write(scaled.constData(), bytes);
+    }
+
     void pump()
     {
-        if (!playing)
+        if (!playing || paused)
             return;
         const qint64 bytesPerFrame = format.bytesPerFrame();
         qint64 room = sink->bytesFree();
@@ -83,7 +111,7 @@ struct FfmpegAudioBackend::Private {
         qint64 take = std::min<qint64>(room, pending.size());
         take -= take % bytesPerFrame;
         if (take > 0) {
-            const qint64 wrote = sink->write(pending.constData(), take);
+            const qint64 wrote = writeToSink(take);
             if (wrote > 0) {
                 pending.remove(0, wrote);
                 handedBytes += wrote;
@@ -102,16 +130,12 @@ struct FfmpegAudioBackend::Private {
 
     void finish()
     {
-        timer.stop();
         const qint64 ms = positionMs();
+        halt();
         if (ms > reportedMs) {
             reportedMs = ms;
             emit owner->positionChanged(ms);
         }
-        sink->stop();
-        playing = false;
-        loaded = false; // the file is let go
-        pending.clear();
         emit owner->ended();
     }
 };
@@ -152,8 +176,16 @@ void FfmpegAudioBackend::load(const QString &path)
 
 void FfmpegAudioBackend::play()
 {
-    if (!d->loaded || d->playing)
+    if (!d->loaded)
         return;
+    if (d->playing) {
+        if (d->paused) {
+            d->paused = false;
+            d->sink->setPaused(false);
+            d->timer.start();
+        }
+        return;
+    }
     d->format = playbackFormat(d->info);
     if (!d->sink->start(d->format))
         return;
@@ -166,20 +198,47 @@ void FfmpegAudioBackend::play()
 
 void FfmpegAudioBackend::pause()
 {
+    if (!d->playing || d->paused)
+        return;
+    d->paused = true;
+    d->timer.stop();
+    d->sink->setPaused(true);
 }
 
 void FfmpegAudioBackend::stop()
 {
+    d->halt();
 }
 
 void FfmpegAudioBackend::seek(qint64 ms)
 {
-    Q_UNUSED(ms);
+    if (!d->loaded)
+        return;
+    d->startMs = std::clamp<qint64>(ms, 0, d->info.durationMs);
+    d->handedBytes = 0;
+    d->reportedMs = -1;
+    if (!d->playing)
+        return;
+    // Start afresh: the sink drops what it buffered and ffmpeg begins at the target.
+    const bool wasPaused = d->paused;
+    d->timer.stop();
+    d->stopDecoder();
+    d->sink->stop();
+    d->pending.clear();
+    if (!d->sink->start(d->format)) {
+        d->halt();
+        return;
+    }
+    if (wasPaused)
+        d->sink->setPaused(true);
+    d->process.start(d->ffmpegProgram, decodeArguments(d->path, d->startMs, d->format));
+    if (!wasPaused)
+        d->timer.start();
 }
 
 void FfmpegAudioBackend::setVolume(double linear)
 {
-    Q_UNUSED(linear);
+    d->volume = qBound(0.0, linear, 1.0);
 }
 
 }
