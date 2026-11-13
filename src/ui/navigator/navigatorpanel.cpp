@@ -50,6 +50,19 @@ QTreeWidgetItem *addRow(
     return item;
 }
 
+// V-PLAYLISTS: "/Rock//Best of/" becomes "Rock", "Best of"; parts are trimmed and empty parts
+// dropped.
+QStringList cleanedParts(const QString &name)
+{
+    QStringList parts;
+    for (const QString &part : name.split(QLatin1Char('/'))) {
+        const QString trimmed = part.trimmed();
+        if (!trimmed.isEmpty())
+            parts.append(trimmed);
+    }
+    return parts;
+}
+
 // Exact match on the id. An empty id matches nothing, so headings are never found.
 QTreeWidgetItem *findNode(QTreeWidget *tree, const QString &nodeId)
 {
@@ -66,6 +79,7 @@ QTreeWidgetItem *findNode(QTreeWidget *tree, const QString &nodeId)
 
 struct NavigatorPanel::Private {
     QTreeWidget *tree = nullptr;
+    QTreeWidgetItem *playlistsRoot = nullptr;
     QMap<QString, int> counts;
     QString current;
 };
@@ -94,8 +108,8 @@ NavigatorPanel::NavigatorPanel(QWidget *parent)
         addRow(d->tree, library, sectionLabel(name, 0), QStringLiteral("library:") + name);
     library->setExpanded(true);
 
-    QTreeWidgetItem *playlists = addRow(d->tree, nullptr, QStringLiteral("Playlists"), QString());
-    playlists->setExpanded(true);
+    d->playlistsRoot = addRow(d->tree, nullptr, QStringLiteral("Playlists"), QString());
+    d->playlistsRoot->setExpanded(true);
 
     // V-NODES: the panel opens on the music library.
     d->current = QStringLiteral("library:Music");
@@ -122,7 +136,35 @@ void NavigatorPanel::setLibraryCounts(const QMap<QString, int> &counts)
 
 void NavigatorPanel::setPlaylists(const QStringList &names)
 {
-    Q_UNUSED(names);
+    // Replace the whole list: drop the old rows under Playlists, then build the new ones.
+    qDeleteAll(d->playlistsRoot->takeChildren());
+
+    QStringList seenPaths;
+    QMap<QString, QTreeWidgetItem *> folders; // folder path ("Rock/Live") to its row
+    for (const QString &name : names) {
+        const QStringList parts = cleanedParts(name);
+        if (parts.isEmpty())
+            continue;
+        const QString path = parts.join(QLatin1Char('/'));
+        if (seenPaths.contains(path))
+            continue;
+        seenPaths.append(path);
+
+        QTreeWidgetItem *parent = d->playlistsRoot;
+        QString folderPath;
+        for (int i = 0; i < parts.size() - 1; ++i) {
+            folderPath
+                = folderPath.isEmpty() ? parts.at(i) : folderPath + QLatin1Char('/') + parts.at(i);
+            QTreeWidgetItem *folder = folders.value(folderPath, nullptr);
+            if (!folder) {
+                folder = addRow(d->tree, parent, parts.at(i), QString());
+                folder->setExpanded(true);
+                folders.insert(folderPath, folder);
+            }
+            parent = folder;
+        }
+        addRow(d->tree, parent, parts.last(), QStringLiteral("playlist:") + path);
+    }
 }
 
 QString NavigatorPanel::currentNode() const
