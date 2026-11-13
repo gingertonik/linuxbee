@@ -1,12 +1,15 @@
 #include "converter.h"
 
+#include "paths/pathbuilder.h"
 #include "tagcopy.h"
 
 #include <algorithm>
+#include <optional>
 
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <QStringList>
 
@@ -47,6 +50,86 @@ ConvertResult withStatus(ConvertResult::Status status, const QString &message)
     return result;
 }
 
+// C-STEPS 3: the path two files are compared by. The real path when the file
+// exists; otherwise the real folder with the file name.
+QString comparablePath(const QString &path)
+{
+    const QFileInfo info(path);
+    const QString real = info.canonicalFilePath();
+    if (!real.isEmpty())
+        return real;
+    const QString folder = QFileInfo(info.absolutePath()).canonicalFilePath();
+    if (folder.isEmpty())
+        return info.absoluteFilePath();
+    return folder + QLatin1Char('/') + info.fileName();
+}
+
+// C-EXISTS: the destination exists already. Returns the result when the job
+// ends here. Otherwise `destination` is the name the converted file goes to.
+std::optional<ConvertResult> resolveExisting(
+    const ConvertJob &job, const ReadResult &source, QString &destination)
+{
+    if (!QFileInfo::exists(destination))
+        return std::nullopt;
+
+    ConvertResult result;
+    result.outputPath = destination;
+    switch (job.ifExists) {
+    case ConvertJob::IfExists::Skip:
+        result.status = ConvertResult::Status::Skipped;
+        return result;
+    case ConvertJob::IfExists::UpdateTags:
+        // ffmpeg does not run. The tags follow the source, on the existing file.
+        if (!job.copyTags) {
+            result.status = ConvertResult::Status::Skipped;
+            return result;
+        }
+        {
+            const QString error = convert::copyTags(
+                source.tags, destination, job.copyPictures, job.tagOptions, &result.warnings);
+            if (!error.isEmpty()) {
+                result.status = ConvertResult::Status::Failed;
+                result.message = error;
+                return result;
+            }
+        }
+        result.status = ConvertResult::Status::TagsUpdated;
+        return result;
+    case ConvertJob::IfExists::Rename: {
+        const QString free = uniqueRelativePath(
+            destination, [](const QString &path) { return QFileInfo::exists(path); });
+        if (free.isEmpty())
+            return withStatus(
+                ConvertResult::Status::Failed, QStringLiteral("no free file name is left"));
+        destination = free;
+        return std::nullopt;
+    }
+    case ConvertJob::IfExists::Overwrite:
+        // Replaced at step 9, once the new file is complete.
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+// Step 9: the part file takes the destination's place. QFile::rename never
+// replaces a file, so an existing destination is set aside first and put back
+// when the move fails. A failed run leaves the old file as it was.
+bool moveIntoPlace(const QString &partPath, const QString &destination)
+{
+    if (!QFileInfo::exists(destination))
+        return QFile::rename(partPath, destination);
+    const QString aside = destination + QStringLiteral(".replaced");
+    QFile::remove(aside);
+    if (!QFile::rename(destination, aside))
+        return false;
+    if (QFile::rename(partPath, destination)) {
+        QFile::remove(aside);
+        return true;
+    }
+    QFile::rename(aside, destination);
+    return false;
+}
+
 }
 
 ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress)
@@ -66,18 +149,28 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
         return withStatus(
             ConvertResult::Status::SourceNotAudio, QStringLiteral("source is not an audio file"));
 
+    // Step 3: the source is never written, so a destination that is the source is refused.
+    if (comparablePath(job.source) == comparablePath(job.destination))
+        return withStatus(ConvertResult::Status::InvalidJob,
+            QStringLiteral("the destination is the source file"));
+
+    // Step 4: the destination exists already (C-EXISTS).
+    QString destination = job.destination;
+    if (std::optional<ConvertResult> done = resolveExisting(job, source, destination))
+        return *done;
+
     // Step 5: C-PROGRESS starts at exactly 0, before anything is written.
     if (progress && !progress(0.0))
         return withStatus(ConvertResult::Status::Cancelled, QStringLiteral("cancelled"));
 
     // Step 6: the destination's folder.
-    const QString folder = job.destination.left(job.destination.lastIndexOf(QLatin1Char('/')) + 1);
+    const QString folder = destination.left(destination.lastIndexOf(QLatin1Char('/')) + 1);
     if (!folder.isEmpty() && !QDir().mkpath(folder))
         return withStatus(
             ConvertResult::Status::Failed, QStringLiteral("could not create the folder"));
 
     // Step 7: ffmpeg writes the part file. An old part file of that name goes first.
-    const QString partPath = partPathFor(job.destination);
+    const QString partPath = partPathFor(destination);
     QFile::remove(partPath);
 
     QProcess ffmpeg;
@@ -146,10 +239,8 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
         }
     }
 
-    // Step 9: the part file takes the destination's place. QFile::rename does
-    // not replace an existing file, so the old one is left alone when the
-    // rename fails.
-    if (!QFile::rename(partPath, job.destination)) {
+    // Step 9: the move. The old file is replaced only here.
+    if (!moveIntoPlace(partPath, destination)) {
         QFile::remove(partPath);
         result.status = ConvertResult::Status::Failed;
         result.message = QStringLiteral("could not move the converted file into place");
@@ -160,7 +251,7 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (progress)
         progress(1.0);
     result.status = ConvertResult::Status::Converted;
-    result.outputPath = job.destination;
+    result.outputPath = destination;
     return result;
 }
 
