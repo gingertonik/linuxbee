@@ -98,6 +98,7 @@ private slots:
     void mixedFieldCanBeCleared();
     void refusedEdit();
     void failedSave();
+    void editAfterFailedSave();
     void cancel();
     void noTargets();
     void realFile();
@@ -346,6 +347,42 @@ void TagEditorTest::realFile()
     QCOMPARE(after.tags.first(s(u"Rating")), s(u"3.5"));
     QCOMPARE(after.tags.first(s(u"Artist")), before.tags.first(s(u"Artist"))); // untouched
     QCOMPARE(after.tags.pictures.size(), before.tags.pictures.size());
+}
+
+// Added by the reviewer of plan 12 (review round 1).
+// Spec: E-DIALOG, Save 2 ("Each track that has something to change is handed
+// to the saver") and 4 ("Saving again writes only what is still to do").
+// A field edited after a partly failed Save is still to do on every track,
+// including the ones whose files were written by the first Save.
+
+void TagEditorTest::editAfterFailedSave()
+{
+    TagEditorDialog d(three());
+    Recorder rec;
+    rec.failFor = { s(u"/music/12 - J\u00f3ga.flac") };
+    d.setSaver(rec.saver());
+    d.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&d));
+    type(editor(d, u"Album"), s(u"Post"));
+    QVERIFY(!d.save());
+    QCOMPARE(rec.paths.size(), 3);
+    // What was written is not written again.
+    const QList<TagChanges> between = d.pendingChanges();
+    QCOMPARE(between.size(), 3);
+    QVERIFY(between.at(0).isEmpty());
+    QCOMPARE(between.at(1).fields.keys(), QStringList({ s(u"Album") }));
+    QVERIFY(between.at(2).isEmpty());
+    // A new edit after the failure reaches every track.
+    rec.failFor.clear();
+    type(editor(d, u"Grouping"), s(u"Late"));
+    QVERIFY(d.save());
+    QCOMPARE(rec.paths.size(), 6);
+    QCOMPARE(rec.paths.mid(3),
+        QStringList({ s(u"/music/11 - Hunter.flac"), s(u"/music/12 - J\u00f3ga.flac"), s(u"/music/13 - Unravel.flac") }));
+    QCOMPARE(rec.changes.at(3).fields.keys(), QStringList({ s(u"Grouping") }));
+    QCOMPARE(rec.changes.at(4).fields.keys(), QStringList({ s(u"Album"), s(u"Grouping") }));
+    QCOMPARE(rec.changes.at(5).fields.keys(), QStringList({ s(u"Grouping") }));
+    QCOMPARE(rec.changes.at(3).fields.value(s(u"Grouping")), QStringList({ s(u"Late") }));
 }
 
 QTEST_MAIN(TagEditorTest)
