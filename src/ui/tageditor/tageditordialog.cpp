@@ -1,5 +1,6 @@
 #include "tageditor/tageditordialog.h"
 
+#include "tageditor/tageditordialog_p.h"
 #include "tagedit/tagedit.h"
 
 #include <QDialogButtonBox>
@@ -11,18 +12,6 @@
 #include <QVBoxLayout>
 
 namespace linuxbee::ui {
-
-struct TagEditorDialog::Private {
-    QList<EditTarget> targets;
-    TagEditorDialog::Saver saver;
-    // What each field showed when the dialog opened, by catalogue name.
-    QMap<QString, FieldState> states;
-    QMap<QString, QLineEdit *> editors;
-    QLabel *summary = nullptr;
-    QLabel *problem = nullptr;
-    QPushButton *saveButton = nullptr;
-    QPushButton *cancelButton = nullptr;
-};
 
 namespace {
 
@@ -92,6 +81,7 @@ TagEditorDialog::TagEditorDialog(const QList<EditTarget> &targets, QWidget *pare
     layout->addWidget(buttons);
 
     connect(d->saveButton, &QPushButton::clicked, this, [this] { save(); });
+    connect(d->cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 }
 
 TagEditorDialog::~TagEditorDialog()
@@ -124,13 +114,13 @@ QMap<QString, QString> TagEditorDialog::edits() const
 
 QList<TagChanges> TagEditorDialog::pendingChanges() const
 {
-    return buildEdits(tagsOf(d->targets), edits());
-}
-
-// Replaced in the save step of plan 12 (task 6).
-bool TagEditorDialog::save()
-{
-    return false;
+    QList<TagChanges> changes = buildEdits(tagsOf(d->targets), edits());
+    // A file already written in this dialog is not written again.
+    for (const int index : d->finished) {
+        if (index < changes.size())
+            changes[index] = TagChanges();
+    }
+    return changes;
 }
 
 }
