@@ -1,8 +1,25 @@
 #include "playqueue.h"
 
-// Q-NEXT: Next and Previous in list order, and repeat. Shuffle joins in task 4.
-// Spec: docs/spec/play-queue.md.
+#include <utility>
+
+// Q-NEXT: Next and Previous in list order, or along the shuffle round, and repeat.
+// Q-SHUFFLE: the round (m_upcoming) and the way back (m_history), both held as
+// entry ids so that they stay with their entries. Spec: docs/spec/play-queue.md.
 namespace linuxbee {
+
+namespace {
+
+// Where the entry with this id sits in the list, or -1 when it is not there.
+int indexOfId(const QList<PlayQueue::Entry> &entries, qint64 id)
+{
+    for (int i = 0; i < entries.size(); ++i) {
+        if (entries.at(i).entryId == id)
+            return i;
+    }
+    return -1;
+}
+
+}
 
 // Next, from the current entry or, with none, from the place the queue remembers.
 int PlayQueue::next(bool automatic)
@@ -12,6 +29,24 @@ int PlayQueue::next(bool automatic)
         return -1;
     if (m_current >= 0 && automatic && m_repeat == Repeat::One)
         return m_current;
+
+    if (m_shuffle) {
+        if (m_upcoming.isEmpty()) {
+            if (m_repeat != Repeat::All)
+                return -1;
+            reshuffle();
+            if (m_upcoming.isEmpty())
+                return m_current; // one entry under Repeat::All: it stays current
+        }
+        const int target = indexOfId(m_entries, m_upcoming.takeFirst());
+        if (target < 0)
+            return -1;
+        if (m_current >= 0)
+            m_history.append(m_entries.at(m_current).entryId);
+        setCurrentInternal(target);
+        return target;
+    }
+
     int target = m_current < 0 ? m_resumeAt : m_current + 1;
     if (target >= n)
         target = m_repeat == Repeat::All ? 0 : -1;
@@ -21,11 +56,25 @@ int PlayQueue::next(bool automatic)
     return target;
 }
 
+// Previous. Under shuffle it goes back through the way back and never wraps.
 int PlayQueue::previous()
 {
     const int n = count();
     if (n == 0)
         return -1;
+
+    if (m_shuffle) {
+        if (m_history.isEmpty())
+            return -1;
+        const int target = indexOfId(m_entries, m_history.takeLast());
+        if (target < 0)
+            return -1;
+        if (m_current >= 0)
+            m_upcoming.prepend(m_entries.at(m_current).entryId);
+        setCurrentInternal(target);
+        return target;
+    }
+
     int target = m_current < 0 ? m_resumeAt - 1 : m_current - 1;
     if (target < 0)
         target = m_repeat == Repeat::All ? n - 1 : -1;
@@ -42,6 +91,8 @@ bool PlayQueue::hasNext(bool automatic) const
         return false;
     if (m_current >= 0 && automatic && m_repeat == Repeat::One)
         return true;
+    if (m_shuffle)
+        return !m_upcoming.isEmpty() || m_repeat == Repeat::All;
     const int from = m_current < 0 ? m_resumeAt : m_current + 1;
     return from < n || m_repeat == Repeat::All;
 }
@@ -59,14 +110,43 @@ void PlayQueue::setRepeat(Repeat repeat)
     emit modeChanged();
 }
 
-// Task 3 records the mode only. The round itself is task 4 (Q-SHUFFLE).
+// Switching shuffle on starts a round and an empty way back. Switching it on
+// again starts a new round with the new seed and keeps the way back. Switching
+// it off drops both and leaves Next in list order.
 void PlayQueue::setShuffle(bool on, quint32 seed)
 {
-    Q_UNUSED(seed);
-    if (on == m_shuffle)
+    if (on) {
+        if (!m_shuffle) {
+            m_shuffle = true;
+            m_history.clear();
+            emit modeChanged();
+        }
+        m_random.seed(seed);
+        reshuffle();
         return;
-    m_shuffle = on;
+    }
+    if (!m_shuffle)
+        return;
+    m_shuffle = false;
+    m_upcoming.clear();
+    m_history.clear();
     emit modeChanged();
+}
+
+// A new round: every entry except the current one, in the order the seed's
+// random sequence gives (Fisher-Yates; m_random % n is the same on every platform).
+void PlayQueue::reshuffle()
+{
+    const qint64 current = m_current >= 0 ? m_entries.at(m_current).entryId : qint64(-1);
+    m_upcoming.clear();
+    for (const Entry &entry : std::as_const(m_entries)) {
+        if (entry.entryId != current)
+            m_upcoming.append(entry.entryId);
+    }
+    for (int i = m_upcoming.size() - 1; i > 0; --i) {
+        const int j = int(m_random() % quint32(i + 1));
+        std::swap(m_upcoming[i], m_upcoming[j]);
+    }
 }
 
 }
