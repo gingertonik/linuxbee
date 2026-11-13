@@ -60,4 +60,24 @@ if [ -n "$hits" ]; then
     bad=1
 fi
 
+# 5. Build files find sources by pattern. Naming a source file in one of them
+#    means two plans edit the same line.
+hits=$(grep -nE '[A-Za-z0-9_]\.(cpp|h|sh)\b' src/core/CMakeLists.txt src/cli/CMakeLists.txt \
+    tests/CMakeLists.txt 2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)
+if [ -n "$hits" ]; then
+    echo "lint: build files must not name source files (they are found by pattern):"
+    echo "$hits"
+    bad=1
+fi
+
+# 6. linuxbeectl's main.cpp knows no command. Commands register themselves.
+if [ -f src/cli/command.h ]; then
+    hits=$(grep -n '#include "' src/cli/main.cpp | grep -vE '"(command|version)\.h"' || true)
+    if [ -n "$hits" ]; then
+        echo "lint: src/cli/main.cpp may include only command.h and version.h:"
+        echo "$hits"
+        bad=1
+    fi
+fi
+
 exit $bad
