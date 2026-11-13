@@ -82,13 +82,14 @@ std::optional<QDateTime> readDate(const QString &text)
 
     if (!trimmed.contains(QLatin1Char('T')))
         return std::nullopt;
-    const QDateTime parsed = QDateTime::fromString(trimmed, Qt::ISODate);
+    // U-DATE: a time without a zone is UTC. Appending Z keeps Qt from reading
+    // it in the host's local zone, where a local DST gap would move it.
+    const bool hasZone = zone.match(trimmed).hasMatch();
+    const QDateTime parsed
+        = QDateTime::fromString(hasZone ? trimmed : trimmed + QLatin1Char('Z'), Qt::ISODate);
     if (!parsed.isValid())
         return std::nullopt;
-    if (zone.match(trimmed).hasMatch())
-        return parsed.toUTC();
-    // No zone: Qt reads it as local time. The same wall-clock reading is UTC.
-    return QDateTime(parsed.date(), parsed.time(), QTimeZone::UTC);
+    return parsed.toUTC();
 }
 
 }
