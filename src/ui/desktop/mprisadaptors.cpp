@@ -63,4 +63,158 @@ void RootAdaptor::Quit()
         m_state.hooks.quit();
 }
 
+PlayerAdaptor::PlayerAdaptor(MprisService *service, DesktopState &state)
+    : QDBusAbstractAdaptor(service)
+    , m_state(state)
+{
+}
+
+// MP-PROPS: the player's own state in the words the desktop expects.
+QString PlayerAdaptor::playbackStatus() const
+{
+    switch (m_state.player->state()) {
+    case Player::State::Playing:
+        return QStringLiteral("Playing");
+    case Player::State::Paused:
+        return QStringLiteral("Paused");
+    case Player::State::Stopped:
+        return QStringLiteral("Stopped");
+    }
+    return QStringLiteral("Stopped");
+}
+
+QString PlayerAdaptor::loopStatus() const
+{
+    return QStringLiteral("None");
+}
+
+// MP-PROPS: linuxBee plays at one speed, so all three rates are 1.0.
+double PlayerAdaptor::rate() const
+{
+    return 1.0;
+}
+
+double PlayerAdaptor::minimumRate() const
+{
+    return 1.0;
+}
+
+double PlayerAdaptor::maximumRate() const
+{
+    return 1.0;
+}
+
+bool PlayerAdaptor::shuffle() const
+{
+    return false;
+}
+
+QVariantMap PlayerAdaptor::metadata() const
+{
+    return { };
+}
+
+double PlayerAdaptor::volume() const
+{
+    return 1.0;
+}
+
+qlonglong PlayerAdaptor::position() const
+{
+    return 0;
+}
+
+bool PlayerAdaptor::canGoNext() const
+{
+    return false;
+}
+
+bool PlayerAdaptor::canGoPrevious() const
+{
+    return false;
+}
+
+bool PlayerAdaptor::canPlay() const
+{
+    return false;
+}
+
+bool PlayerAdaptor::canPause() const
+{
+    return false;
+}
+
+bool PlayerAdaptor::canSeek() const
+{
+    return false;
+}
+
+bool PlayerAdaptor::canControl() const
+{
+    return true;
+}
+
+// MP-METHODS: every one of these is the player's function of the same name.
+// The player decides what a step means (player.md); the service only passes it on.
+void PlayerAdaptor::Play()
+{
+    m_state.player->play();
+}
+
+void PlayerAdaptor::Pause()
+{
+    m_state.player->pause();
+}
+
+void PlayerAdaptor::PlayPause()
+{
+    m_state.player->playPause();
+}
+
+void PlayerAdaptor::Stop()
+{
+    m_state.player->stop();
+}
+
+void PlayerAdaptor::Next()
+{
+    m_state.player->next();
+}
+
+void PlayerAdaptor::Previous()
+{
+    m_state.player->previous();
+}
+
+// MP-METHODS: opening a file the desktop hands over is not in this version
+// (docs/spec/desktop-mpris.md, "Not in this version"), so the call is
+// accepted and nothing is done with it.
+void PlayerAdaptor::OpenUri(const QString &uri)
+{
+    Q_UNUSED(uri);
+}
+
+// MP-PROPS: the writers. A property that only reports the player's state has
+// no writer, so the bus refuses the write, as it should.
+void PlayerAdaptor::setLoopStatus(const QString &text)
+{
+    Q_UNUSED(text);
+}
+
+void PlayerAdaptor::setShuffle(bool on)
+{
+    Q_UNUSED(on);
+}
+
+void PlayerAdaptor::setVolume(double volume)
+{
+    Q_UNUSED(volume);
+}
+
+// MP-PROPS: a write of Rate is accepted and ignored: 1.0 is the only speed.
+void PlayerAdaptor::setRate(double rate)
+{
+    Q_UNUSED(rate);
+}
+
 }

@@ -30,6 +30,7 @@ MprisService::MprisService(Player *player, PlayQueue *queue, Hooks hooks, QObjec
     // The adaptors are children of this object, so registering it with
     // ExportAdaptors puts both interfaces on the bus.
     new RootAdaptor(this, d->state);
+    new PlayerAdaptor(this, d->state);
 }
 
 MprisService::~MprisService()
