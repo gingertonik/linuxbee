@@ -32,10 +32,9 @@ QList<PlaylistEntry> parsePlaylist(
 QByteArray writePlaylist(
     const QList<PlaylistEntry> &entries, PlaylistFormat format, const PlaylistWriteOptions &options)
 {
-    Q_UNUSED(entries);
-    Q_UNUSED(format);
-    Q_UNUSED(options);
-    return { };
+    if (format == PlaylistFormat::Pls)
+        return playlists::writePls(entries, options);
+    return playlists::writeM3u(entries, options);
 }
 
 }
