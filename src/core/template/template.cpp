@@ -77,4 +77,9 @@ QStringList Template::referencedFields() const
     return names;
 }
 
+QStringList Template::topLevelFields() const
+{
+    return { };
+}
+
 } // namespace linuxbee

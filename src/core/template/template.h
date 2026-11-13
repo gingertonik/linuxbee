@@ -47,6 +47,11 @@ public:
     // each listed once.
     QStringList referencedFields() const;
 
+    // The fields written outside every function call, in order of first
+    // appearance, each listed once. Empty for an invalid template.
+    // See docs/spec/paths.md, P-MISSING.
+    QStringList topLevelFields() const;
+
     struct Node; // defined in template.cpp
 
 private:
