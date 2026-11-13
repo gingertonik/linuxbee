@@ -141,7 +141,11 @@ itself, so hotkeys work whichever part has the focus.
 
 `setPanelWidget(panel, widget)` puts a widget into the navigator panel,
 the right panel or the player bar, where it fills the panel. What was
-there before is deleted. Null empties the panel.
+there before is deleted at once: it no longer exists when the call
+returns. (Its owner may be about to destroy what the widget points to.)
+Null empties the panel. Putting in the widget that is there already
+changes nothing. A caller must not replace a panel's widget from inside
+a function of that widget.
 
 ### W-PAGES
 
