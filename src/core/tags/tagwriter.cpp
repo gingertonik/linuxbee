@@ -1,10 +1,19 @@
 #include "tagwriter.h"
 
+#include <algorithm>
 #include <memory>
 
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRandomGenerator>
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <sys/xattr.h>
+#include <unistd.h>
 
 #include <fileref.h>
 #include <id3v2.h>
@@ -271,6 +280,99 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     return id3 ? saveId3(file, options) : file->save();
 }
 
+// WS-NAME: the new version of the file sits beside it as ".lbsave-" + six
+// characters chosen at random from a-z and 0-9 + "-" + the file's own name.
+// The name ends with the file's name so the extension, which tells the tag
+// library the format, is kept; it begins with a dot so it is not shown.
+QString scratchName(const QString &fileName)
+{
+    static constexpr char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+    QString chosen;
+    for (int i = 0; i < 6; ++i)
+        chosen
+            += QLatin1Char(alphabet[QRandomGenerator::global()->bounded(int(sizeof alphabet) - 1)]);
+    return QStringLiteral(".lbsave-") + chosen + QLatin1Char('-') + fileName;
+}
+
+// POSIX: force a saved file's contents, or a folder's entries, to the disk.
+void syncToDisk(const QString &path, bool isFolder)
+{
+    const int fd
+        = ::open(QFile::encodeName(path).constData(), O_RDONLY | (isFolder ? O_DIRECTORY : 0));
+    if (fd < 0)
+        return;
+    ::fsync(fd);
+    ::close(fd);
+}
+
+// WS-KILLED: a process that died during an earlier save of this file left its copy
+// behind. Step 1 of WS-ORDER removes every file in the folder shaped exactly like
+// this file's copies, and nothing else. The names are compared by hand on purpose:
+// a music file's name carries [ ] * ? , which a name filter takes for wildcards.
+void clearLeftovers(const QString &folder, const QString &fileName)
+{
+    const QString head = QStringLiteral(".lbsave-");
+    const QString tail = QLatin1Char('-') + fileName;
+    const QStringList names = QDir(folder).entryList(QDir::Files | QDir::Hidden, QDir::Name);
+    for (const QString &name : names) {
+        if (name.size() != head.size() + 6 + tail.size() || !name.startsWith(head)
+            || !name.endsWith(tail))
+            continue;
+        const QString chosen = name.mid(head.size(), 6);
+        if (!std::all_of(chosen.cbegin(), chosen.cend(), [](QChar c) {
+                return (c.unicode() >= u'a' && c.unicode() <= u'z')
+                    || (c.unicode() >= u'0' && c.unicode() <= u'9');
+            }))
+            continue;
+        QFile::remove(folder + QLatin1Char('/') + name);
+    }
+}
+
+// WS-KEEP: the new version has the original's permission bits, its owner and group
+// where the system allows that, and its extended attributes. An ordinary user cannot
+// take another's owner and cannot write every attribute namespace: those refusals are
+// the file system's, not the save's, so the copy becomes the user's own and the save
+// goes on. The times are set by W-MTIME after this, being the last thing written.
+void giveWhatTheOriginalHad(const QString &copyPath, const QString &original)
+{
+    const QByteArray copyName = QFile::encodeName(copyPath);
+    const QByteArray originalName = QFile::encodeName(original);
+    struct stat had { };
+    if (::stat(originalName.constData(), &had) != 0)
+        return;
+    if (::chmod(copyName.constData(), had.st_mode & 07777) != 0)
+        return;
+    if (::chown(copyName.constData(), had.st_uid, had.st_gid) != 0) {
+        // The file stays the user's own; WS-KEEP says the save still succeeds.
+    }
+
+    const ssize_t listed = ::listxattr(originalName.constData(), nullptr, 0);
+    if (listed <= 0)
+        return;
+    QByteArray names(int(listed), '\0');
+    const ssize_t got = ::listxattr(originalName.constData(), names.data(), names.size());
+    if (got <= 0)
+        return;
+
+    // The names come back as one buffer of zero-ended strings.
+    const char *cursor = names.constData();
+    const char *const end = cursor + got;
+    while (cursor < end) {
+        const QByteArray attribute(cursor);
+        const ssize_t wanted
+            = ::getxattr(originalName.constData(), attribute.constData(), nullptr, 0);
+        if (wanted >= 0) {
+            QByteArray value(int(wanted), '\0');
+            const ssize_t bytes = ::getxattr(
+                originalName.constData(), attribute.constData(), value.data(), value.size());
+            if (bytes >= 0)
+                (void)::setxattr(copyName.constData(), attribute.constData(), value.constData(),
+                    size_t(bytes), 0);
+        }
+        cursor += attribute.size() + 1;
+    }
+}
+
 }
 
 WriteResult writeTags(
@@ -303,27 +405,95 @@ WriteResult writeTags(
         return result;
     }
 
+    // WS-REFUSED: the file itself may not be written, though replacing it would be
+    // possible: a file marked read-only is to be left alone.
     if (!QFileInfo(filePath).isWritable()) {
         result.status = WriteResult::Status::NotWritable;
         return result;
     }
 
-    const QDateTime modified = QFileInfo(filePath).lastModified();
+    // WS-LINK: the file the path leads to is the one saved, in its own folder.
+    const QString target = QFileInfo(filePath).canonicalFilePath();
+    if (target.isEmpty()) {
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+    const QFileInfo targetInfo(target);
+    const QString folder = targetInfo.absolutePath();
+
+    // WS-REFUSED: and so is a file whose folder takes no new file. The check is here,
+    // before the copy, so that refusing creates nothing at all.
+    if (!QFileInfo(folder).isWritable()) {
+        result.status = WriteResult::Status::NotWritable;
+        return result;
+    }
+
+    const QDateTime modified = targetInfo.lastModified();
+
+    // WS-ORDER 1, WS-KILLED: clear up after a save of this file that died half-way,
+    // so the copy made below is the only new file in the folder.
+    clearLeftovers(folder, targetInfo.fileName());
+
+    // WS-ORDER 2, WS-NAME: a whole new version of the file beside the original.
+    QString copyPath;
+    do
+        copyPath = folder + QLatin1Char('/') + scratchName(targetInfo.fileName());
+    while (QFile::exists(copyPath));
+    if (!QFile::copy(target, copyPath)) {
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+
+    // WS-ORDER 3: the changes are saved into the copy. Nothing of the original is
+    // opened for writing, so until step 6 it is byte for byte what it was.
     bool saved = false;
     try {
         saved = saveChanges(
-            filePath, read.tags, checked, after, options, changes.pictures.has_value());
+            copyPath, read.tags, checked, after, options, changes.pictures.has_value());
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;
     }
-    // W-MTIME: saveChanges has closed the file, so the old time can be put back.
-    if (saved && options.keepModificationTime) {
-        QFile file(filePath);
-        if (file.open(QIODevice::ReadOnly))
-            file.setFileTime(modified, QFileDevice::FileModificationTime);
+    if (!saved) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
     }
-    result.status = saved ? WriteResult::Status::Ok : WriteResult::Status::Failed;
+
+    // WS-KEEP: the copy takes what the original had: permission bits, owner where
+    // the system allows, extended attributes.
+    giveWhatTheOriginalHad(copyPath, target);
+
+    // W-MTIME: with keepModificationTime the copy gets the original's time, and the
+    // time goes on last, so nothing written afterwards moves it. Without it the copy
+    // keeps the time of the save.
+    if (options.keepModificationTime) {
+        QFile copy(copyPath);
+        if (copy.open(QIODevice::ReadOnly))
+            copy.setFileTime(modified, QFileDevice::FileModificationTime);
+    }
+
+    // WS-ORDER 4: the copy's contents are forced to the disk before the swap.
+    syncToDisk(copyPath, false);
+
+    // WS-HOOK: the last moment to stop a save, with both versions complete.
+    if (options.beforeReplace && !options.beforeReplace(copyPath)) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+
+    // WS-ORDER 6: rename(2) puts the copy in the original's place in one step, so
+    // the path never holds half a file. Then the folder's entries are forced too.
+    if (::rename(QFile::encodeName(copyPath).constData(), QFile::encodeName(target).constData())
+        != 0) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+    syncToDisk(folder, true);
+
+    result.status = WriteResult::Status::Ok;
     return result;
 }
 
