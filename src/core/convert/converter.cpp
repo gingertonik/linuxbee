@@ -2,6 +2,8 @@
 
 #include "tagcopy.h"
 
+#include <algorithm>
+
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -49,8 +51,6 @@ ConvertResult withStatus(ConvertResult::Status status, const QString &message)
 
 ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress)
 {
-    Q_UNUSED(progress);
-
     // Steps 1 and 2: the settings, the destination, then the source.
     QStringList problems = validateSettings(job.settings);
     if (job.destination.isEmpty())
@@ -65,6 +65,10 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (source.status == ReadResult::Status::NotAudio)
         return withStatus(
             ConvertResult::Status::SourceNotAudio, QStringLiteral("source is not an audio file"));
+
+    // Step 5: C-PROGRESS starts at exactly 0, before anything is written.
+    if (progress && !progress(0.0))
+        return withStatus(ConvertResult::Status::Cancelled, QStringLiteral("cancelled"));
 
     // Step 6: the destination's folder.
     const QString folder = job.destination.left(job.destination.lastIndexOf(QLatin1Char('/')) + 1);
@@ -84,6 +88,44 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (!ffmpeg.waitForStarted())
         return withStatus(
             ConvertResult::Status::EncoderMissing, QStringLiteral("ffmpeg could not be started"));
+
+    // ffmpeg prints "out_time_us=N" lines on standard output while it works.
+    // C-PROGRESS: N over the source's length, never below the last report and
+    // never above 0.99; the 1 is reported after the move.
+    const double totalUs = source.tags.audio.durationMs * 1000.0;
+    QByteArray pending;
+    double reported = 0.0;
+    bool cancelled = false;
+    const auto consume = [&](const QByteArray &chunk) {
+        pending.append(chunk);
+        for (int newline = pending.indexOf('\n'); newline >= 0 && !cancelled;
+            newline = pending.indexOf('\n')) {
+            const QByteArray line = pending.left(newline).trimmed();
+            pending.remove(0, newline + 1);
+            if (!line.startsWith("out_time_us=") || totalUs <= 0)
+                continue;
+            bool ok = false;
+            const qint64 us = line.mid(12).toLongLong(&ok);
+            if (!ok)
+                continue;
+            reported = std::max(reported, std::min(0.99, static_cast<double>(us) / totalUs));
+            if (progress && !progress(reported))
+                cancelled = true;
+        }
+    };
+    while (!cancelled && ffmpeg.state() != QProcess::NotRunning) {
+        ffmpeg.waitForReadyRead(100);
+        consume(ffmpeg.readAllStandardOutput());
+    }
+    if (!cancelled)
+        consume(ffmpeg.readAllStandardOutput());
+
+    if (cancelled) {
+        ffmpeg.kill();
+        ffmpeg.waitForFinished(-1);
+        QFile::remove(partPath);
+        return withStatus(ConvertResult::Status::Cancelled, QStringLiteral("cancelled"));
+    }
     ffmpeg.waitForFinished(-1);
     if (ffmpeg.exitStatus() != QProcess::NormalExit || ffmpeg.exitCode() != 0) {
         QFile::remove(partPath);
@@ -113,6 +155,10 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
         result.message = QStringLiteral("could not move the converted file into place");
         return result;
     }
+    // The file is in place. The final report cannot undo that, so the answer
+    // to it is not used.
+    if (progress)
+        progress(1.0);
     result.status = ConvertResult::Status::Converted;
     result.outputPath = job.destination;
     return result;
