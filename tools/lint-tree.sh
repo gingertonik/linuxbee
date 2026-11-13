@@ -13,6 +13,8 @@ if [ -f tools/locked.sha256 ]; then
 fi
 
 # 2. This tree is published. No home paths, user names or machine names.
+#    In a git worktree .git is a file that holds an absolute path, so it is
+#    excluded by name as well as by directory.
 #    tools/private-words.txt is git-ignored: one word per line, kept only on
 #    the machine doing the work, so the words themselves are never published.
 pattern='/home/|/Users/'
@@ -22,7 +24,8 @@ if [ -f tools/private-words.txt ]; then
 fi
 hits=$(grep -rnEi "$pattern" . \
     --exclude-dir=build --exclude-dir=.git \
-    --exclude=LICENSE --exclude=lint-tree.sh --exclude=private-words.txt || true)
+    --exclude=LICENSE --exclude=lint-tree.sh --exclude=private-words.txt \
+    --exclude=.git || true)
 if [ -n "$hits" ]; then
     echo "lint: private path or name in the tree:"
     echo "$hits"
@@ -41,7 +44,8 @@ if [ -n "$hits" ]; then
     bad=1
 fi
 hits=$(grep -rnE '\.hermes/plans|hermes chat' . \
-    --exclude-dir=build --exclude-dir=.git --exclude=lint-tree.sh || true)
+    --exclude-dir=build --exclude-dir=.git --exclude=.git \
+    --exclude=lint-tree.sh || true)
 if [ -n "$hits" ]; then
     echo "lint: reference to a plan file outside the tree:"
     echo "$hits"
