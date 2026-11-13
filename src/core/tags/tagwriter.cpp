@@ -11,6 +11,8 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/xattr.h>
 #include <unistd.h>
 
 #include <fileref.h>
@@ -326,6 +328,51 @@ void clearLeftovers(const QString &folder, const QString &fileName)
     }
 }
 
+// WS-KEEP: the new version has the original's permission bits, its owner and group
+// where the system allows that, and its extended attributes. An ordinary user cannot
+// take another's owner and cannot write every attribute namespace: those refusals are
+// the file system's, not the save's, so the copy becomes the user's own and the save
+// goes on. The times are set by W-MTIME after this, being the last thing written.
+void giveWhatTheOriginalHad(const QString &copyPath, const QString &original)
+{
+    const QByteArray copyName = QFile::encodeName(copyPath);
+    const QByteArray originalName = QFile::encodeName(original);
+    struct stat had { };
+    if (::stat(originalName.constData(), &had) != 0)
+        return;
+    if (::chmod(copyName.constData(), had.st_mode & 07777) != 0)
+        return;
+    if (::chown(copyName.constData(), had.st_uid, had.st_gid) != 0) {
+        // The file stays the user's own; WS-KEEP says the save still succeeds.
+    }
+
+    const ssize_t listed = ::listxattr(originalName.constData(), nullptr, 0);
+    if (listed <= 0)
+        return;
+    QByteArray names(int(listed), '\0');
+    const ssize_t got = ::listxattr(originalName.constData(), names.data(), names.size());
+    if (got <= 0)
+        return;
+
+    // The names come back as one buffer of zero-ended strings.
+    const char *cursor = names.constData();
+    const char *const end = cursor + got;
+    while (cursor < end) {
+        const QByteArray attribute(cursor);
+        const ssize_t wanted
+            = ::getxattr(originalName.constData(), attribute.constData(), nullptr, 0);
+        if (wanted >= 0) {
+            QByteArray value(int(wanted), '\0');
+            const ssize_t bytes = ::getxattr(
+                originalName.constData(), attribute.constData(), value.data(), value.size());
+            if (bytes >= 0)
+                (void)::setxattr(copyName.constData(), attribute.constData(), value.constData(),
+                    size_t(bytes), 0);
+        }
+        cursor += attribute.size() + 1;
+    }
+}
+
 }
 
 WriteResult writeTags(
@@ -403,6 +450,19 @@ WriteResult writeTags(
         return result;
     }
 
+    // WS-KEEP: the copy takes what the original had: permission bits, owner where
+    // the system allows, extended attributes.
+    giveWhatTheOriginalHad(copyPath, target);
+
+    // W-MTIME: with keepModificationTime the copy gets the original's time, and the
+    // time goes on last, so nothing written afterwards moves it. Without it the copy
+    // keeps the time of the save.
+    if (options.keepModificationTime) {
+        QFile copy(copyPath);
+        if (copy.open(QIODevice::ReadOnly))
+            copy.setFileTime(modified, QFileDevice::FileModificationTime);
+    }
+
     // WS-ORDER 4: the copy's contents are forced to the disk before the swap.
     syncToDisk(copyPath, false);
 
@@ -423,12 +483,6 @@ WriteResult writeTags(
     }
     syncToDisk(folder, true);
 
-    // W-MTIME: the file the path leads to is the new one; its time is put back.
-    if (options.keepModificationTime) {
-        QFile file(filePath);
-        if (file.open(QIODevice::ReadOnly))
-            file.setFileTime(modified, QFileDevice::FileModificationTime);
-    }
     result.status = WriteResult::Status::Ok;
     return result;
 }
