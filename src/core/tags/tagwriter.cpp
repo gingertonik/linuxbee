@@ -12,10 +12,4 @@ WriteResult writeTags(
     return { };
 }
 
-int popmFromRating(double stars)
-{
-    Q_UNUSED(stars);
-    return 0;
-}
-
 }
