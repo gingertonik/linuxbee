@@ -29,7 +29,26 @@ if [ -n "$hits" ]; then
     bad=1
 fi
 
-# 3. The core library never depends on the GUI modules.
+# 3. This tree holds the project only. Plans, run reports and agent session
+#    files are kept outside it.
+hits=$(find . \( -path ./build -o -path ./.git \) -prune -o \( \
+    -iname 'PLAN*.md' -o -iname '*EXECUTE-PROMPT*' -o -iname 'REPORT*.md' \
+    -o -iname 'RESUME*' -o -name '.hermes' -o -name '.worknotes' \
+    -o -path './plans' -o -path './docs/superpowers' \) -print)
+if [ -n "$hits" ]; then
+    echo "lint: planning or session files do not belong in this tree:"
+    echo "$hits"
+    bad=1
+fi
+hits=$(grep -rnE '\.hermes/plans|hermes chat' . \
+    --exclude-dir=build --exclude-dir=.git --exclude=lint-tree.sh || true)
+if [ -n "$hits" ]; then
+    echo "lint: reference to a plan file outside the tree:"
+    echo "$hits"
+    bad=1
+fi
+
+# 4. The core library never depends on the GUI modules.
 hits=$(grep -rnE '#include <Qt(Widgets|Gui)|#include <Q(Widget|Application|MainWindow|Dialog)>' src/core || true)
 if [ -n "$hits" ]; then
     echo "lint: src/core must not include QtWidgets or QtGui:"
