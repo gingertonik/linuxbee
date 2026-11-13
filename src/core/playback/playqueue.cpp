@@ -49,31 +49,109 @@ void PlayQueue::playNow(const QStringList &paths, int startAt)
     emit currentChanged(m_current);
 }
 
+// Right after the current entry, or at the remembered place with none.
 void PlayQueue::queueNext(const QStringList &paths)
 {
-    Q_UNUSED(paths);
+    if (paths.isEmpty())
+        return;
+    QList<Entry> fresh;
+    for (const QString &path : paths)
+        fresh.append(Entry { m_nextId++, path });
+    const int at = qBound(0, m_current < 0 ? m_resumeAt : m_current + 1, count());
+    m_entries = m_entries.mid(0, at) + fresh + m_entries.mid(at);
+    emit entriesChanged();
 }
 
 void PlayQueue::queueLast(const QStringList &paths)
 {
-    Q_UNUSED(paths);
+    if (paths.isEmpty())
+        return;
+    for (const QString &path : paths)
+        m_entries.append(Entry { m_nextId++, path });
+    emit entriesChanged();
 }
 
+// Positions that do not exist are ignored; the return value counts what went.
+// The current entry keeps its place in the music; if it goes, the remembered
+// place becomes the entry that followed it.
 int PlayQueue::removeAt(const QList<int> &positions)
 {
-    Q_UNUSED(positions);
-    return 0;
+    QList<bool> gone(count(), false);
+    int removed = 0;
+    for (int p : positions) {
+        if (p >= 0 && p < count() && !gone.at(p)) {
+            gone[p] = true;
+            ++removed;
+        }
+    }
+    if (removed == 0)
+        return 0;
+
+    auto goneBefore = [&gone](int index) {
+        int total = 0;
+        for (int i = 0; i < index && i < gone.size(); ++i)
+            total += gone.at(i) ? 1 : 0;
+        return total;
+    };
+
+    const int oldCurrent = m_current;
+    int newCurrent = m_current;
+    int newResume = m_resumeAt - goneBefore(m_resumeAt);
+    if (m_current >= 0 && gone.at(m_current)) {
+        newCurrent = -1;
+        newResume = m_current - goneBefore(m_current);
+    } else if (m_current >= 0) {
+        newCurrent = m_current - goneBefore(m_current);
+        newResume = newCurrent;
+    }
+
+    QList<Entry> kept;
+    kept.reserve(count() - removed);
+    for (int i = 0; i < count(); ++i) {
+        if (!gone.at(i))
+            kept.append(m_entries.at(i));
+    }
+    m_entries = kept;
+    m_current = newCurrent;
+    m_resumeAt = qBound(0, newResume, count());
+    emit entriesChanged();
+    if (m_current != oldCurrent)
+        emit currentChanged(m_current);
+    return removed;
 }
 
+// The entry lands at `to`. The current entry stays current, wherever it lands.
 bool PlayQueue::move(int from, int to)
 {
-    Q_UNUSED(from);
-    Q_UNUSED(to);
-    return false;
+    if (from < 0 || from >= count() || to < 0 || to >= count())
+        return false;
+    if (from == to)
+        return true;
+    m_entries.move(from, to);
+    int newCurrent = m_current;
+    if (m_current == from)
+        newCurrent = to;
+    else if (from < m_current && m_current <= to)
+        newCurrent = m_current - 1;
+    else if (to <= m_current && m_current < from)
+        newCurrent = m_current + 1;
+    emit entriesChanged();
+    if (newCurrent != m_current)
+        setCurrentInternal(newCurrent);
+    return true;
 }
 
 void PlayQueue::clear()
 {
+    if (m_entries.isEmpty())
+        return;
+    const bool hadCurrent = m_current >= 0;
+    m_entries.clear();
+    m_current = -1;
+    m_resumeAt = 0;
+    emit entriesChanged();
+    if (hadCurrent)
+        emit currentChanged(-1);
 }
 
 bool PlayQueue::setCurrent(int index)
@@ -87,12 +165,6 @@ bool PlayQueue::setCurrent(int index)
 bool PlayQueue::shuffle() const
 {
     return m_shuffle;
-}
-
-void PlayQueue::setShuffle(bool on, quint32 seed)
-{
-    Q_UNUSED(on);
-    Q_UNUSED(seed);
 }
 
 void PlayQueue::reshuffle()

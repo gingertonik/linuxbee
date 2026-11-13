@@ -59,4 +59,14 @@ void PlayQueue::setRepeat(Repeat repeat)
     emit modeChanged();
 }
 
+// Task 3 records the mode only. The round itself is task 4 (Q-SHUFFLE).
+void PlayQueue::setShuffle(bool on, quint32 seed)
+{
+    Q_UNUSED(seed);
+    if (on == m_shuffle)
+        return;
+    m_shuffle = on;
+    emit modeChanged();
+}
+
 }
