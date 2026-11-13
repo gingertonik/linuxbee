@@ -1,0 +1,141 @@
+== basic.flac  (1724 bytes)
+mutagen: length=0.250s sample_rate=44100 channels=2 bits_per_sample=16
+  album = ['Flac Album']
+  albumartist = ['Various Artists']
+  artist = ['First Artist', 'Second Artist']
+  compilation = ['1']
+  contentgroup = ['A Group']
+  date = ['2011']
+  discnumber = ['2']
+  disctotal = ['3']
+  genre = ['Rock', 'Blues']
+  organization = ['A Label']
+  rating = ['80']
+  replaygain_track_gain = ['-6.50 dB']
+  title = ['Flac Title']
+  tracknumber = ['5']
+  tracktotal = ['10']
+  unsyncedlyrics = ['la la']
+ffprobe: format=flac duration=0.250000 streams=['flac', 'png']
+== basic.m4a  (2318 bytes)
+mutagen: length=0.273s sample_rate=44100 channels=2 bits_per_sample=16
+  aART = ['M4A Album Artist']
+  covr = [MP4Cover(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\...
+  cpil = True
+  disk = [(1, 2)]
+  tmpo = [128]
+  trkn = [(3, 9)]
+  ©ART = ['M4A Artist']
+  ©alb = ['M4A Album']
+  ©day = ['2015']
+  ©gen = ['Electronic']
+  ©nam = ['M4A Title']
+  ©wrt = ['M4A Composer']
+ffprobe: format=mov,mp4,m4a,3gp,3g2,mj2 duration=0.250000 streams=['aac', 'png']
+== basic.mp3  (6109 bytes)
+mutagen: length=0.287s sample_rate=44100 channels=2 bits_per_sample=0
+  APIC:front = APIC(encoding=<Encoding.UTF8: 3>, mime='image/png', type=<PictureType.COVER_FRONT: 3>, desc='front',...
+  COMM::eng = COMM(encoding=<Encoding.UTF8: 3>, lang='eng', desc='', text=['A comment'])
+  POPM:someone@example.invalid = POPM(email='someone@example.invalid', rating=196, count=7)
+  TALB = TALB(encoding=<Encoding.UTF8: 3>, text=['21'])
+  TBPM = TBPM(encoding=<Encoding.UTF8: 3>, text=['135'])
+  TCOM = TCOM(encoding=<Encoding.UTF8: 3>, text=['Adele Adkins', 'Dan Wilson'])
+  TCON = TCON(encoding=<Encoding.UTF8: 3>, text=['Pop', 'Soul'])
+  TDRC = TDRC(encoding=<Encoding.UTF8: 3>, text=['2011-01-24'])
+  TIT1 = TIT1(encoding=<Encoding.UTF8: 3>, text=['Ballads'])
+  TIT2 = TIT2(encoding=<Encoding.UTF8: 3>, text=['Someone like You'])
+  TPE1 = TPE1(encoding=<Encoding.UTF8: 3>, text=['Adele'])
+  TPE2 = TPE2(encoding=<Encoding.UTF8: 3>, text=['Adele'])
+  TPOS = TPOS(encoding=<Encoding.UTF8: 3>, text=['1/2'])
+  TRCK = TRCK(encoding=<Encoding.UTF8: 3>, text=['11/12'])
+  TXXX:MOOD = TXXX(encoding=<Encoding.UTF8: 3>, desc='MOOD', text=['Sad'])
+  TXXX:MY CUSTOM = TXXX(encoding=<Encoding.UTF8: 3>, desc='MY CUSTOM', text=['kept'])
+  USLT::eng = USLT(encoding=<Encoding.UTF8: 3>, lang='eng', desc='', text="I heard\nthat you're settled down")
+ffprobe: format=mp3 duration=0.287313 streams=['mp3', 'png']
+== basic.ogg  (5293 bytes)
+mutagen: length=0.250s sample_rate=44100 channels=2 bits_per_sample=0
+  artist = ['Ogg Artist']
+  discnumber = ['1']
+  metadata_block_picture = ['AAAAAwAAAAlpbWFnZS9wbmcAAAAFZnJvbnQAAAABAAAAAQAAABgAAAAAAAAARYlQTkcNChoKAAAADUlIRFIAAAABAAAAAQgCAA...
+  title = ['Ogg Title']
+  totaldiscs = ['1']
+  totaltracks = ['9']
+  tracknumber = ['4']
+ffprobe: format=ogg duration=0.250000 streams=['vorbis', 'png']
+== basic.opus  (1304 bytes)
+mutagen: length=0.250s sample_rate=0 channels=2 bits_per_sample=0
+  album = ['Opus Album']
+  artist = ['Opus Artist']
+  date = ['2020-05-06']
+  title = ['Opus Title']
+  tracknumber = ['2/8']
+ffprobe: format=ogg duration=0.256500 streams=['opus']
+== basic.wav  (45242 bytes)
+mutagen: length=0.250s sample_rate=44100 channels=2 bits_per_sample=16
+  TIT2 = TIT2(encoding=<Encoding.UTF8: 3>, text=['Wav Title'])
+  TPE1 = TPE1(encoding=<Encoding.UTF8: 3>, text=['Wav Artist'])
+  TRCK = TRCK(encoding=<Encoding.UTF8: 3>, text=['1'])
+ffprobe: format=wav duration=0.250000 streams=['pcm_s16le']
+== basic.wv  (945 bytes)
+mutagen: length=0.250s sample_rate=44100 channels=2 bits_per_sample=16
+  Album = APETextValue('Wv Album', 0)
+  Artist = APETextValue('Wv Artist', 0)
+  Cover Art (Front) = APEBinaryValue(b'cover.png\x00\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x0...
+  Disc = APETextValue('1', 0)
+  Title = APETextValue('Wv Title', 0)
+  Track = APETextValue('6/7', 0)
+  Year = APETextValue('2001', 0)
+ffprobe: format=wv duration=0.250000 streams=['wavpack', 'png']
+== empty.flac  (1244 bytes)
+mutagen: length=0.250s sample_rate=44100 channels=2 bits_per_sample=16
+ffprobe: format=flac duration=0.250000 streams=['flac']
+== noextension  (1724 bytes)
+mutagen: length=0.250s sample_rate=44100 channels=2 bits_per_sample=16
+  album = ['Flac Album']
+  albumartist = ['Various Artists']
+  artist = ['First Artist', 'Second Artist']
+  compilation = ['1']
+  contentgroup = ['A Group']
+  date = ['2011']
+  discnumber = ['2']
+  disctotal = ['3']
+  genre = ['Rock', 'Blues']
+  organization = ['A Label']
+  rating = ['80']
+  replaygain_track_gain = ['-6.50 dB']
+  title = ['Flac Title']
+  tracknumber = ['5']
+  tracktotal = ['10']
+  unsyncedlyrics = ['la la']
+ffprobe: format=flac duration=0.250000 streams=['flac', 'png']
+== notaudio.mp3  (51 bytes)
+mutagen: error HeaderNotFoundError
+mutagen: not recognised
+ffprobe: format=None duration=None streams=[]
+== truncated.flac  (60 bytes)
+mutagen: error error
+mutagen: not recognised
+ffprobe: format=None duration=None streams=[]
+== v1only.mp3  (4725 bytes)
+mutagen: length=0.295s sample_rate=44100 channels=2 bits_per_sample=0
+  COMM:ID3v1 Comment:eng = COMM(encoding=<Encoding.LATIN1: 0>, lang='eng', desc='ID3v1 Comment', text=['V1 comment'])
+  TALB = TALB(encoding=<Encoding.LATIN1: 0>, text=['V1 Album'])
+  TCON = TCON(encoding=<Encoding.LATIN1: 0>, text=['Rock'])
+  TDRC = TDRC(encoding=<Encoding.LATIN1: 0>, text=['1985'])
+  TIT2 = TIT2(encoding=<Encoding.LATIN1: 0>, text=['V1 Title'])
+  TPE1 = TPE1(encoding=<Encoding.LATIN1: 0>, text=['V1 Artist'])
+  TRCK = TRCK(encoding=<Encoding.LATIN1: 0>, text=['7'])
+ffprobe: format=mp3 duration=0.295313 streams=['mp3']
+== v23.mp3  (5949 bytes)
+mutagen: length=0.295s sample_rate=44100 channels=2 bits_per_sample=0
+  POPM:someone@example.invalid = POPM(email='someone@example.invalid', rating=128, count=0)
+  TALB = TALB(encoding=<Encoding.UTF16: 1>, text=['Homogenic'])
+  TDRC = TDRC(encoding=<Encoding.UTF16: 1>, text=['1997-09-22'])
+  TIT2 = TIT2(encoding=<Encoding.UTF16: 1>, text=['Ünïcödé 日本語'])
+  TPE1 = TPE1(encoding=<Encoding.UTF16: 1>, text=['Björk'])
+  TRCK = TRCK(encoding=<Encoding.UTF16: 1>, text=['3'])
+ffprobe: format=mp3 duration=0.295313 streams=['mp3']
+== zero.mp3  (0 bytes)
+mutagen: error HeaderNotFoundError
+mutagen: not recognised
+ffprobe: format=None duration=None streams=[]
