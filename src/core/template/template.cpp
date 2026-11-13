@@ -13,6 +13,30 @@ struct Template::Node {
     tmpl::Sequence children;
 };
 
+namespace {
+
+// Spec section 9: every field name in the tree, in order of first appearance,
+// each listed once, both sides of every argument.
+void collectFields(const tmpl::Sequence &sequence, QStringList *names);
+
+void collectFieldsInNode(const tmpl::Node &node, QStringList *names)
+{
+    if (node.kind == tmpl::Node::Kind::Field && !names->contains(node.text))
+        names->append(node.text);
+    for (const tmpl::Argument &argument : node.arguments) {
+        collectFields(argument.left, names);
+        collectFields(argument.right, names);
+    }
+}
+
+void collectFields(const tmpl::Sequence &sequence, QStringList *names)
+{
+    for (const tmpl::Node &node : sequence)
+        collectFieldsInNode(node, names);
+}
+
+} // namespace
+
 Template Template::parse(const QString &text)
 {
     tmpl::ParseResult parsed = tmpl::parseTemplate(text);
@@ -46,7 +70,11 @@ QString Template::evaluate(const TagSource &tags, const TemplateOptions &options
 
 QStringList Template::referencedFields() const
 {
-    return { };
+    if (!isValid())
+        return { }; // T-ERRORS
+    QStringList names;
+    collectFields(m_root->children, &names);
+    return names;
 }
 
 } // namespace linuxbee
