@@ -117,6 +117,31 @@ TrackTags tagsFromJson(const QString &text)
     return tags;
 }
 
+// L-EDIT: the ids of a call as one bound parameter each: "id = :id0 OR
+// id = :id1". The names come back so the caller can bind them after prepare().
+struct IdPlaceholders {
+    QString condition;
+    QStringList names;
+};
+
+IdPlaceholders idPlaceholders(const QList<qint64> &ids)
+{
+    QStringList conditions;
+    QStringList names;
+    for (int index = 0; index < ids.size(); ++index) {
+        const QString name = QStringLiteral(":id%1").arg(index);
+        names += name;
+        conditions += QStringLiteral("id = %1").arg(name);
+    }
+    return { conditions.join(QStringLiteral(" OR ")), names };
+}
+
+void bindIds(QSqlQuery *query, const QStringList &names, const QList<qint64> &ids)
+{
+    for (int index = 0; index < names.size(); ++index)
+        query->bindValue(names.at(index), ids.at(index));
+}
+
 // One track, every column, in the order rowFromRead reads them. A statement,
 // not data: no value is ever put into SQL text.
 const QLatin1String kSelectTrack(
@@ -385,6 +410,140 @@ qint64 Store::insert(const LibraryTrack &track)
     if (!query.exec())
         return -1;
     return query.lastInsertId().toLongLong();
+}
+
+// L-EDIT: the ids that are stored and not already in `category`, which is
+// exactly the set L-EDIT counts and L-SIGNALS carries.
+QList<qint64> Store::setCategory(const QList<qint64> &ids, const QString &category)
+{
+    if (!d->opened || ids.isEmpty())
+        return { };
+    const IdPlaceholders placeholders = idPlaceholders(ids);
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+
+    QList<qint64> changed;
+    QSqlQuery select(database);
+    select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND category <> :category")
+            .arg(placeholders.condition));
+    select.bindValue(QStringLiteral(":category"), category);
+    bindIds(&select, placeholders.names, ids);
+    if (!select.exec())
+        return { };
+    while (select.next())
+        changed.append(select.value(0).toLongLong());
+    if (changed.isEmpty())
+        return { };
+
+    QSqlQuery update(database);
+    update.prepare(QStringLiteral("UPDATE tracks SET category = :category WHERE (%1)")
+            .arg(placeholders.condition));
+    update.bindValue(QStringLiteral(":category"), category);
+    bindIds(&update, placeholders.names, ids);
+    if (!update.exec())
+        return { };
+    return changed;
+}
+
+// L-EDIT remove: forgets the rows and changes no file.
+QList<qint64> Store::removeIds(const QList<qint64> &ids)
+{
+    if (!d->opened || ids.isEmpty())
+        return { };
+    const IdPlaceholders placeholders = idPlaceholders(ids);
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+
+    QList<qint64> gone;
+    QSqlQuery select(database);
+    select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1)").arg(placeholders.condition));
+    bindIds(&select, placeholders.names, ids);
+    if (!select.exec())
+        return { };
+    while (select.next())
+        gone.append(select.value(0).toLongLong());
+    if (gone.isEmpty())
+        return { };
+
+    QSqlQuery drop(database);
+    drop.prepare(QStringLiteral("DELETE FROM tracks WHERE (%1)").arg(placeholders.condition));
+    bindIds(&drop, placeholders.names, ids);
+    if (!drop.exec())
+        return { };
+    return gone;
+}
+
+bool Store::updateReading(qint64 id, const LibraryTrack &track)
+{
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("UPDATE tracks SET size_bytes = :size, modified_secs = :modified, "
+                                 "picture_count = :pictures, tags_json = :tags WHERE id = :id"));
+    query.bindValue(QStringLiteral(":size"), track.sizeBytes);
+    query.bindValue(QStringLiteral(":modified"), toSecs(track.modified));
+    query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
+    query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
+    query.bindValue(QStringLiteral(":id"), id);
+    return query.exec() && query.numRowsAffected() == 1;
+}
+
+bool Store::setPath(qint64 id, const QString &newPath, bool missing)
+{
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(
+        QStringLiteral("UPDATE tracks SET path = :path, missing = :missing WHERE id = :id"));
+    query.bindValue(QStringLiteral(":path"), newPath);
+    query.bindValue(QStringLiteral(":missing"), missing);
+    query.bindValue(QStringLiteral(":id"), id);
+    return query.exec() && query.numRowsAffected() == 1;
+}
+
+bool Store::recordPlay(qint64 id, const QDateTime &when)
+{
+    if (!d->opened || !when.isValid())
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    // L-STATS: the count always goes up, and "last played" moves forward only,
+    // so an earlier play counts without pulling the date back. -1 in the column
+    // means never played, which is earlier than any time.
+    // The same instant is bound under two names on purpose: Qt's SQLite driver
+    // binds each placeholder name once, so one name written twice in the text
+    // would leave the second occurrence unbound.
+    query.prepare(QStringLiteral("UPDATE tracks SET play_count = play_count + 1, "
+                                 "last_played_secs = CASE WHEN last_played_secs = -1 "
+                                 "OR last_played_secs < :whenFrom THEN :whenTo "
+                                 "ELSE last_played_secs END WHERE id = :id"));
+    query.bindValue(QStringLiteral(":whenFrom"), when.toSecsSinceEpoch());
+    query.bindValue(QStringLiteral(":whenTo"), when.toSecsSinceEpoch());
+    query.bindValue(QStringLiteral(":id"), id);
+    return query.exec() && query.numRowsAffected() == 1;
+}
+
+bool Store::recordSkip(qint64 id)
+{
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("UPDATE tracks SET skip_count = skip_count + 1 WHERE id = :id"));
+    query.bindValue(QStringLiteral(":id"), id);
+    return query.exec() && query.numRowsAffected() == 1;
+}
+
+bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
+{
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("UPDATE tracks SET date_added_secs = :added, "
+                                 "play_count = :plays, skip_count = :skips, "
+                                 "last_played_secs = :last WHERE id = :id"));
+    query.bindValue(QStringLiteral(":added"), toSecs(statistics.dateAdded));
+    query.bindValue(QStringLiteral(":plays"), statistics.playCount);
+    query.bindValue(QStringLiteral(":skips"), statistics.skipCount);
+    query.bindValue(QStringLiteral(":last"), toSecs(statistics.lastPlayed));
+    query.bindValue(QStringLiteral(":id"), id);
+    return query.exec() && query.numRowsAffected() == 1;
 }
 
 } // namespace linuxbee::library

@@ -50,6 +50,29 @@ public:
     // Returns -1 when the row did not go in.
     qint64 insert(const LibraryTrack &track);
 
+    // L-EDIT: the ids this call changed. An id that is unknown, or already as
+    // asked for, is not in the list, which is what L-EDIT's counting is.
+    QList<qint64> setCategory(const QList<qint64> &ids, const QString &category);
+    QList<qint64> removeIds(const QList<qint64> &ids);
+
+    // L-EDIT refresh: the file was read again, so its tags, size, time and
+    // picture count replace what is stored. Everything only the library knows
+    // (id, category, date added, statistics) stays.
+    bool updateReading(qint64 id, const LibraryTrack &track);
+
+    // L-EDIT setPath and relinkPaths: the file is at a new path, and `missing`
+    // is the flag to store. L-MISSING ties that flag to whether a file is at
+    // the path, and the caller works that out.
+    bool setPath(qint64 id, const QString &newPath, bool missing);
+
+    // L-STATS: one play, and "last played" moved forward only when `when` is
+    // later than what is stored. False means the id is unknown.
+    bool recordPlay(qint64 id, const QDateTime &when);
+    // L-STATS: a skip counts and changes nothing else.
+    bool recordSkip(qint64 id);
+    // L-STATS: the library's own four facts in one statement, for an import.
+    bool setStatistics(qint64 id, const TrackStatistics &statistics);
+
 private:
     // Closes and removes this store's own connection, which Qt keys by name.
     // The destructor is the only caller: a library is open for as long as the
