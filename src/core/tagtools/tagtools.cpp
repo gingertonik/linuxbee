@@ -3,24 +3,6 @@
 // Stub. Plan 09 replaces every body in this file.
 namespace linuxbee {
 
-QStringList defaultSmallWords()
-{
-    return { };
-}
-
-QString changeCase(const QString &text, const CaseOptions &options)
-{
-    Q_UNUSED(options);
-    return text;
-}
-
-TagChanges capitalise(const TrackTags &tags, const CaseOptions &options)
-{
-    Q_UNUSED(tags);
-    Q_UNUSED(options);
-    return { };
-}
-
 TagChanges removeTags(const TrackTags &tags, const RemoveOptions &options)
 {
     Q_UNUSED(tags);
