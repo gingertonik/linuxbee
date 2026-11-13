@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <optional>
 
 namespace linuxbee::tmpl {
@@ -299,9 +300,125 @@ QString callRxSplit(const std::vector<Argument> &arguments, const EvalContext &c
     return pickSection(x.split(pattern, Qt::KeepEmptyParts), argText(arguments, 2, context));
 }
 
-// The table, in the order of the spec's section 4 rows. Tasks 6 and 7 add the
-// rest of the rows.
-constexpr std::array<FunctionSpec, 24> kFunctions { {
+// T-MATH: arithmetic on the two argument numbers. The operator is passed so
+// the five rows of the spec's table share one implementation.
+QString arithmetic(const std::vector<Argument> &arguments, const EvalContext &context, QChar op)
+{
+    const std::optional<double> a = toNumber(argText(arguments, 0, context));
+    const std::optional<double> b = toNumber(argText(arguments, 1, context));
+    if (!a.has_value() || !b.has_value())
+        return { }; // T-MATH: an input that is not a number
+    if ((op == u'/' || op == u'%') && *b == 0.0)
+        return { }; // T-MATH: division or modulo by zero
+    switch (op.unicode()) {
+    case u'+':
+        return formatNumber(*a + *b);
+    case u'-':
+        return formatNumber(*a - *b);
+    case u'*':
+        return formatNumber(*a * *b);
+    case u'/':
+        return formatNumber(*a / *b);
+    default:
+        break;
+    }
+    return formatNumber(std::fmod(*a, *b));
+}
+
+QString callAdd(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return arithmetic(arguments, context, u'+');
+}
+
+QString callSub(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return arithmetic(arguments, context, u'-');
+}
+
+QString callMul(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return arithmetic(arguments, context, u'*');
+}
+
+QString callDiv(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return arithmetic(arguments, context, u'/');
+}
+
+QString callMod(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return arithmetic(arguments, context, u'%');
+}
+
+QString callAbs(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const std::optional<double> a = toNumber(argText(arguments, 0, context));
+    if (!a.has_value())
+        return { }; // T-MATH
+    return formatNumber(std::fabs(*a));
+}
+
+// "Ignore words" (spec section 4): a word applies when x starts with it
+// ignoring case, the next character is a space, and something follows the
+// space. The first word in the list that applies is used. Returns the length
+// of that word as written in x, or -1 when no word applies.
+qsizetype leadingIgnoreWord(const QString &x, const QStringList &words)
+{
+    for (const QString &word : words) {
+        if (word.isEmpty())
+            continue;
+        if (x.size() <= word.size() + 1)
+            continue;
+        if (!x.startsWith(word, Qt::CaseInsensitive))
+            continue;
+        if (x.at(word.size()) != u' ')
+            continue;
+        return word.size();
+    }
+    return -1;
+}
+
+QString callSort(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const qsizetype length = leadingIgnoreWord(x, context.options.ignoreWords);
+    if (length < 0)
+        return x;
+    // F-C: the word moves to the end after ", ", as it was written in x.
+    return x.mid(length + 1) + QStringLiteral(", ") + x.left(length);
+}
+
+QString callRemoveSortWords(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context);
+    const qsizetype length = leadingIgnoreWord(x, context.options.ignoreWords);
+    if (length < 0)
+        return x;
+    return x.mid(length + 1);
+}
+
+QString callGroup(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QString x = argText(arguments, 0, context).trimmed();
+    const std::optional<int> letters = toCount(argText(arguments, 1, context));
+    // T-GROUP: an empty x, an n below 1, or an n that is not a count.
+    if (x.isEmpty() || !letters.has_value() || *letters < 1)
+        return { };
+    const QChar first = x.at(0).toUpper();
+    if (first < u'A' || first > u'Z')
+        return QStringLiteral("#"); // T-GROUP
+    const int position = int(first.unicode()) - int(u'A');
+    const int start = (position / *letters) * *letters;
+    const int stop = std::min(start + *letters, 26); // T-GROUP: the last bucket stops at Z
+    QString out;
+    for (int index = start; index < stop; ++index)
+        out += QChar(int(u'A') + index);
+    return out;
+}
+
+// The table, in the order of the spec's section 4 rows. Task 7 adds the last
+// row.
+constexpr std::array<FunctionSpec, 33> kFunctions { {
     { QLatin1StringView("Upper"), 1, 0, &callUpper },
     { QLatin1StringView("Lower"), 1, 0, &callLower },
     { QLatin1StringView("Trim"), 1, 0, &callTrim },
@@ -328,6 +445,15 @@ constexpr std::array<FunctionSpec, 24> kFunctions { {
     { QLatin1StringView("Split"), 3, 0, &callSplit },
     { QLatin1StringView("RSplit"), 3, 0, &callRSplit },
     { QLatin1StringView("RxSplit"), 3, 0, &callRxSplit },
+    { QLatin1StringView("Add"), 2, 0, &callAdd },
+    { QLatin1StringView("Sub"), 2, 0, &callSub },
+    { QLatin1StringView("Mul"), 2, 0, &callMul },
+    { QLatin1StringView("Div"), 2, 0, &callDiv },
+    { QLatin1StringView("Mod"), 2, 0, &callMod },
+    { QLatin1StringView("Abs"), 1, 0, &callAbs },
+    { QLatin1StringView("Sort"), 1, 0, &callSort },
+    { QLatin1StringView("RemoveSortWords"), 1, 0, &callRemoveSortWords },
+    { QLatin1StringView("Group"), 2, 0, &callGroup },
 } };
 
 } // namespace
@@ -360,6 +486,18 @@ std::optional<int> toCount(const QString &text)
     if (!ok)
         return std::nullopt;
     return value;
+}
+
+// T-MATH: a whole result is written without a decimal point; any other result
+// with up to 15 significant digits and no trailing zeros. Never the system
+// locale.
+QString formatNumber(double value)
+{
+    if (!std::isfinite(value))
+        return { };
+    if (value == std::floor(value) && std::fabs(value) < 1e15)
+        return QLocale::c().toString(qint64(value));
+    return QLocale::c().toString(value, 'g', 15);
 }
 
 std::optional<double> toNumber(const QString &text)
