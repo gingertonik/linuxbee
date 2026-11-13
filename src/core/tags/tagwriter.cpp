@@ -12,6 +12,7 @@
 #include <popularimeterframe.h>
 #include <tpropertymap.h>
 #include <tstringlist.h>
+#include <tvariant.h>
 #include <wavfile.h>
 
 #include "catalogue.h"
@@ -189,10 +190,28 @@ bool saveId3(TagLib::File *file, const WriteOptions &options)
     return file->save();
 }
 
-// Step 5 of spec section 1: edits the property map, then saves. Pictures come with
-// their own task.
+// W-PICTURES: the file's pictures become exactly this list, in order. TagLib
+// writes each one under the PICTURE key of its format.
+bool writePictures(TagLib::File *file, const QList<Picture> &pictures)
+{
+    TagLib::List<TagLib::VariantMap> list;
+    for (const Picture &picture : pictures) {
+        TagLib::VariantMap map;
+        map.insert(TagLib::String("data"),
+            TagLib::Variant(TagLib::ByteVector(
+                picture.data.constData(), static_cast<unsigned int>(picture.data.size()))));
+        map.insert(TagLib::String("mimeType"), TagLib::Variant(tagString(picture.mimeType)));
+        map.insert(TagLib::String("description"), TagLib::Variant(tagString(picture.description)));
+        map.insert(TagLib::String("pictureType"), TagLib::Variant(tagString(picture.type)));
+        list.append(map);
+    }
+    return file->setComplexProperties(TagLib::String("PICTURE"), list);
+}
+
+// Step 5 of spec section 1: edits the property map, then saves. The pictures are
+// written only when the change names them.
 bool saveChanges(const QString &filePath, const TrackTags &now, const tags::CheckedChanges &checked,
-    const TrackTags &after, const WriteOptions &options)
+    const TrackTags &after, const WriteOptions &options, bool picturesChanged)
 {
     const KeyFamily family = familyOf(now.format);
     const QByteArray name = QFile::encodeName(filePath);
@@ -241,6 +260,8 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     }
 
     file->setProperties(map);
+    if (picturesChanged && !writePictures(file, after.pictures))
+        return false;
     if (id3 && ratingTouched) {
         const bool create = !after.first(QStringLiteral("Rating")).isEmpty();
         if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))
@@ -288,7 +309,8 @@ WriteResult writeTags(
 
     bool saved = false;
     try {
-        saved = saveChanges(filePath, read.tags, checked, after, options);
+        saved = saveChanges(
+            filePath, read.tags, checked, after, options, changes.pictures.has_value());
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;

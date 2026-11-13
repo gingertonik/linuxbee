@@ -138,8 +138,17 @@ TrackTags applyTo(const TrackTags &now, const CheckedChanges &changes,
         else
             after.other.insert(it.key(), it.value());
     }
-    if (pictures.has_value())
-        after.pictures = *pictures;
+    if (pictures.has_value()) {
+        // W-PICTURES: an empty type is a front cover; an empty MIME type is sniffed.
+        QList<Picture> normalized = *pictures;
+        for (Picture &picture : normalized) {
+            if (picture.type.isEmpty())
+                picture.type = QStringLiteral("Front Cover");
+            if (picture.mimeType.isEmpty())
+                picture.mimeType = imageMimeType(picture.data);
+        }
+        after.pictures = normalized;
+    }
     return after;
 }
 
