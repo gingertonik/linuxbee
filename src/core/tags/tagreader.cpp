@@ -23,7 +23,6 @@
 #include <wavpackproperties.h>
 #include <wavproperties.h>
 
-// Stub. Plan 03 replaces every body in this file.
 namespace linuxbee {
 
 namespace {
@@ -131,6 +130,44 @@ bool popmRatingOf(TagLib::File *file, std::optional<double> &stars)
     return true;
 }
 
+// TagLib's Variant text, as a Qt string.
+QString variantText(const TagLib::VariantMap &map, const char *key)
+{
+    return QString::fromUtf8(map.value(key).toString().toCString(true));
+}
+
+// R-PICTURES: TagLib's PICTURE complex property, in file order.
+QList<Picture> picturesOf(TagLib::File *file, const ReadOptions &options)
+{
+    QList<Picture> pictures;
+    if (!options.pictures)
+        return pictures;
+
+    for (const TagLib::VariantMap &map : file->complexProperties(TagLib::String("PICTURE"))) {
+        const TagLib::ByteVector bytes = map.value("data").toByteVector();
+        Picture picture;
+        picture.byteCount = static_cast<qsizetype>(bytes.size());
+        if (options.pictureData)
+            picture.data = QByteArray(bytes.data(), static_cast<qsizetype>(bytes.size()));
+
+        // R-PICTURES: a picture with no type is a front cover.
+        picture.type = variantText(map, "pictureType");
+        if (picture.type.isEmpty())
+            picture.type = QStringLiteral("Front Cover");
+        picture.description = variantText(map, "description");
+
+        // R-MIME: a tag with no MIME type (an APEv2 item) is sniffed from its bytes.
+        picture.mimeType = variantText(map, "mimeType");
+        if (picture.mimeType.isEmpty()) {
+            const QByteArray head(
+                bytes.data(), static_cast<qsizetype>(qMin<size_t>(bytes.size(), 16)));
+            picture.mimeType = imageMimeType(head);
+        }
+        pictures.append(picture);
+    }
+    return pictures;
+}
+
 // TagLib's property keys and values, as UTF-8 Qt strings.
 QMap<QString, QStringList> toQtProperties(const TagLib::PropertyMap &propertyMap)
 {
@@ -188,7 +225,6 @@ int bitsPerSampleOf(const TagLib::AudioProperties *properties)
 
 ReadResult readTags(const QString &filePath, const ReadOptions &options)
 {
-    Q_UNUSED(options);
     silenceTagLib();
 
     // R-STATUS: a path that is not a readable regular file is NotFound.
@@ -231,6 +267,7 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
         const QStringList ratingText
             = hasPopm ? fieldProperties.take(QStringLiteral("RATING")) : QStringList { };
         tags::assignFields(fieldProperties, id3, tags);
+        tags.pictures = picturesOf(file, options);
         if (hasPopm) {
             tags.fields.remove(QStringLiteral("Rating"));
             if (popmStars)
@@ -252,7 +289,17 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
 
 QString imageMimeType(const QByteArray &data)
 {
-    Q_UNUSED(data);
+    // R-MIME: the first bytes of each format.
+    if (data.startsWith(QByteArray::fromHex("89504e470d0a1a0a")))
+        return QStringLiteral("image/png");
+    if (data.startsWith(QByteArray::fromHex("ffd8ff")))
+        return QStringLiteral("image/jpeg");
+    if (data.startsWith("GIF87a") || data.startsWith("GIF89a"))
+        return QStringLiteral("image/gif");
+    if (data.startsWith("BM"))
+        return QStringLiteral("image/bmp");
+    if (data.size() >= 12 && data.startsWith("RIFF") && data.mid(8, 4) == "WEBP")
+        return QStringLiteral("image/webp");
     return { };
 }
 
