@@ -63,6 +63,23 @@ QStringList filesToScan(const QStringList &folders)
     return files;
 }
 
+// L-SCAN: does the path lie inside this folder? A folder is a folder and not a
+// piece of text, so ".../a" does not reach ".../ab/x.mp3".
+bool insideFolder(const QString &path, const QString &folder)
+{
+    const QString clean = QDir::cleanPath(folder);
+    return !clean.isEmpty() && path.startsWith(clean + QLatin1Char('/'));
+}
+
+bool insideAnyFolder(const QString &path, const QStringList &folders)
+{
+    for (const QString &folder : folders) {
+        if (insideFolder(path, folder))
+            return true;
+    }
+    return false;
+}
+
 } // namespace
 
 ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
@@ -73,6 +90,9 @@ ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
         return report;
 
     const QStringList files = filesToScan(folders);
+    // L-SIGNALS: everything that changed about a track already stored, in one
+    // list, so the call emits at most one tracksUpdated.
+    QList<qint64> changed;
     d->store.beginBatch();
     for (int index = 0; index < files.size(); ++index) {
         // L-SCAN: before each file, the number of files looked at and the
@@ -97,22 +117,67 @@ ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
             continue;
         }
         const QFileInfo info(path);
+        const bool asStored
+            = info.size() == known->sizeBytes && fileModified(info) == known->modified;
+        if (known->missing) {
+            // L-SCAN: a known track marked missing whose file is there is
+            // found, and is read again when it differs. It is not also counted
+            // as unchanged or updated, and L-MISSING keeps its tags, its
+            // statistics and its id.
+            if (d->store.setMissing(known->id, false)) {
+                report.found.append(known->id);
+                changed.append(known->id);
+            }
+            if (!asStored) {
+                LibraryTrack fresh;
+                if (readAsTrack(path, &fresh))
+                    d->store.updateReading(known->id, fresh);
+            }
+            continue;
+        }
         // L-SCAN: a known file whose size and time are as stored is unchanged,
-        // and is not read. A known file whose size or time differs is read
-        // again, and a known track marked missing whose file is there is found;
-        // both keep their id, category, date added and statistics.
-        if (info.size() == known->sizeBytes && fileModified(info) == known->modified)
+        // and is not read.
+        if (asStored) {
             ++report.unchanged;
+            continue;
+        }
+        // L-SCAN: a known file that differs is read again. Its id, category,
+        // date added and statistics stay, which is what updateReading leaves.
+        LibraryTrack fresh;
+        if (!readAsTrack(path, &fresh)) {
+            report.notAudio.append(path); // the file is there and is not audio
+            continue;
+        }
+        if (d->store.updateReading(known->id, fresh)) {
+            report.updated.append(known->id);
+            changed.append(known->id);
+        }
     }
     // L-SCAN: after the files, every known track that is not missing, lies
     // inside one of the scanned folders, and has no file left is marked
     // missing. A track outside the scanned folders is not looked at, and a
     // cancelled scan leaves this out.
+    if (!report.cancelled) {
+        for (const LibraryTrack &track : d->store.all(QString())) {
+            if (track.missing || !insideAnyFolder(track.path, folders))
+                continue;
+            if (QFileInfo::exists(track.path))
+                continue;
+            if (d->store.setMissing(track.id, true)) {
+                report.nowMissing.append(track.id);
+                changed.append(track.id);
+            }
+        }
+    }
     d->store.commitBatch();
 
-    // L-SIGNALS: the whole call emits one tracksAdded, carrying every id.
+    // L-SIGNALS: at most one signal of each kind, after the changes are
+    // stored, carrying the ids: one for what was added, one for everything
+    // else that changed about a track, becoming missing or found among it.
     if (!report.added.isEmpty())
         emit tracksAdded(report.added);
+    if (!changed.isEmpty())
+        emit tracksUpdated(changed);
     return report;
 }
 

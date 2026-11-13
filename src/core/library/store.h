@@ -65,6 +65,10 @@ public:
     // the path, and the caller works that out.
     bool setPath(qint64 id, const QString &newPath, bool missing);
 
+    // L-SCAN, L-MISSING: a track's file has gone, or has come back. Everything
+    // the library knows about the track stays: tags, statistics, id.
+    bool setMissing(qint64 id, bool missing);
+
     // L-STATS: one play, and "last played" moved forward only when `when` is
     // later than what is stored. False means the id is unknown.
     bool recordPlay(qint64 id, const QDateTime &when);

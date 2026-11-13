@@ -546,4 +546,17 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
     return query.exec() && query.numRowsAffected() == 1;
 }
 
+// L-SCAN, L-MISSING: the file is gone, or is back. Only the flag moves: tags,
+// statistics and id stay, which is what a missing track keeps.
+bool Store::setMissing(qint64 id, bool missing)
+{
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("UPDATE tracks SET missing = :missing WHERE id = :id"));
+    query.bindValue(QStringLiteral(":missing"), missing);
+    query.bindValue(QStringLiteral(":id"), id);
+    return query.exec() && query.numRowsAffected() == 1;
+}
+
 } // namespace linuxbee::library
