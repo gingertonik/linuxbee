@@ -1,5 +1,9 @@
 #include "tagedit/tagedit.h"
 
+#include <QRegularExpression>
+
+#include <cmath>
+
 namespace linuxbee {
 
 namespace {
@@ -91,15 +95,72 @@ FieldState fieldState(const QList<TrackTags> &tracks, const QString &fieldName)
 
 QStringList valuesFromText(const QString &fieldName, const QString &text)
 {
-    Q_UNUSED(fieldName);
-    Q_UNUSED(text);
-    return { };
+    QStringList values;
+    if (isListField(fieldName)) {
+        for (const QString &part : text.split(QLatin1Char(';'))) {
+            const QString value = part.trimmed();
+            if (!value.isEmpty() && !values.contains(value))
+                values.append(value);
+        }
+        return values;
+    }
+    const QString value = text.trimmed();
+    if (!value.isEmpty())
+        values.append(value);
+    return values;
+}
+
+namespace {
+
+// E-CHECK: digits only, leading zeros allowed, 1 to 9999.
+bool isWholeNumberFrom1To9999(const QString &value)
+{
+    static const QRegularExpression digitsOnly(QStringLiteral("^[0-9]+$"));
+    if (!digitsOnly.match(value).hasMatch())
+        return false;
+    QString significant = value;
+    while (significant.startsWith(QLatin1Char('0')))
+        significant.remove(0, 1);
+    if (significant.isEmpty() || significant.size() > 4)
+        return false;
+    bool ok = false;
+    const int number = significant.toInt(&ok);
+    return ok && number >= 1 && number <= 9999;
+}
+
+// E-CHECK: 0.5 to 5 in steps of 0.5, written as a plain decimal.
+bool isRatingStep(const QString &value)
+{
+    static const QRegularExpression decimal(QStringLiteral("^[0-9]+(\\.[0-9]+)?$"));
+    if (!decimal.match(value).hasMatch())
+        return false;
+    bool ok = false;
+    const double stars = value.toDouble(&ok);
+    if (!ok || stars < 0.5 || stars > 5.0)
+        return false;
+    const double halves = stars * 2.0;
+    return halves == std::floor(halves);
+}
+
 }
 
 QString editProblem(const QString &fieldName, const QString &text)
 {
-    Q_UNUSED(fieldName);
-    Q_UNUSED(text);
+    const QString name = catalogueName(fieldName);
+    if (name.isEmpty())
+        return fieldName + QStringLiteral(" is not a tag field.");
+
+    const QString value = text.trimmed();
+    if (value.isEmpty())
+        return { };
+
+    if (name == QLatin1String("Track#") || name == QLatin1String("Track Count")
+        || name == QLatin1String("Disc#") || name == QLatin1String("Disc Count")) {
+        if (!isWholeNumberFrom1To9999(value))
+            return name + QStringLiteral(" must be a whole number from 1 to 9999.");
+    }
+    if (name == QLatin1String("Rating") && !isRatingStep(value))
+        return QStringLiteral("Rating must be from 0.5 to 5 in steps of 0.5.");
     return { };
 }
 
