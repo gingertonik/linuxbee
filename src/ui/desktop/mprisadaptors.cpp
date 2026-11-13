@@ -111,7 +111,7 @@ bool PlayerAdaptor::shuffle() const
 
 QVariantMap PlayerAdaptor::metadata() const
 {
-    return { };
+    return metadataOf(m_state);
 }
 
 double PlayerAdaptor::volume() const
@@ -124,29 +124,33 @@ qlonglong PlayerAdaptor::position() const
     return 0;
 }
 
+// MP-CAN: what the desktop may ask for, read from the queue and the player.
 bool PlayerAdaptor::canGoNext() const
 {
-    return false;
+    // Somewhere to go for a user's Next, not for a track that ended by itself.
+    return m_state.queue->hasNext(false);
 }
 
 bool PlayerAdaptor::canGoPrevious() const
 {
-    return false;
+    return m_state.queue->currentIndex() >= 0;
 }
 
 bool PlayerAdaptor::canPlay() const
 {
-    return false;
+    return m_state.queue->count() > 0;
 }
 
 bool PlayerAdaptor::canPause() const
 {
-    return false;
+    return m_state.queue->count() > 0;
 }
 
 bool PlayerAdaptor::canSeek() const
 {
-    return false;
+    // Nowhere to move to while nothing is playing, and no scale to move on
+    // the track's length is unknown.
+    return m_state.player->state() != Player::State::Stopped && m_state.player->durationMs() > 0;
 }
 
 bool PlayerAdaptor::canControl() const

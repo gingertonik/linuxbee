@@ -23,7 +23,15 @@ struct DesktopState {
 
     QDBusConnection bus { QString() }; // MP-START: the connection it was started on
     bool running = false; // MP-START: registered and owning the name
+
+    QString trackId; // MP-METADATA: the id of the track last started; empty: none
+    qint64 trackSerial = 0; // MP-METADATA: the N of that id, a new one for every play
 };
+
+// MP-METADATA: the map the bus is handed for what is playing. A track that is
+// not known is reported by its id alone. Defined with the service, because
+// only the service has the hook that knows what it is.
+QVariantMap metadataOf(const DesktopState &state);
 
 // The root interface: who linuxBee is, and what the desktop may ask of it.
 // MP-ROOT.

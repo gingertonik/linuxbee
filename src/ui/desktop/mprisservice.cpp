@@ -1,11 +1,14 @@
 #include "desktop/mprisservice.h"
 
 #include <QDBusConnectionInterface>
+#include <QDBusObjectPath>
+#include <QFileInfo>
+#include <QUrl>
 
 #include "desktop/mprisservice_p.h"
 
-// Being on the bus: MP-START and MP-ROOT. The requests themselves are in
-// mprisadaptors.cpp.
+// Being on the bus: MP-START, MP-ROOT and MP-METADATA. The requests
+// themselves are in mprisadaptors.cpp.
 namespace linuxbee::ui {
 
 namespace {
@@ -14,6 +17,64 @@ namespace {
 const QString kServiceName = QStringLiteral("org.mpris.MediaPlayer2.linuxbee");
 const QString kObjectPath = QStringLiteral("/org/mpris/MediaPlayer2");
 
+// MP-METADATA: the keys of the map, as MPRIS names them.
+const QString kTrackIdKey = QStringLiteral("mpris:trackid");
+const QString kUrlKey = QStringLiteral("xesam:url");
+const QString kTitleKey = QStringLiteral("xesam:title");
+const QString kArtistKey = QStringLiteral("xesam:artist");
+const QString kAlbumKey = QStringLiteral("xesam:album");
+const QString kLengthKey = QStringLiteral("mpris:length");
+
+// MP-METADATA: what the id of a track is made of. N is new for every play, so
+// the same file played twice is two tracks to a panel.
+QString newTrackId(qint64 serial)
+{
+    return QStringLiteral("/io/github/gingertonik/linuxbee/track/%1").arg(serial);
+}
+
+// MP-METADATA: the id a player with nothing playing is expected to give.
+QString noTrackId()
+{
+    return QStringLiteral("/org/mpris/MediaPlayer2/TrackList/NoTrack");
+}
+
+// MP-METADATA: the file as a URL, fully percent-encoded. QUrl::toString() is
+// not enough: a name with a space, a hash or an accent has to be escaped.
+QString fileUrl(const QString &path)
+{
+    return QString::fromLatin1(QUrl::fromLocalFile(path).toEncoded());
+}
+
+}
+
+// MP-METADATA. What is not known is left out of the map, not sent empty; with
+// nothing playing, the map holds the track id and nothing else.
+QVariantMap metadataOf(const DesktopState &state)
+{
+    QVariantMap map;
+    const QString path = state.player->currentPath();
+    if (path.isEmpty()) {
+        map.insert(kTrackIdKey, QVariant::fromValue(QDBusObjectPath(noTrackId())));
+        return map;
+    }
+    const QString id = state.trackId.isEmpty() ? noTrackId() : state.trackId;
+    map.insert(kTrackIdKey, QVariant::fromValue(QDBusObjectPath(id)));
+    map.insert(kUrlKey, fileUrl(path));
+
+    MprisService::Track known;
+    if (state.hooks.describe)
+        known = state.hooks.describe(path);
+    map.insert(kTitleKey, known.title.isEmpty() ? QFileInfo(path).completeBaseName() : known.title);
+    if (!known.artists.isEmpty())
+        map.insert(kArtistKey, known.artists);
+    if (!known.album.isEmpty())
+        map.insert(kAlbumKey, known.album);
+
+    // The length arrives when the audio engine reports it, and is in microseconds.
+    const qint64 lengthMs = state.player->durationMs();
+    if (lengthMs > 0)
+        map.insert(kLengthKey, qlonglong(lengthMs) * 1000);
+    return map;
 }
 
 struct MprisService::Private {
@@ -31,6 +92,15 @@ MprisService::MprisService(Player *player, PlayQueue *queue, Hooks hooks, QObjec
     // ExportAdaptors puts both interfaces on the bus.
     new RootAdaptor(this, d->state);
     new PlayerAdaptor(this, d->state);
+
+    // MP-METADATA: every play is a new track to the desktop, the same file
+    // played twice included, so each track that starts takes a new id.
+    connect(player, &Player::trackChanged, this, [this](const QString &path) {
+        if (path.isEmpty())
+            d->state.trackId.clear();
+        else
+            d->state.trackId = newTrackId(++d->state.trackSerial);
+    });
 }
 
 MprisService::~MprisService()
@@ -82,6 +152,10 @@ bool MprisService::start(const QDBusConnection &connection, QString *error)
     }
     d->state.bus = bus;
     d->state.running = true;
+    // MP-METADATA: a track that started before the service did has to be
+    // given an id of its own, the same as one that starts while it runs.
+    if (d->state.trackId.isEmpty() && !d->state.player->currentPath().isEmpty())
+        d->state.trackId = newTrackId(++d->state.trackSerial);
     if (error)
         error->clear();
     return true;
@@ -104,9 +178,10 @@ bool MprisService::isRunning() const
     return d->state.running;
 }
 
+// MP-METADATA: the same map the bus is given, for the window and for tests.
 QVariantMap MprisService::metadata() const
 {
-    return { };
+    return metadataOf(d->state);
 }
 
 }
