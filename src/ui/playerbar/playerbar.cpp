@@ -2,6 +2,8 @@
 
 #include "actions/actionregistry.h"
 
+#include <QAbstractSlider>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QSlider>
@@ -12,6 +14,16 @@
 #include <limits>
 
 namespace linuxbee::ui {
+
+namespace {
+
+// A time in ms as the seek bar's int range: clamped to 0 and to the largest int.
+int sliderValue(qint64 ms)
+{
+    return static_cast<int>(std::clamp<qint64>(ms, 0, std::numeric_limits<int>::max()));
+}
+
+}
 
 PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, QWidget *parent)
     : QWidget(parent)
@@ -89,10 +101,27 @@ PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, 
     // PB-STATE: follow the player as it changes, and start from what it is now.
     Player *p = d->player;
     connect(p, &Player::stateChanged, this, [this] { showState(); });
-    connect(
-        p, &Player::trackChanged, this, [this] { showLength(0); }); // a new track: length unknown
     connect(p, &Player::durationChanged, this, [this](qint64 ms) { showLength(ms); });
+    // PB-TITLE: the file's name without folder and extension, lasting until the next track.
+    d->titleLabel->setText(QFileInfo(p->currentPath()).completeBaseName());
+    connect(p, &Player::trackChanged, this, [this](const QString &path) {
+        d->titleLabel->setText(QFileInfo(path).completeBaseName());
+        showLength(0); // PB-STATE: a new track starts with its length unknown
+    });
     showLength(p->durationMs());
+
+    // PB-SEEK: the bar follows the player. It sends a seek only when the user
+    // lets go of the handle, or makes a step (a click beside it, a key, the wheel).
+    d->seekSlider->setTracking(false);
+    connect(p, &Player::positionChanged, this, [this](qint64 ms) { showPosition(ms); });
+    connect(d->seekSlider, &QAbstractSlider::sliderReleased, this,
+        [this] { seekTo(d->seekSlider->sliderPosition()); });
+    connect(d->seekSlider, &QAbstractSlider::actionTriggered, this, [this](int action) {
+        if (action
+            != QAbstractSlider::SliderMove) // SliderMove is the drag itself: the release seeks
+            seekTo(d->seekSlider->sliderPosition());
+    });
+    showPosition(p->positionMs());
 }
 
 PlayerBar::~PlayerBar()
@@ -100,9 +129,10 @@ PlayerBar::~PlayerBar()
     delete d;
 }
 
+// PB-TITLE: replaces the name until the next change of track.
 void PlayerBar::setTrackText(const QString &text)
 {
-    Q_UNUSED(text);
+    d->titleLabel->setText(text);
 }
 
 // PB-STATE: the play button's "playing" property, and the seek bar's enabled
@@ -122,10 +152,28 @@ void PlayerBar::showState()
 void PlayerBar::showLength(qint64 ms)
 {
     d->durationMs = ms;
-    const qint64 top = std::clamp<qint64>(ms, 0, std::numeric_limits<int>::max());
-    d->seekSlider->setRange(0, static_cast<int>(top));
+    d->seekSlider->setRange(0, sliderValue(ms));
     d->durationLabel->setText(formatTime(ms));
     showState();
+}
+
+// PB-SEEK: the handle and the time played follow the player's position. Following never seeks.
+void PlayerBar::showPosition(qint64 ms)
+{
+    if (d->seekSlider->isSliderDown())
+        return; // while the handle is held, the player's reports do not move it
+    d->seekSlider->setValue(sliderValue(ms));
+    d->positionLabel->setText(formatTime(ms));
+}
+
+// PB-SEEK: one Player::seek to where the user put the handle. The bar then shows
+// where the player says it is.
+void PlayerBar::seekTo(qint64 ms)
+{
+    d->player->seek(ms);
+    const qint64 now = d->player->positionMs();
+    d->seekSlider->setValue(sliderValue(now));
+    d->positionLabel->setText(formatTime(now));
 }
 
 // PB-TIME: whole seconds, rounded down. Under an hour m:ss; from an hour h:mm:ss; below zero 0:00.
