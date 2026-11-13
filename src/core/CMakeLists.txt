@@ -1,6 +1,8 @@
 add_library(linuxbee_core STATIC
   version.cpp
   version.h
+  template/dateformat.cpp
+  template/dateformat.h
   template/evaluator.cpp
   template/evaluator.h
   template/functions.cpp

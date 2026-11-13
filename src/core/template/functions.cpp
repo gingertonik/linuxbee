@@ -1,5 +1,6 @@
 #include "functions.h"
 
+#include "dateformat.h"
 #include "evaluator.h"
 #include "node.h"
 #include "template.h"
@@ -416,9 +417,14 @@ QString callGroup(const std::vector<Argument> &arguments, const EvalContext &con
     return out;
 }
 
-// The table, in the order of the spec's section 4 rows. Task 7 adds the last
-// row.
-constexpr std::array<FunctionSpec, 33> kFunctions { {
+QString callDate(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return formatDate(argText(arguments, 0, context), argText(arguments, 1, context));
+}
+
+// The table, in the order of the spec's section 4 rows: every function of
+// this version of the template engine.
+constexpr std::array<FunctionSpec, 34> kFunctions { {
     { QLatin1StringView("Upper"), 1, 0, &callUpper },
     { QLatin1StringView("Lower"), 1, 0, &callLower },
     { QLatin1StringView("Trim"), 1, 0, &callTrim },
@@ -454,6 +460,7 @@ constexpr std::array<FunctionSpec, 33> kFunctions { {
     { QLatin1StringView("Sort"), 1, 0, &callSort },
     { QLatin1StringView("RemoveSortWords"), 1, 0, &callRemoveSortWords },
     { QLatin1StringView("Group"), 2, 0, &callGroup },
+    { QLatin1StringView("Date"), 2, 0, &callDate },
 } };
 
 } // namespace
