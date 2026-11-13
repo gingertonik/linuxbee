@@ -217,13 +217,57 @@ int compareFieldValues(
     return compareTextValues(a, b, options);
 }
 
-// Plan 11 task 3 replaces this body.
+namespace {
+
+QString padded(qint64 value, int width)
+{
+    return QString::number(value).rightJustified(width, QLatin1Char('0'));
+}
+
+}
+
+// T-SUMMARY: "COUNT tracks, SIZE, TIME". Negative input counts as 0.
 QString formatTrackSummary(int count, qint64 totalBytes, qint64 totalMs)
 {
-    Q_UNUSED(count);
-    Q_UNUSED(totalBytes);
-    Q_UNUSED(totalMs);
-    return { };
+    const qint64 tracks = count < 0 ? 0 : count;
+    const qint64 bytes = totalBytes < 0 ? 0 : totalBytes;
+    const qint64 seconds = (totalMs < 0 ? 0 : totalMs) / 1000;
+
+    const QString digits = QString::number(tracks);
+    QString grouped;
+    for (int i = 0; i < digits.size(); ++i) {
+        if (i > 0 && (digits.size() - i) % 3 == 0)
+            grouped += QLatin1Char(',');
+        grouped += digits.at(i);
+    }
+    const QString trackWord = tracks == 1 ? QStringLiteral("track") : QStringLiteral("tracks");
+
+    constexpr qint64 oneGb = 1024LL * 1024LL * 1024LL;
+    QString size;
+    if (bytes < oneGb) {
+        size = QString::number(static_cast<double>(bytes) / (1024.0 * 1024.0), 'f', 1)
+            + QStringLiteral(" MB");
+    } else {
+        size = QString::number(static_cast<double>(bytes) / static_cast<double>(oneGb), 'f', 1)
+            + QStringLiteral(" GB");
+    }
+
+    const qint64 days = seconds / 86400;
+    const qint64 dayRemainder = seconds % 86400;
+    const qint64 hours = dayRemainder / 3600;
+    const qint64 minutes = (dayRemainder % 3600) / 60;
+    const qint64 secs = dayRemainder % 60;
+    QString time;
+    if (days > 0) {
+        time = QString::number(days) + QStringLiteral("d ") + padded(hours, 2) + QLatin1Char(':')
+            + padded(minutes, 2) + QLatin1Char(':') + padded(secs, 2);
+    } else {
+        time = QString::number(hours) + QLatin1Char(':') + padded(minutes, 2) + QLatin1Char(':')
+            + padded(secs, 2);
+    }
+
+    return grouped + QLatin1Char(' ') + trackWord + QStringLiteral(", ") + size
+        + QStringLiteral(", ") + time;
 }
 
 }
