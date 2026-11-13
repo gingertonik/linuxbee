@@ -3,19 +3,6 @@
 // Stub. Plan 09 replaces every body in this file.
 namespace linuxbee {
 
-QString validateSearchReplace(const SearchReplaceOptions &options)
-{
-    Q_UNUSED(options);
-    return { };
-}
-
-TagChanges searchReplace(const TrackTags &tags, const SearchReplaceOptions &options)
-{
-    Q_UNUSED(tags);
-    Q_UNUSED(options);
-    return { };
-}
-
 QStringList defaultSmallWords()
 {
     return { };
