@@ -52,6 +52,10 @@ check bad-max 2 "" path build --max-bytes zero '<Title>'
 check map 0 "Someone_like_You.mp3" path build --ext mp3 --map " =_" \
     --field "Title=Someone like You" '<Title>'
 check map-remove 0 "Who.mp3" path build --ext mp3 --map "?=" --field "Title=W?h?o" '<Title>'
+# P-MAP through the CLI: a space mapped to "/" still yields no separator
+check space-slash 0 "x..y.mp3" path build --ext mp3 --map " =/" 'x .. y'
+# P-CLI: C is any single character, "=" included
+check map-equals 0 "a_b" path build --map "==_" 'a=b'
 # P-LENGTH through --max-bytes. MATH: 12 - 4 = 8
 check max-bytes 0 "abcdefgh.mp3" path build --ext mp3 --max-bytes 12 \
     --field "Title=abcdefghijklmnop" '<Title>'

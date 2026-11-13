@@ -182,6 +182,14 @@ void PathsTest::customMapping()
     PathRules sneaky;
     sneaky.characterMap.insert(QLatin1Char('?'), s(u"/"));
     QCOMPARE(one(s(u"a?b"), sneaky), s(u"ab.mp3"));
+    // P-MAP: the space's own replacement (applied in P-SPACES) may not
+    // smuggle a separator in either, so no ".." component can appear.
+    PathRules spaceSlash;
+    spaceSlash.characterMap.insert(QLatin1Char(' '), s(u"/"));
+    QCOMPARE(one(s(u"x .. y"), spaceSlash), s(u"x..y.mp3"));
+    PathRules spaceBack;
+    spaceBack.characterMap.insert(QLatin1Char(' '), s(uR"~(_\_)~"));
+    QCOMPARE(linuxbee::cleanComponent(s(u"A B"), spaceBack), s(u"A__B"));
     // T-UNKNOWN then P-MAP, default rules.
     MapTagSource none;
     QCOMPARE(build(s(u"<Nope>"), none).relativePath, s(u"Nope.mp3"));
