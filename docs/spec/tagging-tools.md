@@ -1,0 +1,211 @@
+# Tagging tools
+
+Tools that change the tags of many tracks in one go: search and replace,
+capitalise, remove tags, renumber tracks, infer tags from the file name,
+copy a tag and swap two tags.
+
+This document is the contract for `src/core/tagtools/tagtools.h` and for
+`linuxbeectl tagtool`. The locked tests `tests/locked/tst_tagtools.cpp` and
+`tests/locked/cli_tagtool.sh` check it.
+
+Every tool is a pure function: it is given the tags a track has
+(`TrackTags`, see `docs/spec/tag-reading.md`) and returns the changes to
+make (`TagChanges`, see `docs/spec/tag-writing.md`). It reads and writes no
+file. That is what lets a dialog show a preview: the preview is the result.
+
+## Sources
+
+| Tag | Source |
+|---|---|
+| W-TM | MusicBee wiki, "Tools Menu": https://musicbee.fandom.com/wiki/Tools_Menu |
+| W-TT | MusicBee wiki, "Tagging Tools": https://musicbee.fandom.com/wiki/Tagging_Tools |
+| W-AT | MusicBee wiki, "Auto-Tagging": https://musicbee.fandom.com/wiki/Auto-Tagging |
+| W-CAP | MusicBee wiki, "How to Automate Song Title Capitalization" (one user's guide): https://musicbee.fandom.com/wiki/How_to_Automate_Song_Title_Capitalization |
+| G-… | A linuxBee decision. |
+
+Pages were read on 2026-11-13. The wiki pages for the Search and Replace,
+Renumber Tracks and Remove Tags dialogs could not be fetched, so what is
+known of MusicBee is this:
+
+- Search and Replace works "on all fields or a specific field" and offers
+  regular expressions, match case, match whole word and a preview (W-TM,
+  W-TT).
+- Capitalise "capitalises the first letter of all words in major tags"
+  (W-TM). A user's guide says it only capitalises the first word (W-CAP).
+  The two disagree; linuxBee offers both and more.
+- Remove Tags offers "remove all" or chosen fields (W-TT).
+- Renumber Tracks will "fix track numbering for an album" (W-TM).
+- Infer and Update Tags From Filename "attempts to fill in tags based on
+  the folder path and filenames of tracks and a template you provide"
+  (W-AT).
+
+Everything more exact than that is linuxBee's.
+
+## G-CHANGES: what every tool returns
+
+- A field is named in the result only when its values would really change.
+  A track that is already as the tool would leave it gives an empty result.
+- New values are trimmed, and empty ones are dropped. A field left with no
+  value is named with an empty list, which removes it.
+- Field names are matched ignoring case and written as the catalogue
+  writes them (`tagFieldNames()`).
+- Unless a rule says otherwise, a tool touches catalogue fields only: not
+  `other` keys and not pictures.
+
+## G-REPLACE: search and replace
+
+`fields` names the fields to work on. An empty list means every catalogue
+field except Rating.
+
+Each value of a field is searched on its own, and every occurrence in it
+is replaced.
+
+- Plain search: `find` is literal text; no character is special, in `find`
+  or in `replace`.
+- `regex`: `find` is a regular expression (Perl syntax, as
+  `QRegularExpression`, with Unicode properties on). In `replace`, `$1` to
+  `$9` stand for the groups, `$$` for a dollar sign, and a group that took
+  no part is empty. Any other `$` is itself.
+- Case is ignored unless `matchCase` is set.
+- `wholeWord`: a match counts only when the character before it and the
+  character after it, if any, are neither a letter nor a digit (of any
+  script). With `regex` this applies to the expression as a whole.
+
+`validateSearchReplace` returns a message when `find` is empty, a field
+name is unknown, or the regular expression is not valid; otherwise an
+empty text. `searchReplace` with options that do not validate returns no
+changes.
+
+## G-CASE: capitalise
+
+`changeCase(text, options)` changes one text. A *word* is a run of
+characters between white space. White space is kept exactly.
+
+| Style | Result |
+|---|---|
+| `EachWord` | In each word the first letter becomes a capital, unless a digit comes before any letter (`1st` stays). Nothing else changes: `mcCartney` becomes `McCartney`, `up-tempo` becomes `Up-tempo`, `(live)` becomes `(Live)`. |
+| `TitleCase` | A word that has a capital after its first letter is left alone (`DJ`, `AC/DC`, `mcCartney`). Of the others: a *small word* that is neither the first nor the last word is written in lower case; every other word is lower-cased and then treated as `EachWord` does. |
+| `Sentence` | The whole text is lower-cased, then its first letter becomes a capital (same digit rule). |
+| `Upper`, `Lower` | The whole text. |
+
+A word is a small word when, with any characters that are not letters or
+digits taken off both ends and case ignored, it is in `smallWords`. An
+empty `smallWords` means the default list:
+
+`a an and as at but by for from in into nor of off on onto or over per the to via with`
+
+`capitalise(tags, options)` applies `changeCase` to every value of the
+fields named. An empty `fields` means Title, Artist, Album and Album
+Artist. An unknown field name gives no changes at all.
+
+## G-REMOVE: remove tags
+
+- `fields`: each name that is a catalogue field (case ignored) and has a
+  value is removed. Any other name is taken as an `other` key, matched
+  exactly, and removed if the track has it.
+- `allTags`: every catalogue field that has a value and every `other` key.
+- `removePictures`: the picture list becomes empty, if the track has
+  pictures. `allTags` alone leaves pictures alone.
+
+## G-RENUMBER: renumber tracks
+
+`renumberTracks(tracks, options)` returns one result per track, in the
+order given. The first track gets Track# `start`, the next `start + 1`,
+and so on, written with at least `digits` digits (zero-padded). With
+`writeTotal`, Track Count becomes the number of tracks. Numbers are
+compared as text: `04` is not `4`. A negative `start` or `digits` gives an
+empty list.
+
+The caller decides the order (for a dialog: the order shown in the list).
+
+## G-INFER: tags from the file name
+
+A pattern is text with fields in angle brackets:
+`<Album Artist>/<Album>/<Track#> - <Title>`.
+
+`validateInferPattern` returns a message when the pattern is empty, names
+no field, has an unclosed `<`, names a field that is not in the catalogue,
+names a field twice, or has two fields with nothing between them.
+
+`inferFromPath(path, pattern)`:
+
+1. The path's extension is taken off: the text from the last dot of the
+   file name, unless that dot is the name's first character.
+2. The pattern must match the end of what is left, folder for folder: a
+   pattern with one `/` is matched against the last folder and the file
+   name, and its first part must match that folder's whole name.
+3. Text outside the brackets must appear exactly, case included.
+4. Track#, Track Count, Disc#, Disc Count and Year take digits only. Any
+   other field takes as few characters as it can, and never a `/`.
+5. Each text found is trimmed. If any is then empty, there is no match.
+
+`inferTags(tags, path, pattern, blankFieldsOnly)` turns a match into
+changes (G-CHANGES). With `blankFieldsOnly`, a field that has any value is
+left alone. No match, or a pattern that does not validate, gives no
+changes.
+
+## G-COPY: copy and swap
+
+`copyTag(tags, from, to)` gives `to` the values of `from`; if `from` has
+none, `to` is removed. `swapTags(tags, a, b)` exchanges the two. Unknown
+names, or the same field twice, give no changes.
+
+## G-CLI: command line
+
+```
+linuxbeectl tagtool replace  --find TEXT [--replace TEXT] [--field F]... [--regex] [--match-case] [--whole-word] FILE...
+linuxbeectl tagtool case     [--style each-word|title|sentence|upper|lower] [--field F]... FILE...
+linuxbeectl tagtool remove   [--field F]... [--all] [--pictures] FILE...
+linuxbeectl tagtool renumber [--start N] [--digits N] [--total] FILE...
+linuxbeectl tagtool infer    --pattern P [--overwrite] FILE...
+linuxbeectl tagtool copy     --from F --to F FILE...
+linuxbeectl tagtool swap     --from F --to F FILE...
+```
+
+All take `--dry-run`.
+
+1. Usage is checked first: exit 2, nothing read. That covers a missing or
+   unknown tool, no file, a missing required option, anything the
+   `validate` functions refuse, an unknown field name (except for
+   `remove`, where it is an `other` key), an unknown style, a `--start` or
+   `--digits` that is not a whole number of 0 or more, and `remove` with
+   none of its three options.
+2. Every file is read. If one is missing or not music: `failed: FILE:
+   REASON` on standard error, exit 3, and no file is changed.
+3. For each file in the order given, each change is printed, fields in
+   code-point order of their names, then `other` keys, then pictures:
+
+   ```
+   FILE: Field: "old values" -> "new values"
+   FILE: other KEY: "old values" -> "new values"
+   FILE: pictures: 1 -> 0
+   ```
+
+   Values are joined with `; `. A file with nothing to change prints
+   nothing.
+4. Unless `--dry-run`, each file's changes are saved with `writeTags`. A
+   save that fails prints `failed: FILE: ...` on standard error; the run
+   goes on and exits 3. Otherwise exit 0.
+
+`infer` fills blank fields only unless `--overwrite`. `renumber` numbers
+the files in the order given.
+
+## Not in this version
+
+- Presets, and chains of several replacements in one preset.
+- Undo. A caller that wants it keeps the old values, which are in the
+  `TrackTags` it passed in.
+- Searching `other` keys.
+- The tools that need the network (auto-tag by album, identify track,
+  artwork, lyrics) and volume analysis: separate plans.
+- Finding duplicates.
+
+## Open parity questions
+
+| Rule | Question for someone with MusicBee |
+|---|---|
+| G-CASE | What does Tools > Tagging Tools > Capitalise do to "the dark side of the moon", and to "DJ shadow"? Which fields are its "major tags"? |
+| G-REPLACE | With no field chosen, which fields does Search and Replace cover? Is Rating one? |
+| G-REPLACE | What does the replacement text use for a group: `$1` or `\1`? |
+| G-RENUMBER | What options does Renumber Tracks offer (start, padding, total, per disc)? |
+| G-INFER | The syntax of the infer pattern, and whether a part can be skipped. |
