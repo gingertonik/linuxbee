@@ -1,11 +1,18 @@
 #include "tagwriter.h"
 
+#include <memory>
+
 #include <QFile>
 #include <QFileInfo>
 
 #include <fileref.h>
+#include <id3v2.h>
+#include <id3v2tag.h>
+#include <mpegfile.h>
+#include <popularimeterframe.h>
 #include <tpropertymap.h>
 #include <tstringlist.h>
+#include <wavfile.h>
 
 #include "catalogue.h"
 #include "changes.h"
@@ -94,10 +101,98 @@ void rewriteRating(TagLib::PropertyMap &map, const TrackTags &after)
     map.insert(key, tagList({ QString::number(qRound(stars * 20.0)) }));
 }
 
-// Step 5 of spec section 1, for the fields and other tags only. Pictures and the
-// ID3 options come with their own tasks.
+// W-ID3VER: the ID3v2 version a save writes, whatever version the file had.
+TagLib::ID3v2::Version id3Version(const WriteOptions &options)
+{
+    return options.id3Version == WriteOptions::Id3Version::V24 ? TagLib::ID3v2::v4
+                                                               : TagLib::ID3v2::v3;
+}
+
+// W-RATING, ID3v2: the address and counter of the first POPM frame. They are read
+// before setProperties, which may drop the frame.
+struct PopmKeep {
+    TagLib::String email;
+    unsigned int counter = 0;
+};
+
+PopmKeep popmKeepOf(TagLib::File *file)
+{
+    PopmKeep keep;
+    const TagLib::ID3v2::Tag *tag = nullptr;
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
+        if (mpeg->hasID3v2Tag())
+            tag = mpeg->ID3v2Tag();
+    } else if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
+        if (wav->hasID3v2Tag())
+            tag = wav->ID3v2Tag();
+    }
+    if (!tag)
+        return keep;
+
+    const TagLib::ID3v2::FrameList frames = tag->frameList(TagLib::ByteVector("POPM"));
+    if (frames.isEmpty())
+        return keep;
+    if (const auto *popm
+        = dynamic_cast<const TagLib::ID3v2::PopularimeterFrame *>(frames.front())) {
+        keep.email = popm->email();
+        keep.counter = popm->counter();
+    }
+    return keep;
+}
+
+// The ID3v2 tag that holds the rating. A removal does not create a tag.
+TagLib::ID3v2::Tag *id3v2TagFor(TagLib::File *file, bool create)
+{
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file))
+        return mpeg->ID3v2Tag(create);
+    if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file))
+        return wav->ID3v2Tag();
+    return nullptr;
+}
+
+// W-RATING, ID3v2: one POPM frame holds the rating byte. Its address and counter
+// are the kept ones, and a new frame has an empty address and a counter of 0.
+void rewritePopm(TagLib::ID3v2::Tag *tag, const PopmKeep &keep, const TrackTags &after)
+{
+    tag->removeFrames(TagLib::ByteVector("POPM"));
+    bool parsed = false;
+    const double stars = after.first(QStringLiteral("Rating")).toDouble(&parsed);
+    const int byte = parsed ? popmFromRating(stars) : 0;
+    if (byte == 0)
+        return;
+    auto frame = std::make_unique<TagLib::ID3v2::PopularimeterFrame>();
+    frame->setEmail(keep.email);
+    frame->setRating(byte);
+    frame->setCounter(keep.counter);
+    tag->addFrame(frame.release());
+}
+
+// W-ID3V1, W-ID3VER, W-WAV: how an ID3 file is saved. Other families use TagLib's
+// default save.
+bool saveId3(TagLib::File *file, const WriteOptions &options)
+{
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
+        int kinds = TagLib::MPEG::File::ID3v2;
+        if (options.writeId3v1)
+            kinds |= TagLib::MPEG::File::ID3v1;
+        // An APEv2 tag is not part of this change: it stays if the file has one.
+        if (mpeg->hasAPETag())
+            kinds |= TagLib::MPEG::File::APE;
+        return mpeg->save(kinds, TagLib::File::StripOthers, id3Version(options),
+            options.writeId3v1 ? TagLib::File::Duplicate : TagLib::File::DoNotDuplicate);
+    }
+    if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
+        // W-WAV: the ID3 chunk only. No RIFF Info chunk is created, and none is stripped.
+        return wav->save(
+            TagLib::RIFF::WAV::File::ID3v2, TagLib::File::StripNone, id3Version(options));
+    }
+    return file->save();
+}
+
+// Step 5 of spec section 1: edits the property map, then saves. Pictures come with
+// their own task.
 bool saveChanges(const QString &filePath, const TrackTags &now, const tags::CheckedChanges &checked,
-    const TrackTags &after)
+    const TrackTags &after, const WriteOptions &options)
 {
     const KeyFamily family = familyOf(now.format);
     const QByteArray name = QFile::encodeName(filePath);
@@ -105,6 +200,10 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     if (ref.isNull() || !ref.file() || !ref.file()->isValid())
         return false;
     TagLib::File *file = ref.file();
+
+    const bool id3 = family == KeyFamily::Id3v2;
+    const bool ratingTouched = checked.fields.contains(QStringLiteral("Rating"));
+    const PopmKeep keep = id3 && ratingTouched ? popmKeepOf(file) : PopmKeep { };
     TagLib::PropertyMap map = file->properties();
 
     if (checked.fields.contains(QStringLiteral("Track#"))
@@ -121,8 +220,8 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
         if (isNumberField(field))
             continue;
         if (field == QLatin1String("Rating")) {
-            // POPM (ID3v2) is written by its own rule, in a later task.
-            if (family != KeyFamily::Id3v2)
+            // ID3v2 ratings are the POPM frame, written after setProperties.
+            if (!id3)
                 rewriteRating(map, after);
             continue;
         }
@@ -142,7 +241,12 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     }
 
     file->setProperties(map);
-    return file->save();
+    if (id3 && ratingTouched) {
+        const bool create = !after.first(QStringLiteral("Rating")).isEmpty();
+        if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))
+            rewritePopm(tag, keep, after);
+    }
+    return id3 ? saveId3(file, options) : file->save();
 }
 
 }
@@ -150,8 +254,6 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
 WriteResult writeTags(
     const QString &filePath, const TagChanges &changes, const WriteOptions &options)
 {
-    Q_UNUSED(options);
-
     // W-STATUS: the read readTags does.
     const ReadResult read = readTags(filePath);
     WriteResult result;
@@ -186,7 +288,7 @@ WriteResult writeTags(
 
     bool saved = false;
     try {
-        saved = saveChanges(filePath, read.tags, checked, after);
+        saved = saveChanges(filePath, read.tags, checked, after, options);
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;
