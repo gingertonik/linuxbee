@@ -1,5 +1,7 @@
 #include "tagreader.h"
 
+#include "catalogue.h"
+
 #include <QFile>
 #include <QFileInfo>
 
@@ -13,6 +15,7 @@
 #include <mpegfile.h>
 #include <opusfile.h>
 #include <tdebuglistener.h>
+#include <tpropertymap.h>
 #include <vorbisfile.h>
 #include <wavfile.h>
 #include <wavpackfile.h>
@@ -104,6 +107,45 @@ QStringList tagTypesOf(TagLib::File *file)
     return types;
 }
 
+// TagLib's property keys and values, as UTF-8 Qt strings.
+QMap<QString, QStringList> toQtProperties(const TagLib::PropertyMap &propertyMap)
+{
+    QMap<QString, QStringList> out;
+    for (auto it = propertyMap.begin(); it != propertyMap.end(); ++it) {
+        QStringList values;
+        for (const TagLib::String &value : it->second)
+            values.append(QString::fromUtf8(value.toCString(true)));
+        out.insert(QString::fromUtf8(it->first.toCString(true)), values);
+    }
+    return out;
+}
+
+// R-UNSUPPORTED: pictures, POPM and the ID3v2.3 date frames are reported elsewhere.
+// A prefix such as UNKNOWN/ is dropped before the frame name is compared.
+QStringList unsupportedNames(const TagLib::PropertyMap &propertyMap)
+{
+    static const QStringList skipped = {
+        QStringLiteral("APIC"),
+        QStringLiteral("covr"),
+        QStringLiteral("POPM"),
+        QStringLiteral("METADATA_BLOCK_PICTURE"),
+        QStringLiteral("TYER"),
+        QStringLiteral("TDAT"),
+        QStringLiteral("TIME"),
+    };
+    QStringList names;
+    for (const TagLib::String &name : propertyMap.unsupportedData()) {
+        const QString text = QString::fromUtf8(name.toCString(true));
+        const QString frame = text.mid(text.lastIndexOf(QLatin1Char('/')) + 1);
+        // An APEv2 cover art item, such as COVER ART (FRONT), is a picture (R-PICTURES).
+        if (skipped.contains(frame)
+            || frame.startsWith(QLatin1String("COVER ART"), Qt::CaseInsensitive))
+            continue;
+        names.append(text);
+    }
+    return names;
+}
+
 // R-AUDIO: only FLAC, WAV, WavPack and MPEG-4 report a bit depth; the rest are 0.
 int bitsPerSampleOf(const TagLib::AudioProperties *properties)
 {
@@ -118,18 +160,6 @@ int bitsPerSampleOf(const TagLib::AudioProperties *properties)
     return 0;
 }
 
-}
-
-QString TrackTags::first(const QString &fieldName) const
-{
-    Q_UNUSED(fieldName);
-    return { };
-}
-
-QString TrackTags::joined(const QString &fieldName) const
-{
-    Q_UNUSED(fieldName);
-    return { };
 }
 
 ReadResult readTags(const QString &filePath, const ReadOptions &options)
@@ -165,6 +195,11 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
         tags.audio.sampleRateHz = properties->sampleRate();
         tags.audio.channels = properties->channels();
         tags.audio.bitsPerSample = bitsPerSampleOf(properties);
+
+        const TagLib::PropertyMap propertyMap = file->properties();
+        tags.unsupported = unsupportedNames(propertyMap);
+        const bool id3 = tags.format == QLatin1String("mp3") || tags.format == QLatin1String("wav");
+        tags::assignFields(toQtProperties(propertyMap), id3, tags);
         return result;
     } catch (...) {
         // readTags never throws; a file TagLib cannot handle is not audio here.
@@ -176,18 +211,6 @@ QString imageMimeType(const QByteArray &data)
 {
     Q_UNUSED(data);
     return { };
-}
-
-TrackTagSource::TrackTagSource(const TrackTags &tags)
-    : m_tags(tags)
-{
-}
-
-std::optional<QString> TrackTagSource::value(const QString &fieldName) const
-{
-    Q_UNUSED(fieldName);
-    Q_UNUSED(m_tags);
-    return std::nullopt;
 }
 
 }
