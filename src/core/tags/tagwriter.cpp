@@ -1,8 +1,10 @@
 #include "tagwriter.h"
 
+#include <algorithm>
 #include <memory>
 
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QRandomGenerator>
@@ -301,6 +303,29 @@ void syncToDisk(const QString &path, bool isFolder)
     ::close(fd);
 }
 
+// WS-KILLED: a process that died during an earlier save of this file left its copy
+// behind. Step 1 of WS-ORDER removes every file in the folder shaped exactly like
+// this file's copies, and nothing else. The names are compared by hand on purpose:
+// a music file's name carries [ ] * ? , which a name filter takes for wildcards.
+void clearLeftovers(const QString &folder, const QString &fileName)
+{
+    const QString head = QStringLiteral(".lbsave-");
+    const QString tail = QLatin1Char('-') + fileName;
+    const QStringList names = QDir(folder).entryList(QDir::Files | QDir::Hidden, QDir::Name);
+    for (const QString &name : names) {
+        if (name.size() != head.size() + 6 + tail.size() || !name.startsWith(head)
+            || !name.endsWith(tail))
+            continue;
+        const QString chosen = name.mid(head.size(), 6);
+        if (!std::all_of(chosen.cbegin(), chosen.cend(), [](QChar c) {
+                return (c.unicode() >= u'a' && c.unicode() <= u'z')
+                    || (c.unicode() >= u'0' && c.unicode() <= u'9');
+            }))
+            continue;
+        QFile::remove(folder + QLatin1Char('/') + name);
+    }
+}
+
 }
 
 WriteResult writeTags(
@@ -347,6 +372,10 @@ WriteResult writeTags(
     const QFileInfo targetInfo(target);
     const QString folder = targetInfo.absolutePath();
     const QDateTime modified = targetInfo.lastModified();
+
+    // WS-ORDER 1, WS-KILLED: clear up after a save of this file that died half-way,
+    // so the copy made below is the only new file in the folder.
+    clearLeftovers(folder, targetInfo.fileName());
 
     // WS-ORDER 2, WS-NAME: a whole new version of the file beside the original.
     QString copyPath;
