@@ -22,29 +22,6 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
     return { };
 }
 
-QStringList tagFieldNames()
-{
-    return { };
-}
-
-std::optional<double> ratingFromPopm(int popmValue)
-{
-    Q_UNUSED(popmValue);
-    return std::nullopt;
-}
-
-std::optional<double> ratingFromText(const QString &text)
-{
-    Q_UNUSED(text);
-    return std::nullopt;
-}
-
-QString ratingToString(double stars)
-{
-    Q_UNUSED(stars);
-    return { };
-}
-
 QString imageMimeType(const QByteArray &data)
 {
     Q_UNUSED(data);
