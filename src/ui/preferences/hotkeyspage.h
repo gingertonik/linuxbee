@@ -32,6 +32,17 @@ public:
 private:
     struct Private;
     Private *d;
+
+    // Private helpers (added under the WORKERS.md rule that private members
+    // are open; defined in hotkeyspage.cpp and hotkeyspage_edit.cpp).
+    static QString commandLabel(const ActionInfo &info); // HK-TABLE cell text
+    int rowForId(const QString &id) const;
+    QString idForRow(int row) const;
+    void setRowKey(int row, const QKeySequence &key);
+    void refreshHotkeyCells();
+    void applyFilter(); // HK-FILTER
+    void checkModified(); // emit modifiedChanged only when the answer flips
+    QString selectedId() const;
 };
 
 }
