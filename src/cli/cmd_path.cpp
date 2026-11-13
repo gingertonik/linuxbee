@@ -52,12 +52,13 @@ int runPath(const QStringList &arguments)
     linuxbee::PathRules rules;
     rules.skipWhenTagsMissing = !parser.isSet(allowOption);
 
-    // P-CLI: --map C=TEXT sets the replacement for C; C= removes it.
+    // P-CLI: --map C=TEXT sets the replacement for C; C= removes it. C is
+    // any single character, '=' included: the split is at index 1, not at
+    // the first '='.
     for (const QString &specification : parser.values(mapOption)) {
-        const int equals = specification.indexOf(QLatin1Char('='));
-        if (equals != 1)
+        if (specification.size() < 2 || specification.at(1) != QLatin1Char('='))
             return usageError(QStringLiteral("linuxbeectl: --map needs C=TEXT"));
-        rules.characterMap.insert(QChar(specification.at(0)), specification.mid(equals + 1));
+        rules.characterMap.insert(QChar(specification.at(0)), specification.mid(2));
     }
 
     if (parser.isSet(maxOption)) {

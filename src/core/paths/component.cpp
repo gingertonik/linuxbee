@@ -172,8 +172,14 @@ QString cleanComponent(const QString &text, const PathRules &rules)
     cleaned = collapseSpaceRuns(cleaned); // P-SPACES 1
     cleaned = paths::trimSpacesAndDots(cleaned); // P-SPACES 2: P-TRIM
     const auto space = rules.characterMap.constFind(QLatin1Char(' '));
-    if (space != rules.characterMap.constEnd())
-        cleaned.replace(QLatin1Char(' '), *space); // P-SPACES 3, after P-TRIM
+    if (space != rules.characterMap.constEnd()) {
+        // P-MAP rule: no replacement may smuggle in a separator, the
+        // space's own included. Clean a copy, then apply it.
+        QString replacement = *space;
+        replacement.remove(QLatin1Char('\\'));
+        replacement.remove(QLatin1Char('/'));
+        cleaned.replace(QLatin1Char(' '), replacement); // P-SPACES 3, after P-TRIM
+    }
     if (rules.avoidReservedNames)
         cleaned = unreserveName(cleaned); // P-RESERVED
     return paths::fitToBytes(cleaned, rules.maxComponentBytes); // P-LENGTH
