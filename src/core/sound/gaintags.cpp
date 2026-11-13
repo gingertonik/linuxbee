@@ -2,6 +2,8 @@
 
 #include <QRegularExpression>
 
+#include <cmath>
+
 namespace linuxbee {
 
 namespace {
@@ -82,6 +84,28 @@ std::optional<double> peakOf(const QMap<QString, QStringList> &other, const QStr
     return std::nullopt;
 }
 
+// N-WRITE: a sign and two decimals. Zero is "+0.00 dB", never "-0.00 dB".
+QString formatGainDb(double db)
+{
+    const double rounded = std::round(db * 100.0) / 100.0;
+    const QString sign = rounded < 0.0 ? QStringLiteral("-") : QStringLiteral("+");
+    return sign + QString::number(std::fabs(rounded), 'f', 2) + QStringLiteral(" dB");
+}
+
+// N-WRITE: the linear peak with six decimals.
+QString formatPeak(double peak)
+{
+    return QString::number(peak, 'f', 6);
+}
+
+// The keys that hold gain: every REPLAYGAIN_* key, and the two R128 keys.
+bool isGainKey(const QString &key)
+{
+    return key.startsWith(QStringLiteral("REPLAYGAIN_"), Qt::CaseInsensitive)
+        || key.compare(QLatin1String("R128_TRACK_GAIN"), Qt::CaseInsensitive) == 0
+        || key.compare(QLatin1String("R128_ALBUM_GAIN"), Qt::CaseInsensitive) == 0;
+}
+
 }
 
 GainValues gainFromTags(const TrackTags &tags)
@@ -94,6 +118,34 @@ GainValues gainFromTags(const TrackTags &tags)
     v.trackPeak = peakOf(tags.other, QStringLiteral("REPLAYGAIN_TRACK_PEAK"));
     v.albumPeak = peakOf(tags.other, QStringLiteral("REPLAYGAIN_ALBUM_PEAK"));
     return v;
+}
+
+// N-WRITE
+TagChanges gainTagChanges(
+    const std::optional<Loudness> &track, const std::optional<Loudness> &album)
+{
+    TagChanges c;
+    // A measurement that is absent or not ok contributes nothing.
+    if (track && track->ok) {
+        c.other.insert(QStringLiteral("REPLAYGAIN_TRACK_GAIN"), { formatGainDb(track->gainDb()) });
+        c.other.insert(QStringLiteral("REPLAYGAIN_TRACK_PEAK"), { formatPeak(track->peak()) });
+    }
+    if (album && album->ok) {
+        c.other.insert(QStringLiteral("REPLAYGAIN_ALBUM_GAIN"), { formatGainDb(album->gainDb()) });
+        c.other.insert(QStringLiteral("REPLAYGAIN_ALBUM_PEAK"), { formatPeak(album->peak()) });
+    }
+    return c;
+}
+
+// N-WRITE: an empty list removes the key.
+TagChanges removeGainTagChanges(const TrackTags &tags)
+{
+    TagChanges c;
+    for (auto it = tags.other.cbegin(); it != tags.other.cend(); ++it) {
+        if (isGainKey(it.key()))
+            c.other.insert(it.key(), QStringList());
+    }
+    return c;
 }
 
 }
