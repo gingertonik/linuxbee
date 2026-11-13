@@ -190,14 +190,4 @@ QString PlayerBar::formatTime(qint64 ms)
     return QString::number(minutes) + QLatin1Char(':') + seconds;
 }
 
-void PlayerBar::saveState(QSettings &settings) const
-{
-    Q_UNUSED(settings);
-}
-
-void PlayerBar::restoreState(QSettings &settings)
-{
-    Q_UNUSED(settings);
-}
-
 }
