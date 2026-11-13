@@ -177,8 +177,10 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
 
     QProcess ffmpeg;
     ffmpeg.setProgram(job.ffmpegPath);
-    ffmpeg.setArguments(
-        ffmpegArguments(job.source, partPath, job.settings, source.tags.audio.bitsPerSample));
+    // Absolute paths: a name that starts with "-" or looks like "concat:x" is
+    // never read by ffmpeg as an option or a protocol.
+    ffmpeg.setArguments(ffmpegArguments(QFileInfo(job.source).absoluteFilePath(),
+        QFileInfo(partPath).absoluteFilePath(), job.settings, source.tags.audio.bitsPerSample));
     ffmpeg.start();
     if (!ffmpeg.waitForStarted())
         return withStatus(
