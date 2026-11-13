@@ -142,9 +142,61 @@ QString callRomanNumerals(const std::vector<Argument> &arguments, const EvalCont
     return out;
 }
 
-// The table, in the order of the spec's section 4 rows. Tasks 4 to 7 add the
+// T-COMPARE: `$And`, `$Or`, `$Not`, `$Contains` and `$IsMatch` return the
+// one-letter texts T and F.
+QString boolean(bool value)
+{
+    return value ? QStringLiteral("T") : QStringLiteral("F");
+}
+
+QString callIsNull(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    // W-F: "a when x is empty, otherwise b". "0" is not empty.
+    const QString x = argText(arguments, 0, context);
+    return x.isEmpty() ? argText(arguments, 1, context) : argText(arguments, 2, context);
+}
+
+QString callIf(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return evaluateCondition(arguments[0], context) ? argText(arguments, 1, context)
+                                                    : argText(arguments, 2, context);
+}
+
+QString callAnd(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return boolean(
+        evaluateCondition(arguments[0], context) && evaluateCondition(arguments[1], context));
+}
+
+QString callOr(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return boolean(
+        evaluateCondition(arguments[0], context) || evaluateCondition(arguments[1], context));
+}
+
+QString callNot(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    return boolean(!evaluateCondition(arguments[0], context));
+}
+
+QString callContains(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    // T-CASE: $Contains ignores case.
+    return boolean(argText(arguments, 0, context)
+            .contains(argText(arguments, 1, context), Qt::CaseInsensitive));
+}
+
+QString callIsMatch(const std::vector<Argument> &arguments, const EvalContext &context)
+{
+    const QRegularExpression pattern(argText(arguments, 1, context));
+    if (!pattern.isValid())
+        return boolean(false); // T-REGEX: a pattern that does not compile never matches
+    return boolean(pattern.match(argText(arguments, 0, context)).hasMatch());
+}
+
+// The table, in the order of the spec's section 4 rows. Tasks 5 to 7 add the
 // rest of the rows.
-constexpr std::array<FunctionSpec, 11> kFunctions { {
+constexpr std::array<FunctionSpec, 18> kFunctions { {
     { QLatin1StringView("Upper"), 1, 0, &callUpper },
     { QLatin1StringView("Lower"), 1, 0, &callLower },
     { QLatin1StringView("Trim"), 1, 0, &callTrim },
@@ -156,6 +208,15 @@ constexpr std::array<FunctionSpec, 11> kFunctions { {
     { QLatin1StringView("Pad"), 2, 0, &callPad },
     { QLatin1StringView("First"), 1, 0, &callFirst },
     { QLatin1StringView("RomanNumerals"), 1, 0, &callRomanNumerals },
+    { QLatin1StringView("IsNull"), 3, 0, &callIsNull },
+    // T-COMPARE: the first argument of $If, and every argument of $And, $Or
+    // and $Not, is a condition. -1 means all of them.
+    { QLatin1StringView("If"), 3, 1, &callIf },
+    { QLatin1StringView("And"), 2, -1, &callAnd },
+    { QLatin1StringView("Or"), 2, -1, &callOr },
+    { QLatin1StringView("Not"), 1, -1, &callNot },
+    { QLatin1StringView("Contains"), 2, 0, &callContains },
+    { QLatin1StringView("IsMatch"), 2, 0, &callIsMatch },
 } };
 
 } // namespace
@@ -185,6 +246,20 @@ std::optional<int> toCount(const QString &text)
         return std::nullopt;
     bool ok = false;
     const int value = QLocale::c().toInt(text.trimmed(), &ok);
+    if (!ok)
+        return std::nullopt;
+    return value;
+}
+
+std::optional<double> toNumber(const QString &text)
+{
+    // T-MATH: optional white space, an optional '-', digits, and an optional
+    // '.' followed by digits, with '.' the decimal point in any locale.
+    static const QRegularExpression kPattern(QStringLiteral("^\\s*-?\\d+(\\.\\d+)?\\s*$"));
+    if (!kPattern.match(text).hasMatch())
+        return std::nullopt;
+    bool ok = false;
+    const double value = QLocale::c().toDouble(text.trimmed(), &ok);
     if (!ok)
         return std::nullopt;
     return value;

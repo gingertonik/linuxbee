@@ -46,4 +46,28 @@ QString evaluateSequence(const Sequence &sequence, const EvalContext &context, b
     return out;
 }
 
+// T-COMPARE.
+bool evaluateCondition(const Argument &argument, const EvalContext &context)
+{
+    const QString left = evaluateSequence(argument.left, context, false);
+    if (argument.op.isNull())
+        return left == QLatin1String("T"); // a condition with no operator
+    const QString right = evaluateSequence(argument.right, context, false);
+    const std::optional<double> leftNumber = toNumber(left);
+    const std::optional<double> rightNumber = toNumber(right);
+    if (leftNumber.has_value() && rightNumber.has_value()) {
+        // Both sides are numbers: compare them as numbers.
+        const bool isLess = *leftNumber < *rightNumber;
+        const bool isGreater = *leftNumber > *rightNumber;
+        if (argument.op == u'=')
+            return !isLess && !isGreater;
+        if (argument.op == u'<')
+            return isLess;
+        return isGreater; // argument.op == u'>'
+    }
+    if (argument.op == u'=')
+        return left.compare(right, Qt::CaseInsensitive) == 0;
+    return false; // T-COMPARE: '<' and '>' on text are false
+}
+
 } // namespace linuxbee::tmpl
