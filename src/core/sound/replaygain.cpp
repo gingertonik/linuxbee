@@ -3,19 +3,6 @@
 // Stub. Plan 17 replaces every body in this file.
 namespace linuxbee {
 
-GainValues gainFromTags(const TrackTags &tags)
-{
-    Q_UNUSED(tags);
-    return { };
-}
-
-double gainFactor(const GainValues &values, const GainOptions &options)
-{
-    Q_UNUSED(values);
-    Q_UNUSED(options);
-    return 0.0;
-}
-
 double Loudness::gainDb() const
 {
     return 0.0;
