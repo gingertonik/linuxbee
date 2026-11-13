@@ -405,6 +405,8 @@ WriteResult writeTags(
         return result;
     }
 
+    // WS-REFUSED: the file itself may not be written, though replacing it would be
+    // possible: a file marked read-only is to be left alone.
     if (!QFileInfo(filePath).isWritable()) {
         result.status = WriteResult::Status::NotWritable;
         return result;
@@ -418,6 +420,14 @@ WriteResult writeTags(
     }
     const QFileInfo targetInfo(target);
     const QString folder = targetInfo.absolutePath();
+
+    // WS-REFUSED: and so is a file whose folder takes no new file. The check is here,
+    // before the copy, so that refusing creates nothing at all.
+    if (!QFileInfo(folder).isWritable()) {
+        result.status = WriteResult::Status::NotWritable;
+        return result;
+    }
+
     const QDateTime modified = targetInfo.lastModified();
 
     // WS-ORDER 1, WS-KILLED: clear up after a save of this file that died half-way,
