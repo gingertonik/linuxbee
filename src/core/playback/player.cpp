@@ -2,8 +2,7 @@
 
 // The player's public surface and its wiring to the queue and the backend.
 // Contract: docs/spec/player.md. The state machine is in player_p.h, the
-// listening and counting in playeraccounting.cpp. Failure rules (X-ERROR)
-// arrive with their task; until then the failed() signal is not connected.
+// listening and counting in playeraccounting.cpp.
 namespace linuxbee {
 
 Player::Player(PlayQueue *queue, AudioBackend *backend, QObject *parent)
@@ -17,6 +16,8 @@ Player::Player(PlayQueue *queue, AudioBackend *backend, QObject *parent)
     connect(backend, &AudioBackend::durationChanged, this,
         [this](qint64 ms) { d->onBackendDuration(ms); });
     connect(backend, &AudioBackend::ended, this, [this]() { d->onEnded(); });
+    connect(backend, &AudioBackend::failed, this,
+        [this](const QString &message) { d->onFailed(message); });
 }
 
 Player::State Player::state() const
@@ -111,7 +112,7 @@ void Player::setMuted(bool muted)
 
 void Player::setStopAfterCurrent(bool on)
 {
-    Q_UNUSED(on);
+    d->setStopAfterCurrent(on);
 }
 
 }

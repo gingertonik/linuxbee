@@ -37,7 +37,8 @@ struct Player::Private : public QObject {
     std::function<double(const QString &path)> trackVolume; // X-VOLUME; empty: 1
     PlayCountRule countRule; // Q-COUNT, set by setCountRule
     qint64 heardMs = 0; // X-LISTEN: time heard of the current play
-    bool accounted = false; // X-COUNT: the current play has been counted
+    bool accounted = false; // X-COUNT: the current play has been counted or refused
+    int failedInRow = 0; // X-ERROR: tracks in a row that could not be played
 
     void setState(State next)
     {
@@ -123,21 +124,24 @@ struct Player::Private : public QObject {
 
     // X-QUEUE: a different current entry, made by anyone but the player, is
     // started whatever the state. Nothing current (a removed entry) changes
-    // nothing here.
+    // nothing here. A user step, so it starts the failure count afresh.
     void onQueueCurrentChanged(int index)
     {
         if (ownQueueMove || index < 0)
             return;
         const QList<PlayQueue::Entry> entries = queue->entries();
         const PlayQueue::Entry &entry = entries.at(index);
-        if (entry.entryId != entryId)
+        if (entry.entryId != entryId) {
+            failedInRow = 0;
             startEntry(entry);
+        }
     }
 
     // X-SEEK: the target is held between 0 and the duration (no upper limit
     // while the duration is unknown). Only while Playing or Paused.
     void seek(qint64 ms)
     {
+        failedInRow = 0;
         if (state == State::Stopped)
             return;
         qint64 target = qMax<qint64>(0, ms);
@@ -153,6 +157,7 @@ struct Player::Private : public QObject {
     // X-NEXT: the user's Next, whatever the state. Nowhere to go: nothing.
     void next()
     {
+        failedInRow = 0;
         const int index = nextFromQueue(false);
         if (index < 0)
             return;
@@ -164,6 +169,7 @@ struct Player::Private : public QObject {
     // track before, and with none, restart the track.
     void previous()
     {
+        failedInRow = 0;
         if (state != State::Stopped && position > kRestartPastMs) {
             restartTrack();
             return;
@@ -178,16 +184,19 @@ struct Player::Private : public QObject {
             restartTrack();
     }
 
-    // X-END steps 1 and 3 (step 2 is stop after current). The file played to
-    // its end: it is counted, then the queue's automatic Next plays on, and
-    // with none the player stops.
-    void onEnded()
+    // X-END steps 2 and 3. The queue moves on, as a track's end does. With
+    // stop after current, the flag is cleared (and announced) and the player
+    // stops without starting what the queue moved to. Otherwise that next
+    // entry starts, and with none, the player stops.
+    void advancePastEnd()
     {
-        if (state == State::Stopped)
-            return;
-        countStretchToEnd();
-        accountCurrent(false);
         const int index = nextFromQueue(true);
+        if (stopAfterCurrentOn) {
+            stopAfterCurrentOn = false;
+            emit q->stopAfterCurrentChanged(false);
+            stop();
+            return;
+        }
         if (index < 0) {
             stop();
             return;
@@ -196,8 +205,38 @@ struct Player::Private : public QObject {
         startEntry(entries.at(index));
     }
 
+    // X-END steps 1, 2 and 3. The file played to its end: it is counted, and
+    // a file that plays to its end breaks any run of failures.
+    void onEnded()
+    {
+        if (state == State::Stopped)
+            return;
+        failedInRow = 0;
+        countStretchToEnd();
+        accountCurrent(false);
+        advancePastEnd();
+    }
+
+    // X-ERROR: the file cannot be played. It is reported and not counted,
+    // however much was heard. The player then moves on as at a track's end.
+    // Once as many tracks in a row have failed as the queue holds, it stops.
+    void onFailed(const QString &message)
+    {
+        if (state == State::Stopped)
+            return;
+        accounted = true;
+        emit q->playbackError(path, message);
+        failedInRow++;
+        if (failedInRow >= queue->count()) {
+            stop();
+            return;
+        }
+        advancePastEnd();
+    }
+
     void play()
     {
+        failedInRow = 0;
         if (state == State::Playing)
             return;
         if (state == State::Paused) {
@@ -217,6 +256,7 @@ struct Player::Private : public QObject {
 
     void pause()
     {
+        failedInRow = 0;
         if (state != State::Playing)
             return;
         backend->pause();
@@ -235,6 +275,7 @@ struct Player::Private : public QObject {
     // The play is counted (X-COUNT) as the user's doing.
     void stop()
     {
+        failedInRow = 0;
         if (state == State::Stopped)
             return;
         accountCurrent(true);
@@ -268,6 +309,15 @@ struct Player::Private : public QObject {
     {
         trackVolume = std::move(factor);
         applyVolume();
+    }
+
+    // X-END step 2: the flag applies once, and is announced when it clears.
+    void setStopAfterCurrent(bool on)
+    {
+        if (on == stopAfterCurrentOn)
+            return;
+        stopAfterCurrentOn = on;
+        emit q->stopAfterCurrentChanged(on);
     }
 
     // Defined in playeraccounting.cpp (X-LISTEN, X-COUNT).
