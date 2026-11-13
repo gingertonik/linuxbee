@@ -149,6 +149,62 @@ void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &ta
     }
 }
 
+bool isCatalogueKey(const QString &upperKey)
+{
+    if (upperKey == QLatin1String("RATING"))
+        return true;
+    for (const FieldKeys &entry : fieldTable()) {
+        if (entry.keys.contains(upperKey))
+            return true;
+    }
+    return false;
+}
+
+QString writeKey(const QString &field, KeyFamily family)
+{
+    const bool vorbis = family == KeyFamily::Vorbis;
+    const bool id3 = family == KeyFamily::Id3v2;
+    // W-TABLE: the fields whose key differs by family.
+    if (field == QLatin1String("Publisher"))
+        return vorbis ? QStringLiteral("ORGANIZATION") : QStringLiteral("LABEL");
+    if (field == QLatin1String("Grouping"))
+        return id3 ? QStringLiteral("WORK")
+                   : (vorbis ? QStringLiteral("CONTENTGROUP") : QStringLiteral("GROUPING"));
+    if (field == QLatin1String("Lyrics"))
+        return vorbis ? QStringLiteral("UNSYNCEDLYRICS") : QStringLiteral("LYRICS");
+    if (field == QLatin1String("Original Year"))
+        return vorbis ? QStringLiteral("ORIGYEAR") : QStringLiteral("ORIGINALDATE");
+    if (field == QLatin1String("Original Artist"))
+        return vorbis ? QStringLiteral("ORIGARTIST") : QStringLiteral("ORIGINALARTIST");
+    if (field == QLatin1String("Original Album"))
+        return vorbis ? QStringLiteral("ORIGALBUM") : QStringLiteral("ORIGINALALBUM");
+    if (field == QLatin1String("Track Count"))
+        return vorbis ? QStringLiteral("TRACKTOTAL") : QStringLiteral("TRACKNUMBER");
+    if (field == QLatin1String("Disc Count"))
+        return vorbis ? QStringLiteral("DISCTOTAL") : QStringLiteral("DISCNUMBER");
+    if (field == QLatin1String("Rating"))
+        return QStringLiteral("RATING");
+    // Every other field: the first key of its row (R-CATALOGUE).
+    for (const FieldKeys &entry : fieldTable()) {
+        if (entry.field == field && !entry.keys.isEmpty())
+            return entry.keys.first();
+    }
+    return { };
+}
+
+QStringList readKeys(const QString &field, KeyFamily family)
+{
+    QStringList keys;
+    for (const FieldKeys &entry : fieldTable()) {
+        if (entry.field == field)
+            keys = entry.keys;
+    }
+    // R-GROUPING: ID3v2 Grouping is also read from WORK.
+    if (family == KeyFamily::Id3v2 && field == QLatin1String("Grouping"))
+        keys.prepend(QStringLiteral("WORK"));
+    return keys;
+}
+
 }
 
 namespace linuxbee {

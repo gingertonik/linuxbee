@@ -1,8 +1,10 @@
 #include "tagreader.h"
+#include "tagwriter.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 
 namespace linuxbee {
@@ -73,6 +75,17 @@ QString ratingToString(double stars)
     if (std::floor(stars) == stars)
         return QString::number(static_cast<qint64>(stars));
     return QString::number(stars, 'f', 1);
+}
+
+// W-RATING: the POPM byte for each half star, 0.5 first. Anything that is not
+// a whole number of half stars from 0.5 to 5 gives 0.
+int popmFromRating(double stars)
+{
+    static constexpr std::array<int, 10> kBytes { 13, 1, 54, 64, 118, 128, 186, 196, 242, 255 };
+    const double halves = stars * 2.0;
+    if (!(halves >= 1.0 && halves <= 10.0) || halves != std::floor(halves))
+        return 0;
+    return kBytes[static_cast<std::size_t>(halves) - 1];
 }
 
 }
