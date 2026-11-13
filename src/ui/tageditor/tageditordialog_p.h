@@ -5,7 +5,6 @@
 
 #include <QList>
 #include <QMap>
-#include <QSet>
 #include <QString>
 
 class QLabel;
@@ -26,8 +25,6 @@ struct TagEditorDialog::Private {
     QLabel *problem = nullptr;
     QPushButton *saveButton = nullptr;
     QPushButton *cancelButton = nullptr;
-    // Indexes of the targets whose files were written; a later Save leaves them alone.
-    QSet<int> finished;
 };
 
 }

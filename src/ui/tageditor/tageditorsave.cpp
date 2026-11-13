@@ -37,7 +37,15 @@ bool TagEditorDialog::save()
         const EditTarget &target = d->targets.at(i);
         const WriteResult result = d->saver(target.path, changes.at(i));
         if (result.ok()) {
-            d->finished.insert(i);
+            // The file now says what the dialog's changes say, so the dialog's
+            // idea of this track follows: an empty list removes the field.
+            for (auto it = changes.at(i).fields.constBegin(); it != changes.at(i).fields.constEnd();
+                ++it) {
+                if (it.value().isEmpty())
+                    d->targets[i].tags.fields.remove(it.key());
+                else
+                    d->targets[i].tags.fields.insert(it.key(), it.value());
+            }
             if (result.status == WriteResult::Status::Ok)
                 written.append(target.id);
         } else {

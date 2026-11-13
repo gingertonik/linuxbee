@@ -114,13 +114,7 @@ QMap<QString, QString> TagEditorDialog::edits() const
 
 QList<TagChanges> TagEditorDialog::pendingChanges() const
 {
-    QList<TagChanges> changes = buildEdits(tagsOf(d->targets), edits());
-    // A file already written in this dialog is not written again.
-    for (const int index : d->finished) {
-        if (index < changes.size())
-            changes[index] = TagChanges();
-    }
-    return changes;
+    return buildEdits(tagsOf(d->targets), edits());
 }
 
 }
