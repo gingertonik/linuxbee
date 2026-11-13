@@ -3,32 +3,6 @@
 // Stub. Plan 18 replaces every body in this file.
 namespace linuxbee {
 
-QString musicBrainzUserAgent()
-{
-    return { };
-}
-
-QUrl releaseSearchUrl(const QString &artist, const QString &album, int limit)
-{
-    Q_UNUSED(artist);
-    Q_UNUSED(album);
-    Q_UNUSED(limit);
-    return { };
-}
-
-QUrl releaseLookupUrl(const QString &releaseId)
-{
-    Q_UNUSED(releaseId);
-    return { };
-}
-
-QUrl frontCoverUrl(const QString &releaseId, int size)
-{
-    Q_UNUSED(releaseId);
-    Q_UNUSED(size);
-    return { };
-}
-
 ReleaseSearch parseReleaseSearch(const QByteArray &json)
 {
     Q_UNUSED(json);
