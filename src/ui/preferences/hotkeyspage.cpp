@@ -82,6 +82,51 @@ HotkeysPage::HotkeysPage(ActionRegistry *actions, QSettings *settings, QWidget *
 
     connect(d->filterEdit, &QLineEdit::textChanged, this, &HotkeysPage::applyFilter);
 
+    // HK-BUTTONS: the three row buttons watch the chosen row; choosing a
+    // row puts its pending key in the field and empties the conflict label.
+    connect(d->table, &QTableWidget::currentCellChanged, this,
+        [this](int row, int column, int previousRow, int previousColumn) {
+            Q_UNUSED(column);
+            Q_UNUSED(previousRow);
+            Q_UNUSED(previousColumn);
+            const bool hasRow = row >= 0;
+            d->assignButton->setEnabled(hasRow);
+            d->clearButton->setEnabled(hasRow);
+            d->resetButton->setEnabled(hasRow);
+            d->conflictLabel->clear();
+            if (hasRow)
+                d->keyEdit->setKeySequence(d->pending.value(idForRow(row)));
+        });
+
+    connect(d->assignButton, &QPushButton::clicked, this, [this] {
+        const QString id = selectedId();
+        if (!id.isEmpty())
+            assign(id, d->keyEdit->keySequence());
+    });
+
+    connect(d->clearButton, &QPushButton::clicked, this, [this] {
+        const QString id = selectedId();
+        if (id.isEmpty())
+            return;
+        d->keyEdit->setKeySequence(QKeySequence()); // empties the field...
+        assign(id, QKeySequence()); // ...and assigns no key to the row
+    });
+
+    connect(d->resetButton, &QPushButton::clicked, this, [this] {
+        const QString id = selectedId();
+        if (id.isEmpty())
+            return;
+        reset(id);
+        d->keyEdit->setKeySequence(pending(id)); // after a reset, show the row's key
+    });
+
+    connect(d->resetAllButton, &QPushButton::clicked, this, [this] {
+        const QString id = selectedId();
+        resetAll();
+        if (!id.isEmpty())
+            d->keyEdit->setKeySequence(pending(id));
+    });
+
     load(); // HK-EDIT: the pending keys start as the registry's
 }
 
