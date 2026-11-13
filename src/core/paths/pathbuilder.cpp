@@ -86,6 +86,21 @@ QStringList splitComponents(const QString &text)
     return parts;
 }
 
+// P-EXT: of the extension argument keep only A-Z, a-z and 0-9, in order,
+// with case unchanged. Empty means the file name gets no extension.
+QString cleanExtension(const QString &extension)
+{
+    QString out;
+    out.reserve(extension.size());
+    for (const QChar &unit : extension) {
+        if ((unit >= QLatin1Char('A') && unit <= QLatin1Char('Z'))
+            || (unit >= QLatin1Char('a') && unit <= QLatin1Char('z'))
+            || (unit >= QLatin1Char('0') && unit <= QLatin1Char('9')))
+            out.append(unit);
+    }
+    return out;
+}
+
 } // namespace
 
 BuiltPath buildRelativePath(const Template &pathTemplate, const TagSource &tags,
@@ -128,12 +143,19 @@ BuiltPath buildRelativePath(const Template &pathTemplate, const TagSource &tags,
     if (components.isEmpty())
         return result; // Status::EmptyName, relativePath stays empty
 
-    // P-EXT and the file name length limit are task 5; the extension is
-    // appended as given for now.
-    QString fileName = components.takeLast();
-    if (!extension.isEmpty())
-        fileName += QLatin1Char('.') + extension;
-    components.append(fileName);
+    // P-EXT, and the file name limit: the last piece, the dot and the
+    // extension together fit in maxComponentBytes (P-LENGTH, P-TRIM after).
+    QString stem = components.takeLast();
+    const QString ext = cleanExtension(extension);
+    if (ext.isEmpty()) {
+        components.append(stem); // no extension
+    } else {
+        const int budget = rules.maxComponentBytes - 1 - ext.toUtf8().size();
+        stem = paths::fitToBytes(stem, budget); // P-LENGTH + P-TRIM
+        if (stem.isEmpty())
+            return result; // Status::EmptyName, relativePath stays empty
+        components.append(stem + QLatin1Char('.') + ext);
+    }
 
     result.relativePath = components.join(QLatin1Char('/'));
     result.status = BuiltPath::Status::Ok;
