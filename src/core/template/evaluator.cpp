@@ -1,5 +1,6 @@
 #include "evaluator.h"
 
+#include "functions.h"
 #include "node.h"
 #include "template.h"
 
@@ -38,8 +39,7 @@ QString evaluateSequence(const Sequence &sequence, const EvalContext &context, b
             out += fieldText(node.text, context, topLevel);
             break;
         case Node::Kind::Call:
-            // Unreachable for now: the parser reports every call it reads.
-            // Task 3 gives calls a function table.
+            out += functionAt(node.function).evaluate(node.arguments, context);
             break;
         }
     }

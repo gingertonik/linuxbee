@@ -3,6 +3,8 @@ add_library(linuxbee_core STATIC
   version.h
   template/evaluator.cpp
   template/evaluator.h
+  template/functions.cpp
+  template/functions.h
   template/node.h
   template/parser.cpp
   template/parser.h
