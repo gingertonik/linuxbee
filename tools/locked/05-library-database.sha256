@@ -1,0 +1,4 @@
+59aa9c300ed4db75333caa3460a0272dfad5ffb2e238b98846378bf503e0e3f9  tests/locked/tst_library.cpp
+ed6ef762ca28dff1617a0943db937b2696dcd1aaca1a2629570197bed7910145  tests/locked/cli_library.sh
+63c9541ff3b33a79dafac0f32705c4881bd1c15b521487d7f66c57ac1323439d  docs/spec/library.md
+b37db7354e4706d68efce7abbb99b39daeecad6c631d777c1130684660ef6e67  tests/locked/tst_library_paths.cpp
