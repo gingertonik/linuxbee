@@ -1,29 +1,47 @@
 #include "library.h"
 
-// Stub. Plan 05 replaces every body in this file.
+#include "store.h"
+
 namespace linuxbee {
 
-struct Library::Private { };
+// The library's state is one open store. No SQL type reaches this file.
+struct Library::Private {
+    library::Store store;
+};
 
-Library::Library() = default;
+Library::Library()
+    : d(std::make_unique<Private>())
+{
+}
+
 Library::~Library() = default;
 
+// L-OPEN: opens the file, creating it when it does not exist, and reports the
+// reason when the file cannot be used.
 std::unique_ptr<Library> Library::open(const QString &databasePath, QString *error)
 {
-    Q_UNUSED(databasePath);
-    if (error)
-        *error = QStringLiteral("not implemented");
-    return nullptr;
+    // The constructor is private, so the unique_ptr is the owner from here.
+    std::unique_ptr<Library> library(new Library());
+    QString reason;
+    if (!library->d->store.open(databasePath, &reason)) {
+        if (error)
+            *error = reason;
+        return nullptr;
+    }
+    return library;
 }
 
+// L-CATEGORY (W-L): the nodes a MusicBee library has, in that order.
 QStringList Library::categories()
 {
-    return { };
+    return { QStringLiteral("Music"), QStringLiteral("Inbox"), QStringLiteral("Audiobooks"),
+        QStringLiteral("Podcasts"), QStringLiteral("Videos") };
 }
 
+// L-SCHEMA: the number this version writes, and the highest it accepts.
 int Library::currentSchemaVersion()
 {
-    return 0;
+    return library::Store::schemaVersion();
 }
 
 ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
@@ -43,19 +61,17 @@ qint64 Library::addFile(const QString &path, const QString &category, const QDat
 
 int Library::count() const
 {
-    return 0;
+    return d->store.count();
 }
 
 QList<LibraryTrack> Library::tracks(const QString &category) const
 {
-    Q_UNUSED(category);
-    return { };
+    return d->store.all(category);
 }
 
 std::optional<LibraryTrack> Library::track(qint64 id) const
 {
-    Q_UNUSED(id);
-    return std::nullopt;
+    return d->store.byId(id);
 }
 
 std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
@@ -136,4 +152,4 @@ QStringList libraryFieldNames()
     return { };
 }
 
-}
+} // namespace linuxbee
