@@ -6,3 +6,6 @@ function(linuxbee_add_test name)
 endfunction()
 
 linuxbee_add_test(tst_version tst_version.cpp)
+linuxbee_add_test(tst_template locked/tst_template.cpp)
+add_test(NAME cli_template
+  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/locked/cli_template.sh $<TARGET_FILE:linuxbeectl>)

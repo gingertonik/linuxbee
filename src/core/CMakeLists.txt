@@ -1,6 +1,8 @@
 add_library(linuxbee_core STATIC
   version.cpp
   version.h
+  template/template.cpp
+  template/template.h
 )
 target_include_directories(linuxbee_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(linuxbee_core PRIVATE LINUXBEE_VERSION="${PROJECT_VERSION}")
