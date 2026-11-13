@@ -7,6 +7,7 @@
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QVariant>
 
 #include <algorithm>
 
@@ -39,6 +40,12 @@ PlayQueue::Repeat repeatFromText(const QString &text)
     if (text == QLatin1String("one"))
         return PlayQueue::Repeat::One;
     return PlayQueue::Repeat::Off;
+}
+
+bool storedFlag(const QVariant &value)
+{
+    const QString text = value.toString().trimmed().toLower();
+    return text == QLatin1String("true") || text == QLatin1String("1");
 }
 
 }
@@ -127,10 +134,10 @@ void PlayerBar::restoreState(QSettings &settings)
     int level = settings.value(QStringLiteral("volume")).toInt(&known);
     if (!known || level < 0 || level > 100)
         level = 100;
-    const bool muted = settings.value(QStringLiteral("muted")).toBool();
+    const bool muted = storedFlag(settings.value(QStringLiteral("muted")));
     const PlayQueue::Repeat repeat
         = repeatFromText(settings.value(QStringLiteral("repeat")).toString());
-    const bool shuffle = settings.value(QStringLiteral("shuffle")).toBool();
+    const bool shuffle = storedFlag(settings.value(QStringLiteral("shuffle")));
     settings.endGroup();
 
     d->player->setVolume(level / 100.0);
