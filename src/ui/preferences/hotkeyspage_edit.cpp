@@ -45,19 +45,68 @@ QKeySequence HotkeysPage::pending(const QString &id) const
 
 ShortcutResult HotkeysPage::assign(const QString &id, const QKeySequence &sequence)
 {
-    Q_UNUSED(id);
-    Q_UNUSED(sequence);
-    return { }; // Task 5: HK-EDIT
+    if (!d->pending.contains(id))
+        return { ShortcutResult::Status::UnknownAction, QString() };
+
+    if (sequence.count() > 1) { // HK-EDIT: more than one combination
+        d->conflictLabel->setText(tr("Only one key combination can be used."));
+        return { ShortcutResult::Status::Invalid, QString() };
+    }
+
+    // HK-CONFLICT: judged against the pending keys, not against the registry.
+    if (!sequence.isEmpty()) {
+        for (auto it = d->pending.constBegin(); it != d->pending.constEnd(); ++it) {
+            if (it.key() != id && it.value() == sequence) {
+                d->conflictLabel->setText(sequence.toString(QKeySequence::NativeText)
+                    + tr(" is used by: ") + commandLabel(d->actions->info(it.key())));
+                return { ShortcutResult::Status::Conflict, it.key() };
+            }
+        }
+    }
+
+    d->pending[id] = sequence; // empty sequence: no hotkey
+    setRowKey(rowForId(id), sequence);
+    applyFilter(); // HK-FILTER: the cells, and so the filter, see the edit
+    d->conflictLabel->clear();
+    checkModified();
+    return { };
 }
 
 void HotkeysPage::reset(const QString &id)
 {
-    Q_UNUSED(id); // Task 5: HK-RESET
+    if (!d->pending.contains(id))
+        return; // HK-RESET: an unknown id does nothing
+
+    const QKeySequence def = d->actions->defaultShortcut(id);
+    QString holder;
+    if (!def.isEmpty()) {
+        for (auto it = d->pending.constBegin(); it != d->pending.constEnd(); ++it) {
+            if (it.key() != id && it.value() == def) {
+                holder = it.key();
+                break;
+            }
+        }
+    }
+    if (holder.isEmpty())
+        d->pending[id] = def;
+    else
+        d->pending[id] = QKeySequence(); // HK-RESET: left with no key...
+    setRowKey(rowForId(id), d->pending.value(id));
+    applyFilter();
+    if (!holder.isEmpty()) // ...and the label says who has the default
+        d->conflictLabel->setText(def.toString(QKeySequence::NativeText) + tr(" is used by: ")
+            + commandLabel(d->actions->info(holder)));
+    checkModified();
 }
 
 void HotkeysPage::resetAll()
 {
-    // Task 5: HK-RESET
+    for (auto it = d->pending.begin(); it != d->pending.end(); ++it)
+        it.value() = d->actions->defaultShortcut(it.key());
+    refreshHotkeyCells();
+    d->conflictLabel->clear();
+    applyFilter();
+    checkModified();
 }
 
 QString HotkeysPage::apply()
