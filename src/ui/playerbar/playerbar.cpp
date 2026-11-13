@@ -1,4 +1,6 @@
-#include "playerbar/playerbar.h"
+#include "playerbar/playerbar_p.h"
+
+#include "actions/actionregistry.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -6,23 +8,10 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-namespace linuxbee::ui {
+#include <algorithm>
+#include <limits>
 
-struct PlayerBar::Private {
-    Player *player = nullptr;
-    PlayQueue *queue = nullptr;
-    ActionRegistry *actions = nullptr;
-    QLabel *titleLabel = nullptr;
-    QToolButton *previousButton = nullptr;
-    QToolButton *playPauseButton = nullptr;
-    QToolButton *stopButton = nullptr;
-    QToolButton *nextButton = nullptr;
-    QToolButton *muteButton = nullptr;
-    QLabel *positionLabel = nullptr;
-    QSlider *seekSlider = nullptr;
-    QLabel *durationLabel = nullptr;
-    QSlider *volumeSlider = nullptr;
-};
+namespace linuxbee::ui {
 
 PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, QWidget *parent)
     : QWidget(parent)
@@ -65,8 +54,16 @@ PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, 
     d->volumeSlider->setRange(0, 100);
     d->volumeSlider->setValue(qRound(d->player->volume() * 100));
 
-    // PB-FRAME: the title on its own line; then previous, play, stop, next, the
-    // times around the seek bar (which takes the spare width), mute and volume.
+    // PB-FRAME: the track's name on the first line, with mute and volume at its
+    // right end. The second line is previous, play, stop, next, the two times
+    // around the seek bar, which takes the spare width. The transport buttons
+    // show their command's text, which is wide; with mute and volume beside
+    // them the seek bar fell to 367 px at 900 px, under the 400 px the spec asks.
+    auto *titleRow = new QHBoxLayout;
+    titleRow->addWidget(d->titleLabel, 1);
+    titleRow->addWidget(d->muteButton);
+    titleRow->addWidget(d->volumeSlider);
+
     auto *controls = new QHBoxLayout;
     controls->addWidget(d->previousButton);
     controls->addWidget(d->playPauseButton);
@@ -75,12 +72,27 @@ PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, 
     controls->addWidget(d->positionLabel);
     controls->addWidget(d->seekSlider, 1);
     controls->addWidget(d->durationLabel);
-    controls->addWidget(d->muteButton);
-    controls->addWidget(d->volumeSlider);
 
     auto *outer = new QVBoxLayout(this);
-    outer->addWidget(d->titleLabel);
+    outer->addLayout(titleRow);
     outer->addLayout(controls);
+
+    // PB-FRAME: a button is its command. The commands come first, because a
+    // button can only take the action of a command that is enabled.
+    implementCommands();
+    d->previousButton->setDefaultAction(d->actions->action(QStringLiteral("controls.previous")));
+    d->playPauseButton->setDefaultAction(d->actions->action(QStringLiteral("controls.playPause")));
+    d->stopButton->setDefaultAction(d->actions->action(QStringLiteral("controls.stop")));
+    d->nextButton->setDefaultAction(d->actions->action(QStringLiteral("controls.next")));
+    d->muteButton->setDefaultAction(d->actions->action(QStringLiteral("controls.mute")));
+
+    // PB-STATE: follow the player as it changes, and start from what it is now.
+    Player *p = d->player;
+    connect(p, &Player::stateChanged, this, [this] { showState(); });
+    connect(
+        p, &Player::trackChanged, this, [this] { showLength(0); }); // a new track: length unknown
+    connect(p, &Player::durationChanged, this, [this](qint64 ms) { showLength(ms); });
+    showLength(p->durationMs());
 }
 
 PlayerBar::~PlayerBar()
@@ -91,6 +103,29 @@ PlayerBar::~PlayerBar()
 void PlayerBar::setTrackText(const QString &text)
 {
     Q_UNUSED(text);
+}
+
+// PB-STATE: the play button's "playing" property, and the seek bar's enabled
+// state. A stopped player also puts the seek bar and the time played back to 0.
+void PlayerBar::showState()
+{
+    const Player::State state = d->player->state();
+    d->playPauseButton->setProperty("playing", state == Player::State::Playing);
+    if (state == Player::State::Stopped) {
+        d->seekSlider->setValue(0);
+        d->positionLabel->setText(formatTime(0));
+    }
+    d->seekSlider->setEnabled(state != Player::State::Stopped && d->durationMs > 0);
+}
+
+// PB-STATE: the length is the seek bar's range. 0 means not known yet.
+void PlayerBar::showLength(qint64 ms)
+{
+    d->durationMs = ms;
+    const qint64 top = std::clamp<qint64>(ms, 0, std::numeric_limits<int>::max());
+    d->seekSlider->setRange(0, static_cast<int>(top));
+    d->durationLabel->setText(formatTime(ms));
+    showState();
 }
 
 // PB-TIME: whole seconds, rounded down. Under an hour m:ss; from an hour h:mm:ss; below zero 0:00.

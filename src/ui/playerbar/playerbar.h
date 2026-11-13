@@ -35,6 +35,12 @@ public:
 private:
     struct Private;
     Private *d;
+
+    // Plan 14e helpers: showState and showLength in playerbar.cpp,
+    // implementCommands in playerbar_commands.cpp.
+    void implementCommands();
+    void showState();
+    void showLength(qint64 ms);
 };
 
 }
