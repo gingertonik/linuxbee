@@ -215,22 +215,4 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     return true;
 }
 
-LibraryFieldSource::LibraryFieldSource(const LibraryTrack &track, const TrackFieldOptions &options)
-    : m_track(track)
-    , m_fields(track.tags, track.path, options)
-{
-}
-
-std::optional<QString> LibraryFieldSource::value(const QString &fieldName) const
-{
-    Q_UNUSED(fieldName);
-    Q_UNUSED(m_track);
-    return std::nullopt;
-}
-
-QStringList libraryFieldNames()
-{
-    return { };
-}
-
 } // namespace linuxbee
