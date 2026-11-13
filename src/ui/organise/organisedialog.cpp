@@ -140,7 +140,15 @@ OrganiseDialog::OrganiseDialog(const QStringList &files, QSettings *settings, QW
         if (!chosen.isEmpty())
             d->targetEdit->setText(chosen);
     });
-    connect(d->closeButton, &QPushButton::clicked, this, &QDialog::reject);
+    // OD-RUN: the button and run() are the same action.
+    connect(d->runButton, &QPushButton::clicked, this, [this] { run(); });
+    // OD-RUN: during a run, Close asks the run to stop; otherwise it closes as rejected.
+    connect(d->closeButton, &QPushButton::clicked, this, [this] {
+        if (d->running)
+            d->stopRequested = true;
+        else
+            reject();
+    });
 
     // OD-PREVIEW: every control that changes what the planner is asked gets a fresh preview.
     connect(d->targetEdit, &QLineEdit::textChanged, this, [this] { refreshPreview(); });
@@ -188,11 +196,6 @@ OrganiseOptions OrganiseDialog::options() const
     o.moveOtherFiles = !copy && d->otherFilesCheck->isChecked();
     o.removeEmptyFolders = !copy && d->removeEmptyCheck->isChecked();
     return o;
-}
-
-bool OrganiseDialog::run()
-{
-    return false;
 }
 
 }

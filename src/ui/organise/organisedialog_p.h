@@ -39,6 +39,10 @@ struct OrganiseDialog::Private {
 
     // OD-PREVIEW: the plan the table shows, as the planner last answered.
     QList<PlannedMove> plan;
+
+    // OD-RUN: a run is under way; Close asked it to stop.
+    bool running = false;
+    bool stopRequested = false;
 };
 
 }
