@@ -5,6 +5,11 @@
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
+#include <QRandomGenerator>
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include <fileref.h>
 #include <id3v2.h>
@@ -271,6 +276,31 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     return id3 ? saveId3(file, options) : file->save();
 }
 
+// WS-NAME: the new version of the file sits beside it as ".lbsave-" + six
+// characters chosen at random from a-z and 0-9 + "-" + the file's own name.
+// The name ends with the file's name so the extension, which tells the tag
+// library the format, is kept; it begins with a dot so it is not shown.
+QString scratchName(const QString &fileName)
+{
+    static constexpr char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+    QString chosen;
+    for (int i = 0; i < 6; ++i)
+        chosen
+            += QLatin1Char(alphabet[QRandomGenerator::global()->bounded(int(sizeof alphabet) - 1)]);
+    return QStringLiteral(".lbsave-") + chosen + QLatin1Char('-') + fileName;
+}
+
+// POSIX: force a saved file's contents, or a folder's entries, to the disk.
+void syncToDisk(const QString &path, bool isFolder)
+{
+    const int fd
+        = ::open(QFile::encodeName(path).constData(), O_RDONLY | (isFolder ? O_DIRECTORY : 0));
+    if (fd < 0)
+        return;
+    ::fsync(fd);
+    ::close(fd);
+}
+
 }
 
 WriteResult writeTags(
@@ -308,22 +338,69 @@ WriteResult writeTags(
         return result;
     }
 
-    const QDateTime modified = QFileInfo(filePath).lastModified();
+    // WS-LINK: the file the path leads to is the one saved, in its own folder.
+    const QString target = QFileInfo(filePath).canonicalFilePath();
+    if (target.isEmpty()) {
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+    const QFileInfo targetInfo(target);
+    const QString folder = targetInfo.absolutePath();
+    const QDateTime modified = targetInfo.lastModified();
+
+    // WS-ORDER 2, WS-NAME: a whole new version of the file beside the original.
+    QString copyPath;
+    do
+        copyPath = folder + QLatin1Char('/') + scratchName(targetInfo.fileName());
+    while (QFile::exists(copyPath));
+    if (!QFile::copy(target, copyPath)) {
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+
+    // WS-ORDER 3: the changes are saved into the copy. Nothing of the original is
+    // opened for writing, so until step 6 it is byte for byte what it was.
     bool saved = false;
     try {
         saved = saveChanges(
-            filePath, read.tags, checked, after, options, changes.pictures.has_value());
+            copyPath, read.tags, checked, after, options, changes.pictures.has_value());
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;
     }
-    // W-MTIME: saveChanges has closed the file, so the old time can be put back.
-    if (saved && options.keepModificationTime) {
+    if (!saved) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+
+    // WS-ORDER 4: the copy's contents are forced to the disk before the swap.
+    syncToDisk(copyPath, false);
+
+    // WS-HOOK: the last moment to stop a save, with both versions complete.
+    if (options.beforeReplace && !options.beforeReplace(copyPath)) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+
+    // WS-ORDER 6: rename(2) puts the copy in the original's place in one step, so
+    // the path never holds half a file. Then the folder's entries are forced too.
+    if (::rename(QFile::encodeName(copyPath).constData(), QFile::encodeName(target).constData())
+        != 0) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+    syncToDisk(folder, true);
+
+    // W-MTIME: the file the path leads to is the new one; its time is put back.
+    if (options.keepModificationTime) {
         QFile file(filePath);
         if (file.open(QIODevice::ReadOnly))
             file.setFileTime(modified, QFileDevice::FileModificationTime);
     }
-    result.status = saved ? WriteResult::Status::Ok : WriteResult::Status::Failed;
+    result.status = WriteResult::Status::Ok;
     return result;
 }
 
