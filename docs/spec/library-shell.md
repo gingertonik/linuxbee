@@ -49,8 +49,14 @@ The list shows the tracks of the navigator's chosen node:
 
 Choosing another node empties the search box first.
 
-The order in which a playlist's tracks appear is the list's own sorting,
-not the playlist's order. (See "Not in this version".)
+A playlist and `playing` are shown in their own order: the playlist's,
+and the order last given to `setPlayingPaths`. For these two kinds of
+node the shell switches the model's given order on before it hands over
+the tracks, and for every other node off (track-list.md, T-GIVEN). The
+list's sorting is neither changed nor stored differently by this. A
+click on a header sorts the rows on show, as anywhere; choosing the
+node again shows its own order again. So what a double-click on a
+track plays (SH-PLAY) follows the playlist, as in MusicBee.
 
 ## SH-COUNTS
 
@@ -190,7 +196,8 @@ chosen node as `shell/node`.
 
 - Scanning in the background with a progress bar: a scan blocks the
   window until it is done.
-- Showing a playlist in its own order, and reordering it.
+- Reordering a playlist or Playing Tracks by hand. Showing an
+  auto-playlist in the order it was selected in.
 - The tag editor, the organiser, the converter and the player: each is
   connected by a later assembly plan. `Playing Tracks` stays empty until
   the player assembly calls `setPlayingPaths`.

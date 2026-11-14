@@ -23,10 +23,14 @@ struct Candidate {
 
 void TrackListModel::Private::reorder()
 {
+    // T-GIVEN: in the given order the keys decide nothing; `tracks` is already
+    // in the order given, so the candidates below stay as they come.
     QList<SortKey> keys;
-    for (const QString &name : std::as_const(sortFields)) {
-        const bool descending = name.startsWith(QLatin1Char('-'));
-        keys.append(SortKey { descending ? name.mid(1) : name, descending });
+    if (!givenOrder) {
+        for (const QString &name : std::as_const(sortFields)) {
+            const bool descending = name.startsWith(QLatin1Char('-'));
+            keys.append(SortKey { descending ? name.mid(1) : name, descending });
+        }
     }
 
     QList<Candidate> candidates;
@@ -45,23 +49,24 @@ void TrackListModel::Private::reorder()
 
     // A blank value comes last in both directions. Tracks that tie on every
     // key are in order of path.
-    std::stable_sort(
-        candidates.begin(), candidates.end(), [&keys](const Candidate &a, const Candidate &b) {
-            for (int k = 0; k < keys.size(); ++k) {
-                const QString &valueA = a.values.at(k);
-                const QString &valueB = b.values.at(k);
-                const bool blankA = valueA.trimmed().isEmpty();
-                const bool blankB = valueB.trimmed().isEmpty();
-                if (blankA != blankB)
-                    return blankB;
-                if (blankA)
-                    continue;
-                const int order = compareFieldValues(keys.at(k).field, valueA, valueB);
-                if (order != 0)
-                    return keys.at(k).descending ? order > 0 : order < 0;
-            }
-            return a.path < b.path;
-        });
+    if (!givenOrder)
+        std::stable_sort(
+            candidates.begin(), candidates.end(), [&keys](const Candidate &a, const Candidate &b) {
+                for (int k = 0; k < keys.size(); ++k) {
+                    const QString &valueA = a.values.at(k);
+                    const QString &valueB = b.values.at(k);
+                    const bool blankA = valueA.trimmed().isEmpty();
+                    const bool blankB = valueB.trimmed().isEmpty();
+                    if (blankA != blankB)
+                        return blankB;
+                    if (blankA)
+                        continue;
+                    const int order = compareFieldValues(keys.at(k).field, valueA, valueB);
+                    if (order != 0)
+                        return keys.at(k).descending ? order > 0 : order < 0;
+                }
+                return a.path < b.path;
+            });
 
     shown.clear();
     rowOf.clear();
@@ -86,7 +91,18 @@ void TrackListModel::sort(int column, Qt::SortOrder order)
         if (name.compare(field, Qt::CaseInsensitive) != 0)
             keys.append(name);
     }
-    setSortFields(keys);
+    if (!d->givenOrder) {
+        setSortFields(keys);
+        return;
+    }
+    // T-GIVEN: a click sorts. The given order goes off and the rows are sorted
+    // by these keys, also when they are the keys the model already has
+    // (setSortFields would stop there). One reset.
+    beginResetModel();
+    d->givenOrder = false;
+    d->sortFields = keys;
+    d->reorder();
+    endResetModel();
 }
 
 }

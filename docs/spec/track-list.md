@@ -119,6 +119,19 @@ order of path. With no keys the list is in order of path.
 column's field the first key and puts the default keys after it, leaving
 out the field itself. A column that does not exist is ignored.
 
+**The order given (T-GIVEN).** `setGivenOrder(true)` shows the tracks in
+the order they were given instead of sorting them: the order of the last
+`setTracks`, a track that `upsertTracks` adds going to the end and one it
+replaces keeping its place. The filter narrows as before and the order
+stays. `sortFields()` is kept and may be set; it decides nothing until
+the given order is switched off, and then the list is sorted by it
+again. Switching it on again shows the order given, which is still
+known. `sort(column, order)` switches the given order off and sorts,
+also when the keys come out the same as they were. `givenOrder()` is
+false for a new model. Changing it resets the model once; setting what
+it already is does nothing. It is not stored: `save` and `load` neither
+write nor change it.
+
 **Filter.** `setFilter(query)` shows only the tracks the search matches
 (the search plan's `SearchQuery`, against `LibraryFieldSource`). The empty
 query shows everything. `totalCount()` is the number before the filter.

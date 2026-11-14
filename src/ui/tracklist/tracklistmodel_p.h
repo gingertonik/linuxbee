@@ -14,6 +14,7 @@ struct TrackListModel::Private {
     QHash<qint64, int> positionOf; // track id -> index into tracks
     QStringList columns;
     QStringList sortFields;
+    bool givenOrder = false; // T-GIVEN: show `tracks` as they are, the keys decide nothing
     SearchQuery filter;
     QList<int> shown; // indexes into tracks, in the order shown
     QHash<qint64, int> rowOf; // track id -> row in shown
