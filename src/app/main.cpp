@@ -22,6 +22,7 @@
 #include "playlists/playliststore.h"
 #include "audio/devicesink.h"
 #include "playback/audioengine.h"
+#include "shell/albumviewing.h"
 #include "shell/artistbrowsing.h"
 #include "shell/autoplaylistnodes.h"
 #include "shell/backgroundshell.h"
@@ -164,6 +165,10 @@ int main(int argc, char *argv[])
     // it is destroyed before the shell.
     linuxbee::ui::ArtistBrowsing artistBrowsing(&shell, &settings);
 
+    // AV-MAIN (docs/spec/album-view.md): the Album and Tracks view in the library page, over the
+    // library shell and the settings; declared after the shell, so it is destroyed before it.
+    linuxbee::ui::AlbumViewing albumViewing(&shell, &settings);
+
     // PE-MAIN: the playlist commands of the navigator's right click and File > Playlists > New
     // Playlist, with the window's own dialogs; declared after the shell, it goes before the shell.
     linuxbee::ui::PlaylistEditing playlistEditing(&window, &registry, &shell, &playlists);
@@ -229,6 +234,8 @@ int main(int argc, char *argv[])
             << '\n';
         // AN-MAIN: how many auto-playlists the store holds.
         out << QStringLiteral("auto-playlists=%1").arg(autoPlaylists.names().size()) << '\n';
+        // AV-MAIN: which view the library page starts on, albums or tracks.
+        out << QStringLiteral("main-view=%1").arg(albumViewing.mode()) << '\n';
         out.flush();
         return 0;
     }
