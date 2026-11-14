@@ -176,6 +176,15 @@ linuxbeectl settings import --apply --to INI FILE
   `linuxbee.ini`). The last line is `N written, M skipped`.
 - A file that cannot be read, or is not ok: `failed: FILE: REASON` on
   standard error, nothing on standard output, exit 3.
+- **SI-CLI-TARGET.** With `--apply`, a `--to` that is there and is not a
+  settings file is never written: a folder, or a file that cannot be
+  read as INI (`QSettings` reports an error after reading it: plain
+  words, a music file, a section never closed). `failed: INI: REASON` on
+  standard error, nothing on standard output, exit 3, and the file's
+  bytes are what they were. The check comes before anything is written.
+  An empty file is an empty settings file. A settings file keeps every
+  key the import does not set, though its keys may come back in another
+  order.
 - Exit 2 for a usage mistake: no or an unknown subcommand, no file or
   more than one, `--apply` without `--to`, `--to` without `--apply`.
 
