@@ -294,15 +294,18 @@ QString scratchName(const QString &fileName)
     return QStringLiteral(".lbsave-") + chosen + QLatin1Char('-') + fileName;
 }
 
-// POSIX: force a saved file's contents, or a folder's entries, to the disk.
-void syncToDisk(const QString &path, bool isFolder)
+// POSIX: force a saved file's contents, or a folder's entries, to the disk. False when
+// the path cannot be opened for it or fsync fails (WS-SYNC). The descriptor is closed
+// on both paths.
+bool syncToDisk(const QString &path, bool isFolder)
 {
     const int fd
         = ::open(QFile::encodeName(path).constData(), O_RDONLY | (isFolder ? O_DIRECTORY : 0));
     if (fd < 0)
-        return;
-    ::fsync(fd);
+        return false;
+    const bool synced = ::fsync(fd) == 0;
     ::close(fd);
+    return synced;
 }
 
 // WS-KILLED: a process that died during an earlier save of this file left its copy
@@ -473,8 +476,13 @@ WriteResult writeTags(
             copy.setFileTime(modified, QFileDevice::FileModificationTime);
     }
 
-    // WS-ORDER 4: the copy's contents are forced to the disk before the swap.
-    syncToDisk(copyPath, false);
+    // WS-ORDER 4: the copy's contents are forced to the disk before the swap. WS-SYNC:
+    // when that fails the copy goes, the original stays, and the hook is not called.
+    if (!syncToDisk(copyPath, false)) {
+        QFile::remove(copyPath);
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
 
     // WS-HOOK: the last moment to stop a save, with both versions complete.
     if (options.beforeReplace && !options.beforeReplace(copyPath)) {
@@ -491,7 +499,12 @@ WriteResult writeTags(
         result.status = WriteResult::Status::Failed;
         return result;
     }
-    syncToDisk(folder, true);
+    // WS-SYNC: the new version is already in place, so a folder that cannot be forced
+    // is reported as Failed and nothing is removed or renamed.
+    if (!syncToDisk(folder, true)) {
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
 
     result.status = WriteResult::Status::Ok;
     return result;

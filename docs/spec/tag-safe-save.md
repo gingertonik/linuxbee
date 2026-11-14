@@ -39,6 +39,24 @@ half a file.
 If any step fails, the copy is removed, the original is left as it was,
 and the result is `Failed`.
 
+## WS-SYNC
+
+Forcing to the disk is part of the save, not a courtesy.
+
+- If the copy cannot be opened for it, or `fsync` of the copy fails
+  (step 4), the save fails there: no hook, no rename, the copy is
+  removed, the original is untouched, the result is `Failed`.
+- If the folder cannot be opened for it, or `fsync` of the folder fails
+  (after the rename of step 6), the result is `Failed` as well. Nothing
+  can be undone at that point: the path holds the complete new version,
+  and only its survival of a power cut is in doubt. Nothing is removed.
+- What WS-KEEP copies is another matter. A permission bit, an owner or an
+  extended attribute that cannot be set never fails a save: these touch
+  the file's description, never its audio or its tags.
+
+No locked test checks this rule, because a test cannot make `fsync`
+fail. It is checked by reading the code.
+
 ## WS-NAME
 
 The copy is in the folder of the file itself and is called
