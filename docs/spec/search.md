@@ -77,6 +77,22 @@ track does not know never holds.
 
 A negated term holds exactly when it would not have held.
 
+## S-CACHE
+
+Folding a value is the dear part of a match, and it depends on the
+track only, not on what is searched for. `matches(track, options,
+&cache)` answers exactly as `matches(track, options)` does, and
+remembers in `cache` (a `SearchCache`, empty when made) each field it
+asked the track for, by the field's name in lower case: its folded
+value, whether it is blank, or that the track does not know the field. A field the cache has is not asked for or
+folded again, whatever the query. The caller keeps one cache for each
+track and throws it away when the track changes; a cache used with
+another track gives wrong answers.
+
+`searchValuesFolded()` counts, for the whole process since it started,
+the values folded for a match, with a cache or without. It is for tests
+and for timing; nothing decides anything by it.
+
 ## S-CANONICAL
 
 `canonical()` writes the query out: each term as its text in double
