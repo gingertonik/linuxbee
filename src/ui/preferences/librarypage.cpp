@@ -9,6 +9,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 
 #include <utility>
@@ -58,11 +59,29 @@ bool storedCheckOnStartup(const QSettings *settings)
 struct LibraryPage::Private {
     QSettings *settings = nullptr;
     Hooks hooks;
+    LibraryPage *owner = nullptr;
     QListWidget *monitoredList = nullptr;
     QPushButton *addFolderButton = nullptr;
     QPushButton *removeFolderButton = nullptr;
     QComboBox *sectionCombo = nullptr;
     QCheckBox *checkOnStartupBox = nullptr;
+
+    // What load() showed: the baseline "modified" is measured against.
+    QStringList shownFolders;
+    QString shownSection;
+    bool shownCheckOnStartup = false;
+    // The last answer of isModified() that modifiedChanged announced.
+    bool announced = false;
+
+    // LP-MODIFIED: announce a change of the answer, and only a change.
+    void noticeChange()
+    {
+        const bool now = owner->isModified();
+        if (now != announced) {
+            announced = now;
+            emit owner->modifiedChanged();
+        }
+    }
 };
 
 LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
@@ -71,6 +90,7 @@ LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
 {
     d->settings = settings;
     d->hooks = std::move(hooks);
+    d->owner = this;
 
     auto *layout = new QVBoxLayout(this);
 
@@ -114,8 +134,13 @@ LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
         if (!folder.isEmpty())
             addFolder(folder);
     });
-    connect(d->removeFolderButton, &QPushButton::clicked, this,
-        [this] { delete d->monitoredList->takeItem(d->monitoredList->currentRow()); });
+    connect(d->removeFolderButton, &QPushButton::clicked, this, [this] {
+        delete d->monitoredList->takeItem(d->monitoredList->currentRow());
+        d->noticeChange();
+    });
+    connect(d->sectionCombo, &QComboBox::currentTextChanged, this,
+        [this](const QString &) { d->noticeChange(); });
+    connect(d->checkOnStartupBox, &QCheckBox::toggled, this, [this](bool) { d->noticeChange(); });
 
     load();
 }
@@ -132,10 +157,21 @@ QString LibraryPage::title() const
 
 void LibraryPage::load()
 {
-    d->monitoredList->clear();
-    d->monitoredList->addItems(storedFolders(d->settings));
-    d->sectionCombo->setCurrentText(storedSection(d->settings));
-    d->checkOnStartupBox->setChecked(storedCheckOnStartup(d->settings));
+    // The widgets are filled without announcing each step; one answer follows.
+    {
+        QSignalBlocker a(d->monitoredList);
+        QSignalBlocker b(d->sectionCombo);
+        QSignalBlocker c(d->checkOnStartupBox);
+        d->monitoredList->clear();
+        d->shownFolders = storedFolders(d->settings);
+        d->monitoredList->addItems(d->shownFolders);
+        d->shownSection = storedSection(d->settings);
+        d->sectionCombo->setCurrentText(d->shownSection);
+        d->shownCheckOnStartup = storedCheckOnStartup(d->settings);
+        d->checkOnStartupBox->setChecked(d->shownCheckOnStartup);
+    }
+    d->removeFolderButton->setEnabled(d->monitoredList->currentRow() >= 0);
+    d->noticeChange();
 }
 
 QString LibraryPage::apply()
@@ -145,7 +181,8 @@ QString LibraryPage::apply()
 
 bool LibraryPage::isModified() const
 {
-    return false;
+    return folders() != d->shownFolders || d->sectionCombo->currentText() != d->shownSection
+        || d->checkOnStartupBox->isChecked() != d->shownCheckOnStartup;
 }
 
 QStringList LibraryPage::folders() const
@@ -170,6 +207,7 @@ bool LibraryPage::addFolder(const QString &folder)
     }
     d->monitoredList->addItem(tidy);
     d->monitoredList->setCurrentRow(d->monitoredList->count() - 1);
+    d->noticeChange();
     return true;
 }
 
@@ -182,6 +220,7 @@ bool LibraryPage::removeFolder(const QString &folder)
     for (int row = 0; row < d->monitoredList->count(); ++row) {
         if (d->monitoredList->item(row)->text() == tidy) {
             delete d->monitoredList->takeItem(row);
+            d->noticeChange();
             return true;
         }
     }
