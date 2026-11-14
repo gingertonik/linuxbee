@@ -59,6 +59,22 @@ struct PlaylistEditing::Private {
         window->statusBar()->showMessage(text);
     }
 
+    // The name a playlist is listed under: its last part, "Best of" for "Rock/Best of".
+    QString nameOf(const QString &id) const
+    {
+        for (const PlaylistInfo &info : playlists->playlists()) {
+            if (info.id == id)
+                return info.name;
+        }
+        return QString();
+    }
+
+    // Whether the navigator's choice is this playlist.
+    bool chosen(const QString &id) const
+    {
+        return shell->navigator()->currentNode() == QStringLiteral("playlist:") + id;
+    }
+
     // PE-COMMANDS, new: asks for a name, then makes the playlist in the row's folder. No answer
     // ends the command with nothing changed.
     bool create(const QString &rowId)
@@ -77,6 +93,78 @@ struct PlaylistEditing::Private {
         }
         report(QStringLiteral("Created the playlist ") + quoted(id));
         shell->navigator()->selectNode(QStringLiteral("playlist:") + id);
+        return true;
+    }
+
+    // PE-COMMANDS, rename: asks for the new name, then renames the playlist. If it was the choice,
+    // the playlist under its new id is the choice afterwards.
+    bool renamePlaylist(const QString &rowId)
+    {
+        if (!hooks.askName)
+            return false;
+        const QString id = playlistIdOf(rowId);
+        const std::optional<QString> name
+            = hooks.askName(QStringLiteral("Rename Playlist"), nameOf(id));
+        if (!name)
+            return false;
+        const bool wasChosen = chosen(id);
+        QString error;
+        const QString newId = playlists->rename(id, *name, &error);
+        if (newId.isEmpty()) {
+            report(QStringLiteral("Could not rename the playlist: ") + error);
+            return false;
+        }
+        report(QStringLiteral("Renamed the playlist to ") + quoted(newId));
+        if (wasChosen)
+            shell->navigator()->selectNode(QStringLiteral("playlist:") + newId);
+        return true;
+    }
+
+    // PE-COMMANDS, move: asks for one of the folders, or the top (the empty text). A folder that
+    // does not exist yet is made first.
+    bool movePlaylist(const QString &rowId)
+    {
+        if (!hooks.chooseFolder)
+            return false;
+        const QString id = playlistIdOf(rowId);
+        const std::optional<QString> folder = hooks.chooseFolder(playlists->folders());
+        if (!folder)
+            return false;
+        QString error;
+        if (!folder->isEmpty() && !playlists->folders().contains(*folder)) {
+            if (!playlists->createFolder(*folder, &error)) {
+                report(QStringLiteral("Could not move the playlist: ") + error);
+                return false;
+            }
+        }
+        const bool wasChosen = chosen(id);
+        const QString newId = playlists->moveToFolder(id, *folder, &error);
+        if (newId.isEmpty()) {
+            report(QStringLiteral("Could not move the playlist: ") + error);
+            return false;
+        }
+        report(QStringLiteral("Moved the playlist to ") + quoted(newId));
+        if (wasChosen)
+            shell->navigator()->selectNode(QStringLiteral("playlist:") + newId);
+        return true;
+    }
+
+    // PE-COMMANDS, delete: asks first. On yes, removes the playlist's file; its tracks stay in
+    // the library.
+    bool deletePlaylist(const QString &rowId)
+    {
+        if (!hooks.confirm)
+            return false;
+        const QString id = playlistIdOf(rowId);
+        const QString question = QStringLiteral("Delete the playlist ") + quoted(id)
+            + QStringLiteral("? Its tracks stay in the library.");
+        if (!hooks.confirm(question))
+            return false;
+        if (!playlists->remove(id)) {
+            report(QStringLiteral("Could not delete the playlist: the file could not be removed"));
+            return false;
+        }
+        report(QStringLiteral("Deleted the playlist ") + quoted(id));
         return true;
     }
 };
@@ -129,7 +217,12 @@ bool PlaylistEditing::run(const QString &command, const QString &rowId)
         return false;
     if (command == QLatin1String("new"))
         return d->create(rowId);
-    // rename, move and delete come in the next tasks of this plan.
+    if (command == QLatin1String("rename"))
+        return d->renamePlaylist(rowId);
+    if (command == QLatin1String("move"))
+        return d->movePlaylist(rowId);
+    if (command == QLatin1String("delete"))
+        return d->deletePlaylist(rowId);
     return false;
 }
 
