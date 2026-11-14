@@ -239,9 +239,18 @@ Whenever it returns false the job stops: ffmpeg is killed and the result is
 
 ### C-CLEAN
 
-ffmpeg writes to a part file in the destination's folder: the destination's
-name with `.part` before its extension (`song.part.mp3`; `song.part` when
-there is no extension). An old part file of that name is removed first.
+ffmpeg writes to a part file in the destination's folder. Its name is
+`.lbpart-` + six characters chosen at random from `a` to `z` and `0` to
+`9` + `-` + the destination's own file name: for `song.mp3`,
+`.lbpart-k3x9qa-song.mp3`. If a file of that name exists, another is
+chosen. (The same pattern as a safe tag save, tag-safe-save.md.)
+
+A conversion never removes a file it did not make. In particular a file
+called `song.part.mp3`, `song.part` or anything else is the user's and is
+left alone. The one exception is what an earlier conversion of this very
+destination left behind when it was killed: files in the destination's
+folder named exactly `.lbpart-`, six such characters, `-` and the
+destination's file name are removed before ffmpeg starts.
 
 Whatever the outcome, no part file is left behind, and on any outcome other
 than `Converted` or `TagsUpdated` the destination is exactly as it was.
