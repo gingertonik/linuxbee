@@ -37,7 +37,9 @@ again.
   return and line feed is read as a space (FILE).
 - It is not ok, with a reason in `error`, when there is no root element
   `ApplicationSettings`, or when that element is never closed (a file cut
-  short). It is ok otherwise, whatever else the file holds.
+  short). It is ok otherwise, whatever else the file holds: elements
+  nested deeper than a rule's parts (`Key`, `Field` and the like) are
+  passed over, however deep, and never stop the reader (SI-READ-DEEP).
 - `values`: every child of the root that holds text only, by name, with
   XML's entities decoded (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`
   and numbered ones). An empty element (`<X />` or `<X></X>`) is there
