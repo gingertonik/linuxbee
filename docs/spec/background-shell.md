@@ -82,7 +82,7 @@ When that leaves the monitor with a folder it did not have before the
 call, every monitored folder is checked once (`FolderMonitor::checkNow`),
 not inside `reload()` but as soon as the event loop runs. So a folder
 that is added in the preferences has its files taken in at once, as
-MusicBee does (Dillon, from memory, 2026-11-14), with the message of
+MusicBee does (the owner, from memory, 2026-11-14), with the message of
 BG-MONITOR. A reload that adds no folder (the same list, a shorter one,
 another order) checks nothing and says nothing. `checkOnStartup` is not
 acted on here. (The section needs no reloading: BG-MONITOR.)

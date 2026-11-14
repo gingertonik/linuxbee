@@ -79,7 +79,7 @@ command, tick included (PB-FRAME).
 
 `repeatButton` has no default action, because it has three states and
 the command has two. A click moves the queue's repeat mode on by one:
-off, all, one, off (as MusicBee's button does; Dillon, from memory,
+off, all, one, off (as MusicBee's button does; the owner, from memory,
 2026-11-14). The button always shows the queue's mode, whoever set it
 (the button, the Controls menu, a restored setting), and a bar created
 when a mode is already set starts with it:
@@ -153,4 +153,4 @@ volume, not muted, no repeat, no shuffle.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | PB-VOLUME | The size of one volume step. |
-| PB-COMMANDS | Settled 2026-11-14 (Dillon, from memory): the repeat button cycles off, all, one (PB-MODES). |
+| PB-COMMANDS | Settled 2026-11-14 (the owner, from memory): the repeat button cycles off, all, one (PB-MODES). |

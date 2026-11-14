@@ -146,4 +146,4 @@ outside the release, or a release that is not ok, gives no changes.
 |---|---|
 | M-CHANGES | Which fields does Auto-Tag by Album fill, and does Year get the release's date or the original year? |
 | M-MATCH | How does MusicBee line files up with the album's tracks when numbers and titles disagree? |
-| M-AGENT | (For Dillon, not about MusicBee.) The contact URL in the User-Agent: the public repository address is assumed. |
+| M-AGENT | (For the owner, not about MusicBee.) The contact URL in the User-Agent: the public repository address is assumed. |
