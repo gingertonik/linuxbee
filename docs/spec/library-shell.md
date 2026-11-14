@@ -123,11 +123,26 @@ it is not used.
 (SH-NODE), before any narrowing and before the search box. The signal
 `nodeTracksChanged` is emitted whenever that answer may have changed:
 another node was chosen, the library or a playlist changed what the node
-holds (SH-LIVE), or the node was read again.
+holds (SH-LIVE), or the node was read again. It is emitted once for each
+of those, and for nothing else: not for a narrowing, not for the search
+box.
+
+**Kept, not read again.** The shell keeps the node's tracks as it last
+read them, and `nodeTracks()` answers from that without touching the
+library; for a library section they come in no promised order. The
+node is read (the node sources asked, then SH-NODE) once when another
+node is chosen, on `reloadNode()`, on `addNodeSource`, on `view.refresh`,
+and as SH-LIVE says for a playlist, for `playing` and for a node a
+source answers for. On a library section a change of the library does
+not read the section again: the tracks the library names are added to
+the kept tracks, replaced in them or taken out, as they are now. (The
+sources may be asked once per signal whether the node is theirs.)
 
 **Narrowing.** With `setNarrowing(keep)`, the list shows only those of
 the node's tracks for which `keep` answers true; `nodeTracks()` still
-answers all of them, and the navigator's counts are not touched. It
+answers all of them, and the navigator's counts are not touched.
+Setting or ending a narrowing reads nothing: it goes through the kept
+tracks. It
 holds while nodes change and while the library changes: a track that
 arrives or is updated is listed only if `keep` accepts it as it is now.
 An empty function ends the narrowing. The search box narrows further, as
