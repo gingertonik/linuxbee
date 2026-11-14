@@ -40,11 +40,12 @@ TagChanges removeTags(const TrackTags &tags, const RemoveOptions &options)
 }
 
 // G-RENUMBER: one result per track, in the order given. Track Count is
-// written as the number of tracks, without padding.
+// written as the number of tracks, without padding. A negative start or
+// digits, or more than nine digits, gives no results at all.
 QList<TagChanges> renumberTracks(const QList<TrackTags> &tracks, const RenumberOptions &options)
 {
     QList<TagChanges> results;
-    if (options.start < 0 || options.digits < 0)
+    if (options.start < 0 || options.digits < 0 || options.digits > 9)
         return results;
 
     const QString total = QString::number(int(tracks.size()));

@@ -113,8 +113,10 @@ Artist. An unknown field name gives no changes at all.
 order given. The first track gets Track# `start`, the next `start + 1`,
 and so on, written with at least `digits` digits (zero-padded). With
 `writeTotal`, Track Count becomes the number of tracks. Numbers are
-compared as text: `04` is not `4`. A negative `start` or `digits` gives an
-empty list.
+compared as text: `04` is not `4`. A negative `start` or `digits`, or a
+`digits` of more than 9, gives an empty list. (Nine digits is more than
+any track number has; the limit is there so that a slip of the hand
+cannot ask for a number two thousand million characters wide.)
 
 The caller decides the order (for a dialog: the order shown in the list).
 
@@ -168,7 +170,8 @@ All take `--dry-run`.
    unknown tool, no file, a missing required option, anything the
    `validate` functions refuse, an unknown field name (except for
    `remove`, where it is an `other` key), an unknown style, a `--start` or
-   `--digits` that is not a whole number of 0 or more, and `remove` with
+   `--digits` that is not a whole number of 0 or more, a `--digits` of
+   more than 9, and `remove` with
    none of its three options.
 2. Every file is read. If one is missing or not music: `failed: FILE:
    REASON` on standard error, exit 3, and no file is changed.
@@ -189,6 +192,13 @@ All take `--dry-run`.
 
 `infer` fills blank fields only unless `--overwrite`. `renumber` numbers
 the files in the order given.
+
+`infer` matches the pattern against where the file is: its absolute
+path, made from the working directory when FILE is relative, with `.`
+and `..` parts worked out as text. Links are not followed, so a link is
+matched by its own name and folder. A pattern with folders therefore
+matches the same whatever the working directory. What is printed is
+still FILE as it was typed.
 
 ## Not in this version
 
