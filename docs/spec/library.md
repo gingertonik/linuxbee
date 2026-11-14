@@ -103,6 +103,25 @@ A scan with an invalid `now` or an unknown category does nothing.
 Ids in `added` are in the order added. Ids are positive, grow, and are
 never used again, even after `remove`.
 
+### L-NAMES
+
+A file or folder whose name is not valid UTF-8 cannot be opened by
+linuxBee (every path in it is text). A scan does not pretend such names
+are not there: it counts them.
+
+- `unreadableNames` is the number of entries, files and folders alike and
+  whatever their ending, inside the scanned folders whose own name is not
+  valid UTF-8. Such a folder is counted once and not gone into.
+- `unreadableIn` is the folders holding them, each once, in ascending
+  order of path.
+- Each entry is counted once, however often its folder was named or
+  reached. Nothing is stored for these entries and they are not in
+  `notAudio`.
+- A cancelled scan reports none (it did not finish looking).
+
+Finding them needs the system's own directory calls, since Qt's listing
+leaves such names out without a word.
+
 ### L-ADD
 
 `addFile(path, category, now)` adds one file whatever its extension, and
@@ -190,6 +209,17 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
   `added A, updated U, unchanged N, missing M, found again F, not music X`.
   `--now` is an ISO 8601 date and time; without it the current time is used.
   `--category` defaults to `Music`.
+  When the scan passed over names (L-NAMES) it prints after that line,
+  also on standard output:
+
+  ```
+  passed over N names that are not valid UTF-8, in:
+    FOLDER
+    FOLDER
+  ```
+
+  with `1 name that is` for one, and each folder indented by two spaces.
+  The exit status does not change.
 - `list` prints one line per track in ascending order of path: the path,
   or with `--format` the template evaluated on the track's
   `LibraryFieldSource`.

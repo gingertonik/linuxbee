@@ -55,6 +55,8 @@ struct ScanReport {
     QList<qint64> found; // tracks that were missing and are back
     int unchanged = 0;
     QStringList notAudio; // files with a music extension that are not audio
+    int unreadableNames = 0; // L-NAMES: entries whose name is not valid UTF-8
+    QStringList unreadableIn; // the folders holding them, each once, ascending
     bool cancelled = false;
 };
 
