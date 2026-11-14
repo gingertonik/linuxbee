@@ -21,11 +21,13 @@
 #include "playback/audioengine.h"
 #include "shell/libraryshell.h"
 #include "shell/playbackshell.h"
+#include "shell/toolsshell.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
 // and on exit the hotkeys saved. --version prints and leaves no trace;
 // --screenshot FILE pictures the window for a person (and the gate) to judge.
+// --commands (TS-MAIN) prints the id of every implemented command and leaves.
 // W-MAIN "Options": the whole command line is read before anything is done,
 // and a mistake ends the program with a usage message and status 2.
 // SH-MAIN (docs/spec/library-shell.md): the library (library.db in the data
@@ -38,14 +40,17 @@
 int main(int argc, char *argv[])
 {
     const QString usage
-        = QStringLiteral("usage: linuxbee [--version] [--screenshot FILE] [FILE...]");
+        = QStringLiteral("usage: linuxbee [--version] [--commands] [--screenshot FILE] [FILE...]");
     bool wantVersion = false;
+    bool wantCommands = false;
     QString shotFile;
     bool wantShot = false;
     for (int i = 1; i < argc; ++i) {
         const QString word = QString::fromLocal8Bit(argv[i]);
         if (word == QStringLiteral("--version")) {
             wantVersion = true;
+        } else if (word == QStringLiteral("--commands")) {
+            wantCommands = true;
         } else if (word == QStringLiteral("--screenshot")) {
             // A mistake: given twice, the last word, or followed by an option.
             QString problem;
@@ -129,6 +134,9 @@ int main(int argc, char *argv[])
     linuxbee::ui::LibraryShell shell(
         &window, &registry, library.get(), &playlists, &settings, hooks);
 
+    // TS-MAIN: the tools shell, with the default presenter (the dialogs run modally).
+    linuxbee::ui::ToolsShell tools(&window, &registry, library.get(), &shell, &settings);
+
     // PS-MAIN: the real sound: the device sink, the ffmpeg engine over it, and
     // the playback shell over the engine. On the way out the playback shell
     // goes first, while the engine and the sink still exist.
@@ -136,6 +144,17 @@ int main(int argc, char *argv[])
     linuxbee::FfmpegAudioBackend backend(&sink);
     auto playback = std::make_unique<linuxbee::ui::PlaybackShell>(
         &window, &registry, library.get(), &shell, &backend, &settings, hooks.now);
+
+    if (wantCommands) {
+        // TS-MAIN: every command that has its behaviour, in catalogue order, with no window.
+        QTextStream out(stdout);
+        for (const QString &id : registry.ids()) {
+            if (registry.isImplemented(id))
+                out << id << '\n';
+        }
+        out.flush();
+        return 0;
+    }
     window.show();
 
     QObject::connect(&application, &QApplication::aboutToQuit, [&] {
