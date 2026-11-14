@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -19,6 +20,20 @@ struct SearchOptions {
     QStringList fields = defaultSearchFields();
 };
 
+// S-CACHE: what one track's fields fold to, remembered between matches.
+// Empty when made; the caller keeps one for each track.
+struct SearchCache {
+    struct Entry {
+        bool known = false; // the track knows the field
+        bool blank = true; // its value, trimmed, is empty
+        QString folded;
+    };
+    QHash<QString, Entry> fields; // by the field's name in lower case
+};
+
+// S-CACHE: values folded for a match, in the whole process, since it started.
+qint64 searchValuesFolded();
+
 class SearchQuery {
 public:
     // S-PARSE. Never fails: text that makes no sense as syntax is searched for
@@ -28,6 +43,8 @@ public:
     bool isEmpty() const; // true: matches every track
     // S-MATCH
     bool matches(const TagSource &track, const SearchOptions &options = { }) const;
+    // S-CACHE: the same answer; fields the cache has are not folded again.
+    bool matches(const TagSource &track, const SearchOptions &options, SearchCache *cache) const;
     // S-CANONICAL: the query written out in full, for showing and testing.
     QString canonical() const;
 

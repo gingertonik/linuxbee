@@ -129,6 +129,19 @@ shows what `LibraryFieldSource` gives for the field, and is empty when the
 track has no value or the field does not exist. The header shows the field
 name.
 
+**Kept between changes.** A keystroke in the search box must cost a
+look at each track and no more. So the model keeps two things:
+
+- the order of all its tracks by the sort keys, worked out when the
+  tracks or the keys change (`setTracks`, `upsertTracks`,
+  `removeTracks`, `setSortFields`, `sort`, `setGivenOrder`). `setFilter`
+  does not sort and prepares no value (T-PREPARED): the rows shown are
+  the kept order with the tracks the filter refuses left out;
+- one `SearchCache` (search.md, S-CACHE) for each track, emptied when
+  that track is replaced and dropped when it is removed or all tracks
+  are set anew. A second filter over the same tracks folds only values
+  the first did not need.
+
 **Roles.** `Qt::DisplayRole` the text; `Qt::ToolTipRole` the file's path;
 `Qt::TextAlignmentRole` right for number, duration and size columns and
 left for text, vertically centred, for cells and headers alike;
