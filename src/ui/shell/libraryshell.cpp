@@ -57,13 +57,17 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     refreshCounts();
     d->navigator->setPlaylists(playlistIds());
 
-    // SH-BUILD: the model with its columns and sorting, the page over it,
-    // in a page the window shows.
+    // SH-BUILD / SH-EXTEND: the model with its columns and sorting, the
+    // page over it, and the page the window shows (id `tracks`): a
+    // horizontal splitter named `browserSplitter`, holding the track list
+    // alone until a browser is set.
     d->model = new TrackListModel(this);
     d->model->load(*d->settings, QStringLiteral("tracklist"));
-    d->page = new TrackListPage(d->model, d->actions);
-    d->page->setObjectName(QStringLiteral("tracks"));
-    d->window->addPage(QStringLiteral("tracks"), d->page);
+    d->splitter = new QSplitter(Qt::Horizontal);
+    d->splitter->setObjectName(QStringLiteral("browserSplitter"));
+    d->page = new TrackListPage(d->model, d->actions, d->splitter);
+    d->splitter->addWidget(d->page);
+    d->window->addPage(QStringLiteral("tracks"), d->splitter);
     d->window->showPage(QStringLiteral("tracks"));
 
     // SH-BUILD: the commands first (they name the shell as their context).
@@ -308,20 +312,29 @@ QStringList LibraryShell::playlistIds() const
 void LibraryShell::onLibraryChanged(const QList<qint64> &ids)
 {
     refreshCounts(); // SH-COUNTS: kept up to date on every library change
-    // SH-EXTEND (task 8): a node a source answers for is read again on
-    // every change of the library.
+    // SH-EXTEND: a node a source answers for is read again on every change
+    // of the library. Sources are asked with a real list pointer — a source
+    // that answers true has written its answer into it. The answer read
+    // here is thrown away; showNode() reads the node through every source
+    // in order, as SH-NODE and SH-EXTEND arrange.
     for (const NodeSource &source : d->nodeSources) {
-        if (source && source(d->node, nullptr)) {
+        if (!source)
+            continue;
+        QList<LibraryTrack> answer;
+        if (source(d->node, &answer)) {
             showNode();
             return;
         }
     }
     if (const QString section = sectionOf(d->node); !section.isEmpty()) {
         applyLibraryDelta(ids, section);
+        // SH-EXTEND: the answer of nodeTracks() may have changed with the
+        // library, on any node.
+        emit nodeTracksChanged();
         return;
     }
     // SH-LIVE: on a playlist node or on `playing`, the node's tracks are
-    // read again.
+    // read again. showNode() emits nodeTracksChanged.
     showNode();
 }
 
@@ -331,13 +344,19 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
     // or replaced in the list; each that does not (it moved to another
     // section) is taken out. The rest of the list, and the selection, are
     // left alone: upsert/remove, never setTracks.
+    // SH-EXTEND: the narrowing holds through library changes — a track that
+    // arrives or is updated is listed only if `keep` accepts it as it is
+    // now, and a kept track that stops being kept leaves the list.
     QList<LibraryTrack> intoView;
     QList<qint64> outOfView;
     for (const qint64 id : ids) {
         const auto track = d->library->track(id);
-        if (track && track->category == section)
+        const bool inSection = track && track->category == section;
+        const bool shownNow = d->model->rowOf(id) >= 0;
+        const bool keep = !d->narrowing || (track && d->narrowing(*track));
+        if (inSection && keep)
             intoView.append(*track);
-        else
+        else if (shownNow)
             outOfView.append(id);
     }
     if (!intoView.isEmpty())
