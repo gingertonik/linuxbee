@@ -183,7 +183,8 @@ bool conditionHolds(const Rule &rule, const QStringList &values, const RuleConte
     case RuleOperator::InTheLast:
         return inTheLast(rule, values, context);
     case RuleOperator::NotInTheLast:
-        return !inTheLast(rule, values, context);
+        // U-LAST: a field with no date matches neither operator.
+        return firstDate(values).has_value() && !inTheLast(rule, values, context);
     }
     return false;
 }
