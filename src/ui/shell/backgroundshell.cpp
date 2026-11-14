@@ -41,9 +41,20 @@ BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackS
     d->settings = settings;
 
     // BG-MONITOR: the stored folders, and the settle time when it is a number from 0
-    // to 60000. Anything else leaves the monitor's own default in place.
-    d->monitor = std::make_unique<FolderMonitor>(
-        FolderMonitor::Scanner([](const QStringList &) { return ScanReport(); }));
+    // to 60000. Anything else leaves the monitor's own default in place. New files go
+    // to the Inbox; the section setting is read at each scan in its own task.
+    const QString section = QStringLiteral("Inbox");
+    d->monitor = std::make_unique<FolderMonitor>(libraryScanner(library, section, hooks.now));
+    // BG-MONITOR: a scan that added files says how many, in the section. A scan that
+    // added nothing says nothing and leaves the last message as it was.
+    connect(d->monitor.get(), &FolderMonitor::scanned, this,
+        [this, section](const ScanReport &report, const QStringList &) {
+            const int added = report.added.size();
+            if (added == 1)
+                d->showMessage(tr("%1: 1 new file").arg(section));
+            else if (added > 1)
+                d->showMessage(tr("%1: %2 new files").arg(section).arg(added));
+        });
     d->monitor->setFolders(settings->value(QStringLiteral("library/monitored")).toStringList());
     bool settleOk = false;
     const int settle = settings->value(QStringLiteral("library/settleMs")).toInt(&settleOk);
@@ -109,7 +120,10 @@ QStringList BackgroundShell::monitoredFolders() const
 
 void BackgroundShell::setMonitoredFolders(const QStringList &folders)
 {
-    Q_UNUSED(folders);
+    // BG-FOLDERS: the monitor cleans the list, and what it kept is stored at once.
+    // Choosing folders scans nothing.
+    d->monitor->setFolders(folders);
+    d->settings->setValue(QStringLiteral("library/monitored"), d->monitor->folders());
 }
 
 void BackgroundShell::reload()
