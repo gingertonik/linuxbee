@@ -109,6 +109,7 @@ void TrackListModel::setTracks(const QList<LibraryTrack> &tracks)
         return;
     beginResetModel();
     d->tracks.clear();
+    d->caches.clear();
     d->positionOf.clear();
     for (const LibraryTrack &track : tracks)
         d->put(track);
@@ -153,7 +154,7 @@ void TrackListModel::setFilter(const SearchQuery &query)
         return;
     beginResetModel();
     d->filter = query;
-    d->reorder();
+    d->refilter(); // the kept order stays: a keystroke sorts nothing
     endResetModel();
     emit summaryChanged();
 }

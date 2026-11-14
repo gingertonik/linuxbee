@@ -12,8 +12,8 @@ struct SortKey {
     bool descending = false;
 };
 
-// One track that passed the filter, with each sort key already read and
-// prepared for comparing (T-PREPARED).
+// One track, with each sort key already read and prepared for comparing
+// (T-PREPARED).
 struct Candidate {
     int position = 0;
     QList<PreparedValue> values;
@@ -22,7 +22,7 @@ struct Candidate {
 
 }
 
-void TrackListModel::Private::reorder()
+void TrackListModel::Private::sortAll()
 {
     // T-GIVEN: in the given order the keys decide nothing; `tracks` is already
     // in the order given, so the candidates below stay as they come.
@@ -38,8 +38,6 @@ void TrackListModel::Private::reorder()
     for (int i = 0; i < tracks.size(); ++i) {
         const LibraryTrack &track = tracks.at(i);
         const LibraryFieldSource source(track);
-        if (!filter.isEmpty() && !filter.matches(source))
-            continue;
         Candidate candidate;
         candidate.position = i;
         candidate.path = track.path;
@@ -70,14 +68,23 @@ void TrackListModel::Private::reorder()
                 return a.path < b.path;
             });
 
+    order.clear();
+    for (const Candidate &candidate : std::as_const(candidates))
+        order.append(candidate.position);
+}
+
+void TrackListModel::Private::refilter()
+{
     shown.clear();
     rowOf.clear();
     shownBytes = 0;
     shownMs = 0;
-    for (const Candidate &candidate : std::as_const(candidates)) {
-        const LibraryTrack &track = tracks.at(candidate.position);
+    for (const int position : std::as_const(order)) {
+        const LibraryTrack &track = tracks.at(position);
+        if (!filter.isEmpty() && !filter.matches(LibraryFieldSource(track), { }, &caches[position]))
+            continue;
         rowOf.insert(track.id, int(shown.size()));
-        shown.append(candidate.position);
+        shown.append(position);
         shownBytes += track.sizeBytes;
         shownMs += static_cast<qint64>(track.tags.audio.durationMs);
     }
