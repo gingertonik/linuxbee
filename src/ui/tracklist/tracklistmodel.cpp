@@ -86,6 +86,23 @@ void TrackListModel::setSortFields(const QStringList &fields)
     endResetModel();
 }
 
+bool TrackListModel::givenOrder() const
+{
+    return d->givenOrder;
+}
+
+void TrackListModel::setGivenOrder(bool on)
+{
+    // T-GIVEN: `tracks` has kept the order given (put() replaces in place and
+    // appends), so showing it again is a reorder. Not stored; load() leaves it.
+    if (on == d->givenOrder)
+        return;
+    beginResetModel();
+    d->givenOrder = on;
+    d->reorder();
+    endResetModel();
+}
+
 void TrackListModel::setTracks(const QList<LibraryTrack> &tracks)
 {
     if (tracks.isEmpty() && d->tracks.isEmpty())
