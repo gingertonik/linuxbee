@@ -5,6 +5,8 @@
 #include <QHash>
 #include <QMenu>
 #include <QPointer>
+#include <QScopedValueRollback>
+#include <QSet>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QTreeView>
@@ -40,6 +42,7 @@ QString modeOf(const QString &text)
 }
 
 struct AlbumViewing::Private {
+    AlbumViewing *q = nullptr;
     LibraryShell *shell = nullptr;
     QSettings *settings = nullptr;
     TrackListPage *page = nullptr;
@@ -47,13 +50,31 @@ struct AlbumViewing::Private {
     QPointer<AlbumTracksView> view;
     QPointer<QComboBox> combo; // mainViewCombo
     QString mode;
+    // AV-FILL: true while the view is behind what the list holds. A change
+    // only sets it; one fill, at the next turn of the event loop or when the
+    // view is asked for, makes the view current.
+    bool stale = false;
+    bool queued = false; // the call that fills a stale view is already on its way
+    // True while the selection is carried from one side to the other, so that
+    // the signal of the side that was written to is not read back as a choice.
+    bool syncing = false;
 
     bool inAlbums() const { return mode == albumsMode(); }
     // AV-SHELL: shows what the mode asks for, and gives the view its tracks.
     void apply();
     // AV-SHELL: the view gets the tracks the list holds, in the order of the
-    // view, or none in mode `tracks`.
+    // view, or none in mode `tracks`. At once; this is the one place that reads.
     void refill();
+    // AV-FILL: a change of the model or of the node's tracks: the view is
+    // marked, and one fill is asked for at the next turn of the event loop.
+    void markStale();
+    // AV-FILL: fills the view if it is stale, and does nothing if it is not.
+    void bringUpToDate();
+    // AV-SHELL, the list's selection to the view's: the view is brought up to
+    // date, and selects what the list has selected unless it already has it.
+    void followList();
+    // AV-SHELL, the view's selection to the list's.
+    void followView();
     // AV-SHELL: the shell is asked to play, as if the list had been used.
     void playTrack(qint64 id);
     void playAlbum(int group);
@@ -69,13 +90,17 @@ void AlbumViewing::Private::apply()
     if (table)
         table->setVisible(!albums);
     view->setVisible(albums);
+    // A change of mode fills or empties at once, and in mode `albums` the view
+    // then selects what the list has selected.
     refill();
+    followList();
 }
 
 void AlbumViewing::Private::refill()
 {
     if (view.isNull())
         return;
+    stale = false; // however it comes about, the view is not behind after this
     if (!inAlbums()) {
         if (!view->groups().isEmpty())
             view->setTracks({ });
@@ -97,6 +122,55 @@ void AlbumViewing::Private::refill()
             shown.append(node.at(found.value()));
     }
     view->setTracks(sortedForAlbums(shown));
+}
+
+void AlbumViewing::Private::markStale()
+{
+    // In mode `tracks` the view is empty and nothing makes it stale.
+    if (!inAlbums() || view.isNull())
+        return;
+    stale = true;
+    if (queued)
+        return; // a fill is already asked for: one for many signals
+    queued = true;
+    // The context is the owner, so the call is dropped if it is destroyed first.
+    QMetaObject::invokeMethod(
+        q,
+        [this] {
+            queued = false;
+            bringUpToDate();
+        },
+        Qt::QueuedConnection);
+}
+
+void AlbumViewing::Private::bringUpToDate()
+{
+    if (stale)
+        refill();
+}
+
+void AlbumViewing::Private::followList()
+{
+    if (syncing || !inAlbums() || view.isNull())
+        return;
+    // The fill below can change the view's selection (tracks that are gone);
+    // that is not the user's choice, and the list's selection is the one to keep.
+    const QScopedValueRollback<bool> guard(syncing, true);
+    bringUpToDate();
+    const QList<qint64> wanted = page->selectedTrackIds();
+    const QList<qint64> shown = view->selectedTrackIds();
+    // Compared as sets: a selected heading stands for its tracks, and when the
+    // view has exactly the list's tracks nothing is touched.
+    if (QSet<qint64>(wanted.begin(), wanted.end()) != QSet<qint64>(shown.begin(), shown.end()))
+        view->selectTracks(wanted);
+}
+
+void AlbumViewing::Private::followView()
+{
+    if (syncing || !inAlbums() || view.isNull())
+        return;
+    const QScopedValueRollback<bool> guard(syncing, true);
+    page->selectTracks(view->selectedTrackIds());
 }
 
 void AlbumViewing::Private::playTrack(qint64 id)
@@ -131,6 +205,7 @@ AlbumViewing::AlbumViewing(LibraryShell *shell, QSettings *settings, QObject *pa
     : QObject(parent)
     , d(new Private)
 {
+    d->q = this;
     d->shell = shell;
     d->settings = settings;
     d->page = shell->trackList();
@@ -151,11 +226,10 @@ AlbumViewing::AlbumViewing(LibraryShell *shell, QSettings *settings, QObject *pa
     connect(d->combo, &QComboBox::currentIndexChanged, this,
         [this](int index) { setMode(index == 1 ? tracksMode() : albumsMode()); });
 
-    // AV-SHELL, while in mode `albums`: the view's selection is the shell's.
-    connect(d->view, &AlbumTracksView::selectionChanged, this, [this] {
-        if (d->inAlbums())
-            d->page->selectTracks(d->view->selectedTrackIds());
-    });
+    // AV-SHELL, while in mode `albums`: the view's selection is the shell's,
+    // and the other way round: the list's selection is the view's.
+    connect(d->view, &AlbumTracksView::selectionChanged, this, [this] { d->followView(); });
+    connect(d->page, &TrackListPage::selectionChanged, this, [this] { d->followList(); });
     connect(
         d->view, &AlbumTracksView::trackActivated, this, [this](qint64 id) { d->playTrack(id); });
     connect(d->view, &AlbumTracksView::albumActivated, this,
@@ -167,8 +241,9 @@ AlbumViewing::AlbumViewing(LibraryShell *shell, QSettings *settings, QObject *pa
             menu->popup(pos);
     });
 
-    // The view follows every change of what the list holds, and of the node.
-    const auto follow = [this] { d->refill(); };
+    // AV-FILL: every change of what the list holds, and of the node, only marks
+    // the view as stale; it is filled once, at the next turn of the event loop.
+    const auto follow = [this] { d->markStale(); };
     const TrackListModel *model = shell->model();
     connect(model, &QAbstractItemModel::modelReset, this, follow);
     connect(model, &QAbstractItemModel::rowsInserted, this, follow);
@@ -196,6 +271,8 @@ AlbumViewing::~AlbumViewing()
 
 AlbumTracksView *AlbumViewing::view() const
 {
+    // AV-FILL: a stale view is filled before it is handed out.
+    d->bringUpToDate();
     return d->view.data();
 }
 
