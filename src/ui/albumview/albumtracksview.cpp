@@ -1,11 +1,18 @@
 #include "albumview/albumtracksview.h"
 
+#include <functional>
+#include <utility>
+
 #include <QFileInfo>
+#include <QHBoxLayout>
 #include <QHash>
 #include <QHeaderView>
 #include <QItemSelection>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
+#include <QMouseEvent>
 #include <QSet>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -23,10 +30,52 @@ QString firstValue(const LibraryTrack &track, const QString &field)
     return track.tags.fields.value(field).value(0).trimmed();
 }
 
+// AV-ACTIVATE: what the user did to a row, read from the events themselves: a
+// double click is the double-click event, and the keys are Return and Enter on
+// the current row. Qt's own "activated" is not used: on some styles a single
+// click makes it fire, and a view takes a double-click event for a double
+// click only after a press on the same row.
+class ActivationFilter : public QObject {
+public:
+    ActivationFilter(
+        QTreeWidget *tree, std::function<void(QTreeWidgetItem *)> activate, QObject *parent)
+        : QObject(parent)
+        , m_tree(tree)
+        , m_activate(std::move(activate))
+    {
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::MouseButtonDblClick && watched == m_tree->viewport()) {
+            const auto *mouse = static_cast<QMouseEvent *>(event);
+            if (mouse->button() != Qt::LeftButton)
+                return false;
+            if (QTreeWidgetItem *item = m_tree->itemAt(mouse->position().toPoint()))
+                m_activate(item);
+            return true;
+        }
+        if (event->type() == QEvent::KeyPress && watched == m_tree) {
+            const int key = static_cast<QKeyEvent *>(event)->key();
+            QTreeWidgetItem *item = m_tree->currentItem();
+            if ((key == Qt::Key_Return || key == Qt::Key_Enter) && item) {
+                m_activate(item);
+                return true;
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QTreeWidget *m_tree;
+    std::function<void(QTreeWidgetItem *)> m_activate;
+};
+
 }
 
 struct AlbumTracksView::Private {
     AlbumTracksView *q = nullptr;
+    QWidget *bar = nullptr; // jumpBar
     QTreeWidget *tree = nullptr;
     QList<AlbumGroup> groups;
     QHash<qint64, QTreeWidgetItem *> trackRows; // rebuilt with the tree
@@ -71,6 +120,16 @@ struct AlbumTracksView::Private {
             return;
         announced = now;
         emit q->selectionChanged();
+    }
+
+    // AV-ACTIVATE: a heading plays its album, a track row its track; a disc
+    // row (it cannot be selected) does nothing.
+    void activate(QTreeWidgetItem *item)
+    {
+        if (!item->parent())
+            emit q->albumActivated(item->data(0, ValueRole).toInt());
+        else if (item->flags() & Qt::ItemIsSelectable)
+            emit q->trackActivated(item->data(0, ValueRole).toLongLong());
     }
 
     // Selects exactly the rows of these tracks, in one call: a call per row
@@ -176,13 +235,54 @@ AlbumTracksView::AlbumTracksView(QWidget *parent)
     header->setSectionResizeMode(1, QHeaderView::Stretch);
     header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
 
+    // AV-BAR: one button for "#" and one for each letter; a click jumps.
+    d->bar = new QWidget(this);
+    d->bar->setObjectName(QStringLiteral("jumpBar"));
+    auto *barLayout = new QHBoxLayout(d->bar);
+    barLayout->setContentsMargins(0, 0, 0, 0);
+    barLayout->setSpacing(0);
+    for (const QChar letter : QStringLiteral("#ABCDEFGHIJKLMNOPQRSTUVWXYZ")) {
+        auto *button = new QToolButton(d->bar);
+        button->setObjectName(QStringLiteral("jump_") + letter);
+        button->setText(QString(letter));
+        button->setAutoRaise(true);
+        button->setFocusPolicy(Qt::NoFocus); // the list keeps the keyboard
+        barLayout->addWidget(button);
+        connect(button, &QToolButton::clicked, this, [this, letter]() { jumpTo(letter); });
+    }
+    barLayout->addStretch(1);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(d->bar);
     layout->addWidget(d->tree, 1);
 
     connect(d->tree, &QTreeWidget::itemSelectionChanged, this, [this]() {
         if (!d->quiet)
             d->announce();
+    });
+
+    // AV-ACTIVATE: a double click, or Return or Enter on the current row.
+    auto *filter
+        = new ActivationFilter(d->tree, [this](QTreeWidgetItem *item) { d->activate(item); }, this);
+    d->tree->viewport()->installEventFilter(filter);
+    d->tree->installEventFilter(filter);
+
+    // AV-ACTIVATE: a right click on a track row or a heading. A row that was
+    // not selected becomes the selection first; the view shows no menu itself.
+    d->tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(d->tree, &QWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        QTreeWidgetItem *item = d->tree->itemAt(pos);
+        if (!item || !(item->flags() & Qt::ItemIsSelectable))
+            return;
+        if (!item->isSelected()) {
+            d->quiet = true;
+            d->tree->clearSelection();
+            item->setSelected(true);
+            d->quiet = false;
+            d->announce();
+        }
+        emit menuRequested(d->tree->viewport()->mapToGlobal(pos));
     });
 }
 
@@ -225,12 +325,23 @@ void AlbumTracksView::selectTracks(const QList<qint64> &ids)
 
 void AlbumTracksView::jumpTo(QChar letter)
 {
-    Q_UNUSED(letter);
+    const int at = jumpIndex(d->groups, letter);
+    QTreeWidgetItem *heading = at < 0 ? nullptr : d->tree->topLevelItem(at);
+    if (!heading)
+        return; // no such album: nothing happens
+    // The heading becomes the current row; the selection is left as it is.
+    d->tree->setCurrentItem(heading, 0, QItemSelectionModel::NoUpdate);
+    d->tree->scrollToItem(heading, QAbstractItemView::PositionAtTop);
 }
 
 int AlbumTracksView::currentGroup() const
 {
-    return -2;
+    const QTreeWidgetItem *row = d->tree->currentItem();
+    if (!row)
+        return -1;
+    // A track or disc row is a child of its heading, which carries the position.
+    const QTreeWidgetItem *heading = row->parent() ? row->parent() : row;
+    return heading->data(0, ValueRole).toInt();
 }
 
 }
