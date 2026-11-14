@@ -12,10 +12,11 @@ struct SortKey {
     bool descending = false;
 };
 
-// One track that passed the filter, with the text of each sort key already read.
+// One track that passed the filter, with each sort key already read and
+// prepared for comparing (T-PREPARED).
 struct Candidate {
     int position = 0;
-    QStringList values;
+    QList<PreparedValue> values;
     QString path;
 };
 
@@ -43,7 +44,8 @@ void TrackListModel::Private::reorder()
         candidate.position = i;
         candidate.path = track.path;
         for (const SortKey &key : std::as_const(keys))
-            candidate.values.append(source.value(key.field).value_or(QString()));
+            candidate.values.append(
+                prepareFieldValue(key.field, source.value(key.field).value_or(QString())));
         candidates.append(candidate);
     }
 
@@ -53,15 +55,15 @@ void TrackListModel::Private::reorder()
         std::stable_sort(
             candidates.begin(), candidates.end(), [&keys](const Candidate &a, const Candidate &b) {
                 for (int k = 0; k < keys.size(); ++k) {
-                    const QString &valueA = a.values.at(k);
-                    const QString &valueB = b.values.at(k);
-                    const bool blankA = valueA.trimmed().isEmpty();
-                    const bool blankB = valueB.trimmed().isEmpty();
+                    const PreparedValue &valueA = a.values.at(k);
+                    const PreparedValue &valueB = b.values.at(k);
+                    const bool blankA = valueA.blank;
+                    const bool blankB = valueB.blank;
                     if (blankA != blankB)
                         return blankB;
                     if (blankA)
                         continue;
-                    const int order = compareFieldValues(keys.at(k).field, valueA, valueB);
+                    const int order = comparePrepared(valueA, valueB);
                     if (order != 0)
                         return keys.at(k).descending ? order > 0 : order < 0;
                 }

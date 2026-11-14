@@ -69,18 +69,20 @@ QList<LibraryTrack> sortedForAlbums(const QList<LibraryTrack> &tracks, const Sor
 {
     const QStringList fields = albumSortFields();
 
-    // The key texts are worked out once per track, not once per comparison.
+    // The key texts are worked out, and prepared, once per track, not once per
+    // comparison (T-PREPARED).
     struct Keyed {
         qsizetype at;
-        QStringList keys;
+        QList<PreparedValue> keys;
     };
     QList<Keyed> keyed;
     keyed.reserve(tracks.size());
     for (qsizetype i = 0; i < tracks.size(); ++i) {
         const LibraryFieldSource source(tracks.at(i));
-        QStringList keys;
+        QList<PreparedValue> keys;
+        keys.reserve(fields.size());
         for (const QString &field : fields)
-            keys.append(sortKey(tracks.at(i), source, field));
+            keys.append(prepareFieldValue(field, sortKey(tracks.at(i), source, field), options));
         keyed.append(Keyed { i, keys });
     }
 
@@ -88,7 +90,7 @@ QList<LibraryTrack> sortedForAlbums(const QList<LibraryTrack> &tracks, const Sor
     // are in order of path (and, failing that, as they were given).
     std::stable_sort(keyed.begin(), keyed.end(), [&](const Keyed &a, const Keyed &b) {
         for (qsizetype k = 0; k < fields.size(); ++k) {
-            const int c = compareFieldValues(fields.at(k), a.keys.at(k), b.keys.at(k), options);
+            const int c = comparePrepared(a.keys.at(k), b.keys.at(k));
             if (c != 0)
                 return c < 0;
         }

@@ -155,17 +155,32 @@ QList<ArtistEntry> artistIndex(
     }
 
     // The order of the field's values; the empty name last; ties by code points.
-    std::sort(out.begin(), out.end(), [&tag, &options](const ArtistEntry &a, const ArtistEntry &b) {
-        const bool blankA = a.name.isEmpty();
-        const bool blankB = b.name.isEmpty();
+    // Each name is prepared once (T-PREPARED), not once per comparison.
+    struct Prepared {
+        ArtistEntry entry;
+        PreparedValue value;
+    };
+    QList<Prepared> prepared;
+    prepared.reserve(out.size());
+    for (const ArtistEntry &entry : std::as_const(out))
+        prepared.append(Prepared { entry, prepareFieldValue(tag, entry.name, options) });
+
+    std::sort(prepared.begin(), prepared.end(), [](const Prepared &a, const Prepared &b) {
+        const bool blankA = a.entry.name.isEmpty();
+        const bool blankB = b.entry.name.isEmpty();
         if (blankA || blankB)
             return blankB && !blankA;
-        const int order = compareFieldValues(tag, a.name, b.name, options);
+        const int order = comparePrepared(a.value, b.value);
         if (order != 0)
             return order < 0;
-        return a.name < b.name;
+        return a.entry.name < b.entry.name;
     });
-    return out;
+
+    QList<ArtistEntry> sorted;
+    sorted.reserve(prepared.size());
+    for (const Prepared &item : std::as_const(prepared))
+        sorted.append(item.entry);
+    return sorted;
 }
 
 }
