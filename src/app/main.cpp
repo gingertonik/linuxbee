@@ -21,6 +21,7 @@
 #include "playlists/playliststore.h"
 #include "audio/devicesink.h"
 #include "playback/audioengine.h"
+#include "shell/artistbrowsing.h"
 #include "shell/backgroundshell.h"
 #include "shell/librarypreferences.h"
 #include "shell/libraryshell.h"
@@ -32,6 +33,8 @@
 // and on exit the hotkeys saved. --version prints and leaves no trace;
 // --screenshot FILE pictures the window for a person (and the gate) to judge.
 // --commands (TS-MAIN) prints the id of every implemented command and leaves.
+// AB-MAIN (docs/spec/artist-browser.md): --parts prints whether the artist browser
+// is shown, after everything is built, and leaves.
 // W-MAIN "Options": the whole command line is read before anything is done,
 // and a mistake ends the program with a usage message and status 2.
 // SH-MAIN (docs/spec/library-shell.md): the library (library.db in the data
@@ -44,11 +47,12 @@
 int main(int argc, char *argv[])
 {
     const QString usage = QStringLiteral("usage: linuxbee [--version] [--commands] [--services] "
-                                         "[--pages] [--screenshot FILE] [FILE...]");
+                                         "[--pages] [--parts] [--screenshot FILE] [FILE...]");
     bool wantVersion = false;
     bool wantCommands = false;
     bool wantServices = false;
     bool wantPages = false;
+    bool wantParts = false;
     QString shotFile;
     bool wantShot = false;
     for (int i = 1; i < argc; ++i) {
@@ -61,6 +65,8 @@ int main(int argc, char *argv[])
             wantServices = true;
         } else if (word == QStringLiteral("--pages")) {
             wantPages = true;
+        } else if (word == QStringLiteral("--parts")) {
+            wantParts = true;
         } else if (word == QStringLiteral("--screenshot")) {
             // A mistake: given twice, the last word, or followed by an option.
             QString problem;
@@ -144,6 +150,10 @@ int main(int argc, char *argv[])
     linuxbee::ui::LibraryShell shell(
         &window, &registry, library.get(), &playlists, &settings, hooks);
 
+    // AB-MAIN: the artist browser beside the track list, over the library shell;
+    // it is destroyed before the shell.
+    linuxbee::ui::ArtistBrowsing artistBrowsing(&shell, &settings);
+
     // TS-MAIN: the tools shell, with the default presenter (the dialogs run modally).
     linuxbee::ui::ToolsShell tools(&window, &registry, library.get(), &shell, &settings);
 
@@ -193,6 +203,16 @@ int main(int argc, char *argv[])
         QTextStream out(stdout);
         for (const QString &title : tools.preferencesPages())
             out << title << '\n';
+        out.flush();
+        return 0;
+    }
+    if (wantParts) {
+        // AB-MAIN: whether the artist browser is on show, with no window. Later plans add lines of
+        // their own.
+        QTextStream out(stdout);
+        out << (artistBrowsing.isShown() ? QStringLiteral("artist-browser=shown")
+                                         : QStringLiteral("artist-browser=hidden"))
+            << '\n';
         out.flush();
         return 0;
     }
