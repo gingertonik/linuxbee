@@ -39,6 +39,11 @@ public:
 
     std::optional<LibraryTrack> byId(qint64 id) const;
 
+    // L-PARTS: every track by its stored path with only what a scan compares:
+    // id, size, modification time and the missing mark. One light query, no
+    // tags, and no track is built.
+    ScanKnown scanKnown() const;
+
     // The track stored at this exact path, if there is one.
     std::optional<LibraryTrack> byPath(const QString &path) const;
 
