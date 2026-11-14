@@ -1,5 +1,7 @@
 #include "settingsimport/settingsimport.h"
 
+#include <QSet>
+#include <QSettings>
 #include <QXmlStreamReader>
 
 #include <utility>
@@ -288,17 +290,109 @@ QString templateFromNamingRule(const QList<MusicBeeNamingPart> &parts)
     return text;
 }
 
+namespace {
+
+// SI-PLAN: a MusicBee command name and the linuxBee command it becomes.
+struct CommandMapping {
+    QLatin1String musicBee;
+    QLatin1String linuxBee;
+};
+
+constexpr CommandMapping commandMappings[] = {
+    { QLatin1String("EditClickedColumn"), QLatin1String("edit.editField") },
+    { QLatin1String("EditSelectAll"), QLatin1String("edit.selectAll") },
+    { QLatin1String("EditCopy"), QLatin1String("edit.copyTags") },
+    { QLatin1String("EditPaste"), QLatin1String("edit.pasteTags") },
+    { QLatin1String("EditProperties"), QLatin1String("file.editTags") },
+    { QLatin1String("EditCustomSearch"), QLatin1String("edit.find") },
+    { QLatin1String("EditPreferences"), QLatin1String("edit.preferences") },
+    { QLatin1String("GeneralReload"), QLatin1String("view.refresh") },
+    { QLatin1String("FileScanNewMedia"), QLatin1String("file.scanFolders") },
+    { QLatin1String("PlaybackPlayNow"), QLatin1String("track.playNow") },
+    { QLatin1String("PlaybackPlayNext"), QLatin1String("track.queueNext") },
+    { QLatin1String("PlaybackPlayLast"), QLatin1String("track.queueLast") },
+    { QLatin1String("PlaybackNextTrack"), QLatin1String("controls.next") },
+    { QLatin1String("PlaybackPreviousTrack"), QLatin1String("controls.previous") },
+    { QLatin1String("PlaybackPlayPause"), QLatin1String("controls.playPause") },
+    { QLatin1String("PlaybackStop"), QLatin1String("controls.stop") },
+    { QLatin1String("PlaybackVolumeUp"), QLatin1String("controls.volumeUp") },
+    { QLatin1String("PlaybackVolumeDown"), QLatin1String("controls.volumeDown") },
+    { QLatin1String("PlaybackVolumeMute"), QLatin1String("controls.mute") },
+    { QLatin1String("ToolsAutoOrganise"), QLatin1String("file.organise") },
+    { QLatin1String("ToolsAnalyseVolume"), QLatin1String("tools.analyseVolume") },
+};
+
+// SI-PLAN: linuxBee's command for a MusicBee command name, or empty when there is none.
+QString linuxBeeCommand(const QString &musicBee)
+{
+    for (const CommandMapping &mapping : commandMappings) {
+        if (musicBee == mapping.musicBee)
+            return mapping.linuxBee.toString();
+    }
+    return { };
+}
+
+} // namespace
+
 QList<SettingsImportLine> planSettingsImport(const MusicBeeSettings &settings)
 {
-    Q_UNUSED(settings);
-    return { };
+    QList<SettingsImportLine> lines;
+    if (!settings.ok)
+        return lines;
+
+    // Only an imported line holds its command and its key against the lines after it.
+    QSet<QString> importedCommands;
+    QMap<QString, QString> keyOwner; // key text -> the linuxBee command it was imported for
+    for (const MusicBeeHotkey &hotkey : settings.hotkeys) {
+        SettingsImportLine line;
+        line.what = QStringLiteral("hotkey ") + hotkey.command;
+        const QString command = linuxBeeCommand(hotkey.command);
+        const QString key = hotkeyText(hotkey.key);
+        if (command.isEmpty())
+            line.note = QStringLiteral("linuxBee has no such command");
+        else if (hotkey.global)
+            line.note = QStringLiteral("global hotkeys are not supported");
+        else if (key.isEmpty())
+            line.note = QStringLiteral("the key has no name here");
+        else if (importedCommands.contains(command))
+            line.note = QStringLiteral("already set by an earlier line");
+        else if (keyOwner.contains(key))
+            line.note = QStringLiteral("the key is already taken by %1").arg(keyOwner.value(key));
+        else {
+            line.key = QStringLiteral("hotkeys/") + command;
+            line.value = key;
+            importedCommands.insert(command);
+            keyOwner.insert(key, command);
+        }
+        lines.append(line);
+    }
+
+    const QString organiseRule = QStringLiteral("OrganisationDefaultFilenameRules");
+    if (settings.namingRules.contains(organiseRule)) {
+        SettingsImportLine line;
+        line.what = QStringLiteral("organise template");
+        const QString tmpl = templateFromNamingRule(settings.namingRules.value(organiseRule));
+        if (tmpl.isEmpty()) {
+            line.note = QStringLiteral("a part of the rule cannot be carried over");
+        } else {
+            line.key = QStringLiteral("organise/template");
+            line.value = tmpl;
+        }
+        lines.append(line);
+    }
+    return lines;
 }
 
 int applySettingsImport(const QList<SettingsImportLine> &plan, QSettings &target)
 {
-    Q_UNUSED(plan);
-    Q_UNUSED(target);
-    return -1;
+    int written = 0;
+    for (const SettingsImportLine &line : plan) {
+        if (!line.imported())
+            continue;
+        target.setValue(line.key, line.value);
+        ++written;
+    }
+    return written;
 }
 
 }
