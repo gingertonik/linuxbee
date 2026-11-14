@@ -49,10 +49,34 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     connect(libraryShell, &LibraryShell::playRequested, this,
         [this](const QStringList &paths, int index) { d->queue->playNow(paths, index); });
 
-    // PS-COMMANDS: registered now; their work comes with the next task.
-    actions->implement(QStringLiteral("track.playNow"), this, [] { });
-    actions->implement(QStringLiteral("track.queueNext"), this, [] { });
-    actions->implement(QStringLiteral("track.queueLast"), this, [] { });
+    // PS-COMMANDS: on the library shell's selection, in the order shown; an
+    // empty selection does nothing.
+    actions->implement(QStringLiteral("track.playNow"), this, [this] {
+        const QStringList paths = d->libraryShell->selectedPaths();
+        if (!paths.isEmpty())
+            d->queue->playNow(paths, 0);
+    });
+    actions->implement(QStringLiteral("track.queueNext"), this, [this] {
+        const QStringList paths = d->libraryShell->selectedPaths();
+        if (!paths.isEmpty())
+            d->queue->queueNext(paths);
+    });
+    actions->implement(QStringLiteral("track.queueLast"), this, [this] {
+        const QStringList paths = d->libraryShell->selectedPaths();
+        if (!paths.isEmpty())
+            d->queue->queueLast(paths);
+    });
+
+    // PS-PLAYING: whenever the queue's entries change, the Playing Tracks
+    // node is told their paths in queue order.
+    auto showQueue = [this] {
+        QStringList paths;
+        for (const PlayQueue::Entry &entry : d->queue->entries())
+            paths.append(entry.path);
+        d->libraryShell->setPlayingPaths(paths);
+    };
+    connect(d->queue, &PlayQueue::entriesChanged, this, showQueue);
+    showQueue();
 }
 
 PlaybackShell::~PlaybackShell()
