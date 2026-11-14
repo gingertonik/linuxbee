@@ -20,6 +20,16 @@ class QWidget;
 
 namespace linuxbee::ui {
 
+// Node id parts (SH-NODE): "library:" + section, "playlist:" + id, and
+// "playing". Empty from sectionOf/playlistOf when the id is not of that kind.
+extern const QString kLibraryPrefix;
+extern const QString kPlaylistPrefix;
+extern const QString kPlayingNode;
+extern const QString kMusicSection;
+
+QString sectionOf(const QString &nodeId);
+QString playlistOf(const QString &nodeId);
+
 class ActionRegistry;
 class MainWindow;
 class NavigatorPanel;

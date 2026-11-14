@@ -21,8 +21,8 @@
 // and their messages live in libraryshell_commands.cpp.
 namespace linuxbee::ui {
 
-namespace {
-
+// The node id parts are declared in libraryshell_p.h: both compilation
+// units read nodes (SH-NODE).
 const QString kLibraryPrefix = QStringLiteral("library:");
 const QString kPlaylistPrefix = QStringLiteral("playlist:");
 const QString kPlayingNode = QStringLiteral("playing");
@@ -37,8 +37,6 @@ QString playlistOf(const QString &nodeId)
 {
     return nodeId.startsWith(kPlaylistPrefix) ? nodeId.mid(kPlaylistPrefix.size()) : QString();
 }
-
-} // namespace
 
 LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library *library,
     PlaylistStore *playlists, QSettings *settings, ShellHooks hooks, QObject *parent)
