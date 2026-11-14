@@ -3,6 +3,7 @@
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
 #include "shell/libraryshell.h"
+#include "tageditor/tageditordialog.h"
 
 #include <QCoreApplication>
 #include <QDialog>
@@ -21,6 +22,7 @@ struct ToolsShell::Private {
     Presenter presenter;
     QList<PageFactory> pageFactories;
     QString message;
+    ToolsShell *owner = nullptr; // the context of the dialogs' connections
 
     // TS-MESSAGE: one line in the window's status bar, kept as lastMessage().
     void showMessage(const QString &text)
@@ -40,11 +42,42 @@ struct ToolsShell::Private {
         return ids;
     }
 
+    // TS-TAGS: one target per selected track, with the tags the library holds for it.
     void editTags()
     {
-        if (selectedIds().isEmpty())
+        const QList<qint64> ids = selectedIds();
+        if (ids.isEmpty())
             return;
-        // TS-TAGS: the tag editor is opened here in task 3.
+        QList<EditTarget> targets;
+        for (const qint64 id : ids) {
+            const std::optional<LibraryTrack> track = library->track(id);
+            if (!track)
+                continue;
+            EditTarget target;
+            target.id = track->id;
+            target.path = track->path;
+            target.tags = track->tags;
+            targets.append(target);
+        }
+
+        TagEditorDialog dialog(targets, window);
+        QObject::connect(&dialog, &TagEditorDialog::saved, owner,
+            [this](const QList<qint64> &saved) { tagsSaved(saved); });
+        presenter(&dialog);
+    }
+
+    // TS-TAGS: the files written are read again by the library, then the window is told.
+    void tagsSaved(const QList<qint64> &saved)
+    {
+        if (saved.isEmpty())
+            return;
+        for (const qint64 id : saved)
+            library->refresh(id);
+        const QString text = saved.size() == 1
+            ? QCoreApplication::translate("linuxbee::ui::ToolsShell", "Saved tags of 1 track")
+            : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Saved tags of %1 tracks")
+                  .arg(saved.size());
+        showMessage(text);
     }
 
     void organise()
@@ -72,6 +105,7 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
     : QObject(parent)
     , d(new Private)
 {
+    d->owner = this;
     d->window = window;
     d->actions = actions;
     d->library = library;
