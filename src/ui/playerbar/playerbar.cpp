@@ -23,6 +23,31 @@ int sliderValue(qint64 ms)
     return static_cast<int>(std::clamp<qint64>(ms, 0, std::numeric_limits<int>::max()));
 }
 
+// PB-MODES: a click moves the repeat mode on by one: off, all, one, off.
+PlayQueue::Repeat nextRepeat(PlayQueue::Repeat repeat)
+{
+    if (repeat == PlayQueue::Repeat::Off)
+        return PlayQueue::Repeat::All;
+    if (repeat == PlayQueue::Repeat::All)
+        return PlayQueue::Repeat::One;
+    return PlayQueue::Repeat::Off;
+}
+
+// PB-MODES: the repeat button's property, checked state, text and tool tip for a mode.
+void showRepeat(QToolButton *button, PlayQueue::Repeat repeat)
+{
+    QString mode = QStringLiteral("off");
+    if (repeat == PlayQueue::Repeat::All)
+        mode = QStringLiteral("all");
+    else if (repeat == PlayQueue::Repeat::One)
+        mode = QStringLiteral("one");
+    button->setProperty("mode", mode);
+    button->setChecked(repeat != PlayQueue::Repeat::Off);
+    button->setText(
+        repeat == PlayQueue::Repeat::One ? QStringLiteral("Repeat 1") : QStringLiteral("Repeat"));
+    button->setToolTip(QStringLiteral("Repeat: ") + mode);
+}
+
 }
 
 PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, QWidget *parent)
@@ -66,8 +91,16 @@ PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, 
     d->volumeSlider->setRange(0, 100);
     d->volumeSlider->setValue(qRound(d->player->volume() * 100));
 
-    // PB-FRAME: the track's name on the first line, with mute and volume at its
-    // right end. The second line is previous, play, stop, next, the two times
+    // PB-MODES: repeat (three modes, so no default action) and shuffle (its command),
+    // to the right of the volume slider.
+    auto *repeatButton = new QToolButton(this);
+    repeatButton->setObjectName(QStringLiteral("repeatButton"));
+    repeatButton->setCheckable(true);
+    auto *shuffleButton = new QToolButton(this);
+    shuffleButton->setObjectName(QStringLiteral("shuffleButton"));
+
+    // PB-FRAME: the track's name on the first line, with mute, volume, repeat and
+    // shuffle at its right end. The second line is previous, play, stop, next, the two times
     // around the seek bar, which takes the spare width. The transport buttons
     // show their command's text, which is wide; with mute and volume beside
     // them the seek bar fell to 367 px at 900 px, under the 400 px the spec asks.
@@ -75,6 +108,8 @@ PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, 
     titleRow->addWidget(d->titleLabel, 1);
     titleRow->addWidget(d->muteButton);
     titleRow->addWidget(d->volumeSlider);
+    titleRow->addWidget(repeatButton);
+    titleRow->addWidget(shuffleButton);
 
     auto *controls = new QHBoxLayout;
     controls->addWidget(d->previousButton);
@@ -97,6 +132,16 @@ PlayerBar::PlayerBar(Player *player, PlayQueue *queue, ActionRegistry *actions, 
     d->stopButton->setDefaultAction(d->actions->action(QStringLiteral("controls.stop")));
     d->nextButton->setDefaultAction(d->actions->action(QStringLiteral("controls.next")));
     d->muteButton->setDefaultAction(d->actions->action(QStringLiteral("controls.mute")));
+
+    // PB-MODES: shuffle is its command, tick included. The repeat button is not:
+    // a click moves the queue's mode on, and the button always shows the queue's
+    // mode, whoever set it, and at once when the bar is created.
+    shuffleButton->setDefaultAction(d->actions->action(QStringLiteral("controls.shuffle")));
+    connect(repeatButton, &QToolButton::clicked, this,
+        [q = d->queue] { q->setRepeat(nextRepeat(q->repeat())); });
+    connect(d->queue, &PlayQueue::modeChanged, this,
+        [q = d->queue, repeatButton] { showRepeat(repeatButton, q->repeat()); });
+    showRepeat(repeatButton, d->queue->repeat());
 
     // PB-STATE: follow the player as it changes, and start from what it is now.
     Player *p = d->player;

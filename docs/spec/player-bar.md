@@ -5,7 +5,8 @@ next, a seek bar between two times, the name of the track, mute and
 volume. It also gives the commands of the Controls menu their behaviour.
 
 This document is the contract for `src/ui/playerbar/playerbar.h`. The
-locked test `tests/locked/tst_ui_playerbar.cpp` checks it.
+locked tests `tests/locked/tst_ui_playerbar.cpp`,
+`tst_ui_playerbar_review.cpp` and `tst_ui_playerbar_modes.cpp` check it.
 
 The bar decides nothing about playback. It calls the player (player.md)
 and the play queue (play-queue.md) and shows what they report.
@@ -68,6 +69,31 @@ set elsewhere. The repeat tick is on for any repeat mode, including
 repeat-one. A bar created when something is already set starts with the
 right ticks.
 
+## PB-MODES
+
+Two more `QToolButton`s, in the row of mute and volume, to the right of
+the volume slider: `repeatButton`, then `shuffleButton`.
+
+`shuffleButton`'s default action is `controls.shuffle`, so it is that
+command, tick included (PB-FRAME).
+
+`repeatButton` has no default action, because it has three states and
+the command has two. A click moves the queue's repeat mode on by one:
+off, all, one, off (as MusicBee's button does; Dillon, from memory,
+2026-11-14). The button always shows the queue's mode, whoever set it
+(the button, the Controls menu, a restored setting), and a bar created
+when a mode is already set starts with it:
+
+| Mode | Property `mode` | Checked | Text | Tool tip |
+|---|---|---|---|---|
+| off | `off` | no | `Repeat` | `Repeat: off` |
+| all | `all` | yes | `Repeat` | `Repeat: all` |
+| one | `one` | yes | `Repeat 1` | `Repeat: one` |
+
+The `controls.repeat` command keeps its meaning (PB-COMMANDS): its tick
+is on for any mode, taking it off gives no repeat, putting it on gives
+repeat all. Repeat-one is reached from the button.
+
 ## PB-STATE
 
 - `playPauseButton` has a property `playing`: true only while the player
@@ -117,8 +143,8 @@ volume, not muted, no repeat, no shuffle.
 ## Not in this version
 
 - Icons and skinning; album art; rating stars; a waveform.
-- A button for stop-after-current, shuffle and repeat on the bar itself
-  (they are in the Controls menu), and cycling through repeat modes.
+- A button for stop-after-current on the bar itself (it is in the
+  Controls menu).
 - Time remaining instead of the length.
 - Remembering the track and position between sessions.
 
@@ -127,4 +153,4 @@ volume, not muted, no repeat, no shuffle.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | PB-VOLUME | The size of one volume step. |
-| PB-COMMANDS | Whether the repeat command cycles off, all, one. |
+| PB-COMMANDS | Settled 2026-11-14 (Dillon, from memory): the repeat button cycles off, all, one (PB-MODES). |
