@@ -2,3 +2,4 @@
 661fb1ffc759e76dc6604c054cffbfbb9a754994ac57c4536fd8f3d8d7f2e300  docs/spec/import.md
 f155ab5be5dcb4899c1df12b5f12c2cf15c9048d7b75654129c7a4cda021fe90  tests/data/import/library.xml
 01d58e74b4c9e89eb3fbccf9efb53f7e21853d1e7d6be9ef2c032be7a77ce669  tests/data/import/README.md
+25580829e40670d5ac2a33b3c750d1d26a825f2e6de30269d1eff1846acfcde4  tests/locked/tst_import_review.cpp
