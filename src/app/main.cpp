@@ -22,6 +22,7 @@
 #include "audio/devicesink.h"
 #include "playback/audioengine.h"
 #include "shell/backgroundshell.h"
+#include "shell/librarypreferences.h"
 #include "shell/libraryshell.h"
 #include "shell/playbackshell.h"
 #include "shell/toolsshell.h"
@@ -42,11 +43,12 @@
 // not touched and no window is shown.
 int main(int argc, char *argv[])
 {
-    const QString usage = QStringLiteral(
-        "usage: linuxbee [--version] [--commands] [--services] [--screenshot FILE] [FILE...]");
+    const QString usage = QStringLiteral("usage: linuxbee [--version] [--commands] [--services] "
+                                         "[--pages] [--screenshot FILE] [FILE...]");
     bool wantVersion = false;
     bool wantCommands = false;
     bool wantServices = false;
+    bool wantPages = false;
     QString shotFile;
     bool wantShot = false;
     for (int i = 1; i < argc; ++i) {
@@ -57,6 +59,8 @@ int main(int argc, char *argv[])
             wantCommands = true;
         } else if (word == QStringLiteral("--services")) {
             wantServices = true;
+        } else if (word == QStringLiteral("--pages")) {
+            wantPages = true;
         } else if (word == QStringLiteral("--screenshot")) {
             // A mistake: given twice, the last word, or followed by an option.
             QString problem;
@@ -170,6 +174,9 @@ int main(int argc, char *argv[])
     auto background = std::make_unique<linuxbee::ui::BackgroundShell>(&window, library.get(),
         playback.get(), &settings, backgroundHooks, QDBusConnection::sessionBus());
 
+    // LP-MAIN: the Library page joins the preferences, with the default folder chooser.
+    linuxbee::ui::installLibraryPreferences(&tools, background.get(), &settings);
+
     if (wantServices) {
         // BG-MAIN: what the shell found, with no window: whether the media keys are on,
         // and how many folders are monitored. The program ends with status 0.
@@ -178,6 +185,14 @@ int main(int argc, char *argv[])
                                                  : QStringLiteral("mpris=off"))
             << '\n';
         out << QStringLiteral("monitored=%1").arg(background->monitoredFolders().size()) << '\n';
+        out.flush();
+        return 0;
+    }
+    if (wantPages) {
+        // LP-MAIN: the title of every preferences page, in order, with no window.
+        QTextStream out(stdout);
+        for (const QString &title : tools.preferencesPages())
+            out << title << '\n';
         out.flush();
         return 0;
     }
