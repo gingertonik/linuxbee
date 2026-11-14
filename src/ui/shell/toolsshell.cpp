@@ -5,6 +5,8 @@
 #include "shell/libraryshell.h"
 #include "convert/convertdialog.h"
 #include "organise/organisedialog.h"
+#include "preferences/hotkeyspage.h"
+#include "preferences/preferencesdialog.h"
 #include "tageditor/tageditordialog.h"
 
 #include <QCoreApplication>
@@ -136,9 +138,24 @@ struct ToolsShell::Private {
         showMessage(text);
     }
 
+    // TS-PREFERENCES: needs no selection. The dialog is built as the command builds it
+    // and handed to the presenter.
     void preferences()
     {
-        // TS-PREFERENCES: needs no selection; the dialog is opened here in task 6.
+        PreferencesDialog dialog(window);
+        fillPreferences(&dialog);
+        presenter(&dialog);
+    }
+
+    // TS-PREFERENCES: the Hotkeys page first, then the page of each factory in the order
+    // added. A factory that gives no page adds nothing. The dialog owns each page.
+    void fillPreferences(PreferencesDialog *dialog)
+    {
+        dialog->addPage(new HotkeysPage(actions, settings));
+        for (const PageFactory &factory : pageFactories) {
+            if (PreferencesPage *page = factory())
+                dialog->addPage(page);
+        }
     }
 };
 
@@ -171,12 +188,18 @@ ToolsShell::~ToolsShell()
 
 void ToolsShell::addPreferencesPage(PageFactory factory)
 {
-    Q_UNUSED(factory);
+    // TS-PREFERENCES: an empty factory adds nothing.
+    if (factory)
+        d->pageFactories.append(std::move(factory));
 }
 
 QStringList ToolsShell::preferencesPages() const
 {
-    return { };
+    // The titles only: the pages are built for this dialog, which is never shown, and
+    // they die with it.
+    PreferencesDialog dialog;
+    d->fillPreferences(&dialog);
+    return dialog.pages();
 }
 
 QString ToolsShell::lastMessage() const
