@@ -26,6 +26,8 @@ inline QString libraryPath(const QString &path)
 // nothing else. L-OPEN keeps it open for the life of the Library object.
 struct Library::Private {
     library::Store store;
+    // L-COUNT: every track this object has handed out since it was opened.
+    qint64 tracksHandedOut = 0;
 };
 
 } // namespace linuxbee
