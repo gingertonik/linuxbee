@@ -8,6 +8,7 @@
 
 #include <QByteArray>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
@@ -193,6 +194,10 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     QByteArray pending;
     double reported = 0.0;
     bool cancelled = false;
+    // C-PROGRESS: restarted on every call. A second without one means the
+    // encoder is silent, and the function is asked again with the last value.
+    QElapsedTimer sinceCall;
+    sinceCall.start();
     const auto consume = [&](const QByteArray &chunk) {
         pending.append(chunk);
         for (int newline = pending.indexOf('\n'); newline >= 0 && !cancelled;
@@ -206,6 +211,7 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
             if (!ok)
                 continue;
             reported = std::max(reported, std::min(0.99, static_cast<double>(us) / totalUs));
+            sinceCall.restart();
             if (progress && !progress(reported))
                 cancelled = true;
         }
@@ -213,6 +219,11 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     while (!cancelled && ffmpeg.state() != QProcess::NotRunning) {
         ffmpeg.waitForReadyRead(100);
         consume(ffmpeg.readAllStandardOutput());
+        if (!cancelled && sinceCall.hasExpired(1000)) {
+            sinceCall.restart();
+            if (progress && !progress(reported))
+                cancelled = true;
+        }
     }
     if (!cancelled)
         consume(ffmpeg.readAllStandardOutput());
