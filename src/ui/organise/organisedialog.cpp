@@ -122,7 +122,7 @@ OrganiseDialog::OrganiseDialog(const QStringList &files, QSettings *settings, QW
     d->moveRadio->setChecked(!copy);
     d->replaceCheck->setChecked(stored(QStringLiteral("organise/replace"), false).toBool());
     d->otherFilesCheck->setChecked(stored(QStringLiteral("organise/otherFiles"), false).toBool());
-    d->removeEmptyCheck->setChecked(stored(QStringLiteral("organise/removeEmpty"), true).toBool());
+    d->removeEmptyCheck->setChecked(stored(QStringLiteral("organise/removeEmpty"), false).toBool());
     d->skipMissingCheck->setChecked(stored(QStringLiteral("organise/skipMissing"), true).toBool());
 
     // OD-OPTIONS: the two move-only boxes are greyed out while copying and keep their ticks.

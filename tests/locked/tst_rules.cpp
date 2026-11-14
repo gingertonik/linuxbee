@@ -207,9 +207,10 @@ void RulesTest::single_data()
     row("last-1-year", one("Date Added", "in-the-last", { s(u"1"), s(u"years") }), true);
     row("not-last-14-days", one("Date Added", "not-in-the-last", { s(u"14"), s(u"days") }), false);
     row("not-last-12-days", one("Date Added", "not-in-the-last", { s(u"12"), s(u"days") }), true);
-    // Never played: not "in the last" anything, so "not in the last" holds.
+    // Never played: there is no date, so neither holds (U-LAST).
     row("last-on-blank", one("Last Played", "in-the-last", { s(u"30"), s(u"days") }), false);
-    row("not-last-on-blank", one("Last Played", "not-in-the-last", { s(u"30"), s(u"days") }), true);
+    row("not-last-on-blank", one("Last Played", "not-in-the-last", { s(u"30"), s(u"days") }), false);
+    row("not-last-on-text", one("Artist", "not-in-the-last", { s(u"30"), s(u"days") }), false);
     row("last-on-old", one("Year", "in-the-last", { s(u"20"), s(u"years") }), false);
     row("last-on-older", one("Year", "in-the-last", { s(u"30"), s(u"years") }), true);
 }

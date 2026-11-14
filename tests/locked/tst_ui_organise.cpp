@@ -219,7 +219,7 @@ void OrganiseDialogTest::defaultsAndOptions()
     QVERIFY(!need<QRadioButton>(d, u"copyRadio")->isChecked());
     QVERIFY(!need<QCheckBox>(d, u"replaceCheck")->isChecked());
     QVERIFY(!need<QCheckBox>(d, u"otherFilesCheck")->isChecked());
-    QVERIFY(need<QCheckBox>(d, u"removeEmptyCheck")->isChecked());
+    QVERIFY(!need<QCheckBox>(d, u"removeEmptyCheck")->isChecked()); // OD-OPTIONS: emptied folders stay
     QVERIFY(need<QCheckBox>(d, u"skipMissingCheck")->isChecked());
     OrganiseOptions o = d.options();
     QCOMPARE(o.targetRoot, QString());
@@ -227,18 +227,18 @@ void OrganiseDialogTest::defaultsAndOptions()
     QVERIFY(o.namingTemplate.isValid());
     QCOMPARE(o.namingTemplate.referencedFields(), QStringList({ s(u"Album Artist"), s(u"Album"), s(u"Disc-Track#"), s(u"Title") }));
     QVERIFY(o.mode == OrganiseOptions::Mode::Move);
-    QVERIFY(!o.replaceExisting && !o.moveOtherFiles && o.removeEmptyFolders && o.pathRules.skipWhenTagsMissing);
+    QVERIFY(!o.replaceExisting && !o.moveOtherFiles && !o.removeEmptyFolders && o.pathRules.skipWhenTagsMissing);
     // Every control reaches options().
     need<QLineEdit>(d, u"targetEdit")->setText(s(u" /music/sorted/ "));
     need<QLineEdit>(d, u"templateEdit")->setText(s(u"<Artist> - <Title>"));
     need<QCheckBox>(d, u"replaceCheck")->setChecked(true);
     need<QCheckBox>(d, u"otherFilesCheck")->setChecked(true);
-    need<QCheckBox>(d, u"removeEmptyCheck")->setChecked(false);
+    need<QCheckBox>(d, u"removeEmptyCheck")->setChecked(true);
     need<QCheckBox>(d, u"skipMissingCheck")->setChecked(false);
     o = d.options();
     QCOMPARE(o.targetRoot, s(u"/music/sorted")); // trimmed and cleaned
     QCOMPARE(o.namingTemplate.referencedFields(), QStringList({ s(u"Artist"), s(u"Title") }));
-    QVERIFY(o.replaceExisting && o.moveOtherFiles && !o.removeEmptyFolders && !o.pathRules.skipWhenTagsMissing);
+    QVERIFY(o.replaceExisting && o.moveOtherFiles && o.removeEmptyFolders && !o.pathRules.skipWhenTagsMissing);
     // Copying: the two "move only" options are greyed out and off in options(), but keep their ticks.
     need<QRadioButton>(d, u"copyRadio")->setChecked(true);
     o = d.options();
@@ -443,6 +443,7 @@ void OrganiseDialogTest::remembered()
         need<QRadioButton>(d, u"copyRadio")->setChecked(true);
         need<QCheckBox>(d, u"replaceCheck")->setChecked(true);
         need<QCheckBox>(d, u"skipMissingCheck")->setChecked(false);
+        need<QCheckBox>(d, u"removeEmptyCheck")->setChecked(true); // kept, though Copy counts it as off
         QVERIFY(d.run());
     }
     f.settings.sync();

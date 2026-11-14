@@ -41,9 +41,10 @@ order the tracks were given in.
 ### A-DUP
 
 With `filterDuplicates`, a candidate is dropped when an earlier candidate
-has the same artist and title. "The same" compares the track's Artist
-values joined by `; ` and its first Title, each folded (S-FOLD) and
-trimmed.
+has the same artist, title and album. "The same" compares the track's
+Artist values joined by `; `, its first Title and its first Album, each
+folded (S-FOLD) and trimmed. The same song on two albums is two tracks
+(as MusicBee does; Dillon, from memory, 2026-11-14).
 
 ### A-SELECT
 
@@ -115,5 +116,5 @@ object with a whole `amount` of 1 or more and a known `unit`; an unknown
 | Rule | Question for someone with MusicBee |
 |---|---|
 | A-LIMIT | With "limit to 60 minutes", is a track that would pass 60 skipped and a shorter one tried? linuxBee stops. |
-| A-DUP | What makes two tracks duplicates for "filter out duplicates"? linuxBee: artist and title. |
+| A-DUP | Settled 2026-11-14 (Dillon, from memory): artist, title and album. |
 | A-SELECT | Under "most recently played", where do never-played tracks go? linuxBee: last. |
