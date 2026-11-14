@@ -5,13 +5,6 @@ namespace linuxbee {
 
 struct ConvertBatch::Private { };
 
-QList<ConvertJob> planBatch(const QStringList &sources, const BatchOptions &options)
-{
-    Q_UNUSED(sources);
-    Q_UNUSED(options);
-    return { };
-}
-
 ConvertBatch::ConvertBatch(QObject *parent)
     : QObject(parent)
     , d(nullptr)
