@@ -103,7 +103,9 @@ the rest. `runButton` is enabled when R is above 0.
    executor's progress calls (maximum the count, value the index), and
    the window keeps answering.
 4. Afterwards the Status column shows what happened to each planned
-   file: `Done`, `Failed: MESSAGE` or `Skipped: MESSAGE`. `summaryLabel`
+   file: `Done`, `Failed: MESSAGE` or `Skipped: MESSAGE`; a row the run
+   never came to, because it was stopped first, shows `Not reached`.
+   `summaryLabel`
    shows `D done, S skipped, F failed`, with ` (stopped)` added when the
    run was stopped.
 5. `organised(report)` is emitted.
@@ -115,6 +117,16 @@ the rest. `runButton` is enabled when R is above 0.
 `closeButton` closes the dialog as rejected. During a run it instead asks
 the run to stop: the executor's next progress call is answered with
 false.
+
+A run cannot be left behind a closed window. During a run the Escape
+key and the window's own close button do what `closeButton` does then:
+they ask the run to stop, and the dialog stays open until the run has
+ended and shows what happened. With no run under way they close the
+dialog as rejected.
+
+"The plan shown, exactly as shown" (step 3) means the planner is not
+asked again when the run starts: what the user read in the table is what
+is handed to the executor.
 
 The planner and executor are `planOrganise` and `executeOrganise` unless
 replaced with `setPlanner` and `setExecutor`.
