@@ -156,16 +156,136 @@ MusicBeeSettings readMusicBeeSettings(const QByteArray &bytes)
     return settings;
 }
 
+namespace {
+
+// SI-KEY: the modifier bits of a stored key.
+constexpr int shiftBit = 65536;
+constexpr int controlBit = 131072;
+constexpr int altBit = 262144;
+
+struct NamedKey {
+    int code;
+    QLatin1String name;
+};
+
+// SI-KEY: the key codes with a name that is not a letter, a digit or F1 to F24.
+constexpr NamedKey namedKeys[] = {
+    { 8, QLatin1String("Backspace") },
+    { 9, QLatin1String("Tab") },
+    { 13, QLatin1String("Return") },
+    { 27, QLatin1String("Esc") },
+    { 32, QLatin1String("Space") },
+    { 33, QLatin1String("PgUp") },
+    { 34, QLatin1String("PgDown") },
+    { 35, QLatin1String("End") },
+    { 36, QLatin1String("Home") },
+    { 37, QLatin1String("Left") },
+    { 38, QLatin1String("Up") },
+    { 39, QLatin1String("Right") },
+    { 40, QLatin1String("Down") },
+    { 45, QLatin1String("Ins") },
+    { 46, QLatin1String("Del") },
+    { 106, QLatin1String("*") },
+    { 107, QLatin1String("+") },
+    { 109, QLatin1String("-") },
+    { 111, QLatin1String("/") },
+    { 173, QLatin1String("Volume Mute") },
+    { 174, QLatin1String("Volume Down") },
+    { 175, QLatin1String("Volume Up") },
+    { 176, QLatin1String("Media Next") },
+    { 177, QLatin1String("Media Previous") },
+    { 178, QLatin1String("Media Stop") },
+    { 179, QLatin1String("Media Play") },
+    { 186, QLatin1String(";") },
+    { 187, QLatin1String("=") },
+    { 188, QLatin1String(",") },
+    { 189, QLatin1String("-") },
+    { 190, QLatin1String(".") },
+    { 191, QLatin1String("/") },
+    { 192, QLatin1String("`") },
+    { 219, QLatin1String("[") },
+    { 220, QLatin1String("\\") },
+    { 221, QLatin1String("]") },
+    { 222, QLatin1String("'") },
+};
+
+// SI-KEY: the name of a key code (the low 16 bits), or empty when it has none.
+QString keyName(int code)
+{
+    if ((code >= 65 && code <= 90) || (code >= 48 && code <= 57)) // A to Z, 0 to 9
+        return QString(QChar(static_cast<char16_t>(code)));
+    if (code >= 112 && code <= 135) // F1 to F24
+        return QStringLiteral("F%1").arg(code - 111);
+    for (const NamedKey &key : namedKeys) {
+        if (key.code == code)
+            return key.name.toString();
+    }
+    return { };
+}
+
+// SI-TEMPLATE: the tag for each field that has one.
+struct FieldTag {
+    int field;
+    QLatin1String tag;
+};
+
+constexpr FieldTag fieldTags[] = {
+    { 30, QLatin1String("<Album>") },
+    { 31, QLatin1String("<Album Artist>") },
+    { 32, QLatin1String("<Artist>") },
+    { 53, QLatin1String("<Disc-Track#>") },
+    { 65, QLatin1String("<Title>") },
+    { 86, QLatin1String("<Track#>") },
+};
+
+} // namespace
+
 QString hotkeyText(int storedKey)
 {
-    Q_UNUSED(storedKey);
-    return QStringLiteral("?");
+    // SI-KEY: a number below 1, or a bit above the low 16 that is not a modifier, has no text.
+    constexpr int modifiers = shiftBit | controlBit | altBit;
+    if (storedKey < 1 || (storedKey & ~(0xFFFF | modifiers)) != 0)
+        return { };
+    const QString name = keyName(storedKey & 0xFFFF);
+    if (name.isEmpty())
+        return { };
+    QString text;
+    if (storedKey & controlBit)
+        text += QStringLiteral("Ctrl+");
+    if (storedKey & altBit)
+        text += QStringLiteral("Alt+");
+    if (storedKey & shiftBit)
+        text += QStringLiteral("Shift+");
+    return text + name;
 }
 
 QString templateFromNamingRule(const QList<MusicBeeNamingPart> &parts)
 {
-    Q_UNUSED(parts);
-    return QStringLiteral("?");
+    // SI-TEMPLATE: each part gives its field's tag, then its text as it is. Nothing is
+    // carried over when a part has a formula, a field that is not in the table, or
+    // text that holds <, > or $.
+    if (parts.isEmpty())
+        return { };
+    QString text;
+    for (const MusicBeeNamingPart &part : parts) {
+        if (!part.function.isEmpty() || part.text.contains(QLatin1Char('<'))
+            || part.text.contains(QLatin1Char('>')) || part.text.contains(QLatin1Char('$')))
+            return { };
+        QString tag;
+        if (part.field != 0) {
+            bool known = false;
+            for (const FieldTag &entry : fieldTags) {
+                if (entry.field == part.field) {
+                    tag = entry.tag.toString();
+                    known = true;
+                }
+            }
+            if (!known)
+                return { };
+        }
+        text += tag + part.text;
+    }
+    return text;
 }
 
 QList<SettingsImportLine> planSettingsImport(const MusicBeeSettings &settings)
