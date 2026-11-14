@@ -189,23 +189,157 @@ Skin layeredSkin(const Skin &base, const Skin &top)
     return both;
 }
 
-// Stubs. Task 3 replaces the three bodies below.
+namespace {
+
+// SK-COLOURS: where one of linuxBee's colour names comes from.
+struct Source {
+    QLatin1String element;
+    bool background; // the element's bg; otherwise its fg
+};
+
+struct ColourRule {
+    QLatin1String name;
+    QList<Source> sources; // tried in this order
+};
+
+Source sourceBg(const char *element)
+{
+    return { QLatin1String(element), true };
+}
+
+Source sourceFg(const char *element)
+{
+    return { QLatin1String(element), false };
+}
+
+ColourRule colourRule(const char *name, const QList<Source> &sources)
+{
+    return { QLatin1String(name), sources };
+}
+
+// The table of SK-COLOURS, in the spec's order.
+const QList<ColourRule> &colourRules()
+{
+    static const QList<ColourRule> rules = {
+        colourRule("window", { sourceBg("WindowBackColour"), sourceBg("ApplicationBackColour") }),
+        colourRule("windowText", { sourceFg("Panel.Body.Default") }),
+        colourRule("base", { sourceBg("Panel.Body.Default") }),
+        colourRule("text", { sourceFg("Panel.Body.Default") }),
+        colourRule("alternateBase", { sourceBg("Content[TrackDetail].ListAlternating.Default") }),
+        colourRule("dimText", { sourceFg("Panel.Body.Lowlight") }),
+        colourRule("highlight", { sourceBg("Panel.Body.Highlight") }),
+        colourRule("highlightText", { sourceFg("Panel.Body.Highlight") }),
+        colourRule("button", { sourceBg("Controls.Button.Default") }),
+        colourRule("buttonText", { sourceFg("Controls.Button.Default") }),
+        colourRule(
+            "header", { sourceBg("Panel.Header.Default"), sourceBg("Panel.ChildHeader.Default") }),
+        colourRule("headerText",
+            { sourceFg("Panel.Header.Default"), sourceFg("Panel.ChildHeader.Default") }),
+        colourRule("menuBar", { sourceBg("MenuBar.Default") }),
+        colourRule("menuBarText", { sourceFg("MenuBar.Default") }),
+        colourRule("menu", { sourceBg("Menu.DropDown.Default") }),
+        colourRule("menuText", { sourceFg("Menu.DropDown.Default") }),
+        colourRule("menuHighlight", { sourceBg("Menu.DropDown.Highlight") }),
+        colourRule("menuHighlightText",
+            { sourceFg("Menu.DropDown.HighlightText"), sourceFg("Panel.Body.Highlight") }),
+        colourRule("statusBar", { sourceBg("Panel.StatusBar.Default") }),
+        colourRule("statusBarText", { sourceFg("Panel.StatusBar.Default") }),
+        colourRule("player",
+            { sourceBg("Player.Background"), sourceBg("PlayerFlat.Background"),
+                sourceBg("PlayerSidebar.Background") }),
+        colourRule("playerText",
+            { sourceFg("Player.Background"), sourceFg("PlayerFlat.Background"),
+                sourceFg("PlayerSidebar.Background") }),
+        colourRule("tab", { sourceBg("Controls.TabHeader.Default") }),
+        colourRule("tabText", { sourceFg("Controls.TabHeader.Default") }),
+        colourRule("tabSelected", { sourceBg("Controls.TabHeader.Highlight") }),
+        colourRule("tabSelectedText", { sourceFg("Controls.TabHeader.Highlight") }),
+    };
+    return rules;
+}
+
+// SK-SHEET: one line of the sheet, written when both colour names are there.
+// %1 is the first colour and %2 the second.
+struct SheetLine {
+    QLatin1String first;
+    QLatin1String second;
+    QLatin1String pattern;
+};
+
+// The table of SK-SHEET, in the spec's order.
+const QList<SheetLine> &sheetLines()
+{
+    static const QList<SheetLine> lines = {
+        { QLatin1String("header"), QLatin1String("headerText"),
+            QLatin1String("QHeaderView::section { background-color: %1; color: %2; }") },
+        { QLatin1String("menuBar"), QLatin1String("menuBarText"),
+            QLatin1String("QMenuBar { background-color: %1; color: %2; }") },
+        { QLatin1String("menu"), QLatin1String("menuText"),
+            QLatin1String("QMenu { background-color: %1; color: %2; }") },
+        { QLatin1String("menuHighlight"), QLatin1String("menuHighlightText"),
+            QLatin1String("QMenu::item:selected { background-color: %1; color: %2; }") },
+        { QLatin1String("statusBar"), QLatin1String("statusBarText"),
+            QLatin1String("QStatusBar { background-color: %1; color: %2; }") },
+        { QLatin1String("player"), QLatin1String("playerText"),
+            QLatin1String("#playerBar { background-color: %1; color: %2; } "
+                          "#playerBar QLabel { color: %2; }") },
+        { QLatin1String("tab"), QLatin1String("tabText"),
+            QLatin1String("QTabBar::tab { background-color: %1; color: %2; padding: 4px 10px; }") },
+        { QLatin1String("tabSelected"), QLatin1String("tabSelectedText"),
+            QLatin1String("QTabBar::tab:selected { background-color: %1; color: %2; }") },
+    };
+    return lines;
+}
+
+// A colour as the sheet writes it: rgb(r,g,b), or rgba(r,g,b,a) with an alpha.
+QString sheetColour(const SkinColour &colour)
+{
+    const QString prefix = colour.a == 255 ? QStringLiteral("rgb(") : QStringLiteral("rgba(");
+    return prefix + skinColourText(colour) + QLatin1Char(')');
+}
+
+}
+
 QMap<QString, SkinColour> skinColours(const Skin &skin)
 {
-    Q_UNUSED(skin);
-    return { };
+    QMap<QString, SkinColour> colours;
+    if (!skin.ok)
+        return colours;
+    for (const ColourRule &rule : colourRules()) {
+        for (const Source &source : rule.sources) {
+            const auto element = skin.elements.constFind(QString(source.element));
+            if (element == skin.elements.cend())
+                continue;
+            const std::optional<SkinColour> &colour = source.background ? element->bg : element->fg;
+            if (!colour)
+                continue;
+            colours.insert(QString(rule.name), *colour);
+            break; // the first source the skin has
+        }
+    }
+    return colours;
 }
 
 QString skinColourText(const SkinColour &colour)
 {
-    Q_UNUSED(colour);
-    return { };
+    QString text = QStringLiteral("%1,%2,%3").arg(colour.r).arg(colour.g).arg(colour.b);
+    if (colour.a != 255)
+        text += QStringLiteral(",%1").arg(colour.a);
+    return text;
 }
 
 QString skinStyleSheet(const QMap<QString, SkinColour> &colours)
 {
-    Q_UNUSED(colours);
-    return QStringLiteral("?");
+    QStringList lines;
+    for (const SheetLine &line : sheetLines()) {
+        const auto first = colours.constFind(QString(line.first));
+        const auto second = colours.constFind(QString(line.second));
+        if (first == colours.cend() || second == colours.cend())
+            continue;
+        lines.append(
+            QString(line.pattern).arg(sheetColour(first.value()), sheetColour(second.value())));
+    }
+    return lines.join(QLatin1Char('\n'));
 }
 
 }
