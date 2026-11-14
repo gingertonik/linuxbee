@@ -1,4 +1,5 @@
 #include "library/foldermonitor.h"
+#include "library/foldermonitor_p.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -10,12 +11,6 @@
 namespace linuxbee {
 
 namespace {
-
-// A folder as the monitor keeps it: absolute and clean.
-QString cleanFolder(const QString &path)
-{
-    return QDir::cleanPath(QDir(path).absolutePath());
-}
 
 // Adds the folders below `folder` (not `folder` itself), depth first.
 // Returns false when the limit stopped it before the end.
@@ -50,7 +45,7 @@ QStringList directoriesToWatch(const QStringList &roots, int limit, bool *limite
     for (const QString &root : roots) {
         if (root.trimmed().isEmpty())
             continue;
-        const QString folder = cleanFolder(root);
+        const QString folder = cleanFolderPath(root);
         if (QFileInfo(folder).isDir() && !rootFolders.contains(folder))
             rootFolders.append(folder);
     }
@@ -88,7 +83,7 @@ QStringList rootsFor(const QStringList &changedDirectories, const QStringList &r
     for (const QString &root : roots) {
         if (root.trimmed().isEmpty())
             continue;
-        const QString folder = cleanFolder(root);
+        const QString folder = cleanFolderPath(root);
         if (!rootFolders.contains(folder))
             rootFolders.append(folder);
     }
@@ -96,7 +91,7 @@ QStringList rootsFor(const QStringList &changedDirectories, const QStringList &r
     QStringList changed;
     for (const QString &folder : changedDirectories) {
         if (!folder.trimmed().isEmpty())
-            changed.append(cleanFolder(folder));
+            changed.append(cleanFolderPath(folder));
     }
 
     QStringList result;
@@ -111,69 +106,6 @@ QStringList rootsFor(const QStringList &changedDirectories, const QStringList &r
         }
     }
     return result;
-}
-
-struct FolderMonitor::Private { };
-
-FolderMonitor::FolderMonitor(Scanner scanner, QObject *parent)
-    : QObject(parent)
-    , d(nullptr)
-{
-    Q_UNUSED(scanner);
-}
-
-FolderMonitor::~FolderMonitor()
-{
-    Q_UNUSED(d);
-}
-
-int FolderMonitor::settleMs() const
-{
-    return 0;
-}
-
-void FolderMonitor::setSettleMs(int ms)
-{
-    Q_UNUSED(ms);
-}
-
-int FolderMonitor::directoryLimit() const
-{
-    return 0;
-}
-
-void FolderMonitor::setDirectoryLimit(int limit)
-{
-    Q_UNUSED(limit);
-}
-
-QStringList FolderMonitor::folders() const
-{
-    return { };
-}
-
-void FolderMonitor::setFolders(const QStringList &roots)
-{
-    Q_UNUSED(roots);
-}
-
-QStringList FolderMonitor::watched() const
-{
-    return { };
-}
-
-bool FolderMonitor::limited() const
-{
-    return false;
-}
-
-bool FolderMonitor::isPending() const
-{
-    return false;
-}
-
-void FolderMonitor::checkNow()
-{
 }
 
 FolderMonitor::Scanner libraryScanner(
