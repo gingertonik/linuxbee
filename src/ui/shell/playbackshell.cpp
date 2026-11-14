@@ -77,6 +77,34 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     };
     connect(d->queue, &PlayQueue::entriesChanged, this, showQueue);
     showQueue();
+
+    // PS-TITLE: the bar is told the tag title when the track changes and the
+    // library knows one; otherwise the bar keeps its own fallback. The bar
+    // was connected first, so this runs after the bar's own handler.
+    connect(d->player, &Player::trackChanged, this, [this](const QString &path) {
+        const QString title = titleFor(path);
+        if (!title.isEmpty())
+            d->bar->setTrackText(title);
+    });
+
+    // PS-COUNT: a play or a skip the player counts goes to the library, at
+    // the shell's clock. A path the library does not know is ignored.
+    connect(d->player, &Player::playCounted, this, [this](const QString &path) {
+        if (const auto track = d->library->trackByPath(path))
+            d->library->recordPlay(track->id, d->now());
+    });
+    connect(d->player, &Player::skipCounted, this, [this](const QString &path) {
+        if (const auto track = d->library->trackByPath(path))
+            d->library->recordSkip(track->id, d->now());
+    });
+
+    // PS-ERROR: the status bar says which file failed and why. Nothing is counted.
+    connect(d->player, &Player::playbackError, this,
+        [this](const QString &path, const QString &message) {
+            d->lastMessage = QStringLiteral("Cannot play ") + QFileInfo(path).fileName()
+                + QStringLiteral(": ") + message;
+            d->window->statusBar()->showMessage(d->lastMessage);
+        });
 }
 
 PlaybackShell::~PlaybackShell()
@@ -101,8 +129,16 @@ PlayerBar *PlaybackShell::bar() const
 
 QString PlaybackShell::titleFor(const QString &path) const
 {
-    Q_UNUSED(path);
-    return { };
+    // PS-TITLE: "Artist - Title", every artist joined as the tag reader joins
+    // them; the title alone without an artist; empty without a title.
+    const auto track = d->library->trackByPath(path);
+    if (!track)
+        return { };
+    const QString title = track->tags.first(QStringLiteral("Title"));
+    if (title.isEmpty())
+        return { };
+    const QString artist = track->tags.joined(QStringLiteral("Artist"));
+    return artist.isEmpty() ? title : artist + QStringLiteral(" - ") + title;
 }
 
 QString PlaybackShell::lastMessage() const
