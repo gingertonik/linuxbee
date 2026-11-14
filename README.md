@@ -3,7 +3,7 @@
 A music manager and player for Linux, built for people who are moving from
 MusicBee on Windows and want their habits to keep working: the same kind of
 tag editor, the same file-naming templates, the same organise and convert
-tools, and their library data carried across.
+tools, and, in time, their library data carried across.
 
 linuxBee is an independent project. It is not affiliated with or endorsed by
 MusicBee or its author, and it contains no MusicBee code or artwork. How
@@ -41,6 +41,10 @@ command-line tool, or both.
   playlists. Rename, move and delete are on that menu.
 - A double-click on a track in a playlist plays from the playlist's own
   order.
+- Auto-playlists: each `.lbauto` file in the `auto-playlists` folder beside
+  the `playlists` folder shows in the navigator with the tracks its rules
+  pick, and stays up to date as the library changes. Its row's menu deletes
+  it.
 - `linuxbeectl playlist show` prints a playlist file, and
   `linuxbeectl playlist convert` converts between M3U, M3U8 and PLS.
 
@@ -96,8 +100,9 @@ The gaps a MusicBee user will notice first:
 - **Album view.** The track list shows tracks, not albums with their tracks.
 - **Cover art.** Pictures are read from files, but no part of the window
   shows them.
-- **Auto-playlists.** The code is in the core. The window and `linuxbeectl`
-  do not make or show one yet.
+- **Making or editing an auto-playlist in the window.** An auto-playlist is
+  shown, but it can only be made by putting a file in its folder, and a
+  double-click on one does not play it yet.
 - **Adding tracks to a playlist.** Playlists can be made, renamed, moved and
   deleted, but no command adds tracks to one, and there is no drag and drop.
 - **Gapless playback, crossfade and an equaliser.**
@@ -110,7 +115,9 @@ The gaps a MusicBee user will notice first:
   undone, and files cannot be deleted from the window.
 - **Tagging tools in the window, and auto-tagging.** The tagging tools are on
   the command line only. Auto-tagging from online services is not built.
-- **Skins and plugins.** Neither is specified or built.
+- **Skins in the window, and plugins.** `linuxbeectl skin show` reads the
+  colours from a MusicBee skin file, but the window does not apply skins yet.
+  Plugins are not built.
 
 ## Try it
 
@@ -133,6 +140,7 @@ commands:
   playlist   Show a playlist file, or convert one to another format.
   rules      Check a rule set, or test a track against it.
   settings   Carry over hotkeys and the naming template from a MusicBee settings file.
+  skin       Show the colours linuxBee takes from a MusicBee skin file.
   tags       Read the tags, pictures and audio properties of a music file.
   tagtool    Bulk tag tools: replace, case, remove, renumber, infer, copy, swap.
   template   Fill in or check a naming template.
