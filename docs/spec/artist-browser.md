@@ -142,6 +142,8 @@ Text in `artistFilterEdit` hides the artist rows whose name does not
 contain it, both folded as for search (`foldForSearch`: case and accents
 ignored). The first row is never hidden, and neither is the row of the
 chosen artist. The filter changes what is visible, never the choice.
+The row for tracks with no value has no name to match, so any text
+hides it (unless it is the chosen row).
 
 ## AB-SHELL
 
@@ -194,7 +196,7 @@ The choice is not stored: a new start begins with all artists.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| AB-ARTIST | Whether the artist column files a track under Album Artist or under Artist by default. |
+| AB-ARTIST | Settled 2026-11-14 (the owner, from memory): under Album Artist. Open: where a track with two Album Artist values is filed (linuxBee: under the first). |
 | AB-LIST | What the "all" row is called and what number it shows. |
-| AB-FIELD | Which tags the menu beside the column's heading offers, and in which order. |
-| AB-FIELD | Whether a track with several values of a tag appears under each of them. |
+| AB-FIELD | Settled 2026-11-14 (the owner, seen): Album, Album Artist, Artist, Composer, Decade, Genre, Genre Category, then submenus of other, custom and virtual tags. linuxBee keeps its own seven; the owner accepted the difference. |
+| AB-FIELD | Settled 2026-11-14 (the owner, from memory): it does. |
