@@ -31,6 +31,7 @@
 #include "shell/playbackshell.h"
 #include "shell/playlistediting.h"
 #include "shell/toolsshell.h"
+#include "skins/skinapplier.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
@@ -129,6 +130,10 @@ int main(int argc, char *argv[])
 
     linuxbee::ui::ActionRegistry registry;
     registry.load(settings);
+
+    // SK-MAIN (docs/spec/skins.md): the stored skin is applied to the application at once, made
+    // before the window, so the window is drawn in it.
+    linuxbee::ui::SkinApplier skinApplier(&application, &settings);
 
     linuxbee::ui::MainWindow window(&registry, &settings);
 
@@ -236,6 +241,11 @@ int main(int argc, char *argv[])
         out << QStringLiteral("auto-playlists=%1").arg(autoPlaylists.names().size()) << '\n';
         // AV-MAIN: which view the library page starts on, albums or tracks.
         out << QStringLiteral("main-view=%1").arg(albumViewing.mode()) << '\n';
+        // SK-MAIN: the skin by the name of its file, or none when there is no skin.
+        const QString skinFile = skinApplier.currentFile();
+        out << (skinFile.isEmpty() ? QStringLiteral("skin=none")
+                                   : QStringLiteral("skin=%1").arg(QFileInfo(skinFile).fileName()))
+            << '\n';
         out.flush();
         return 0;
     }
