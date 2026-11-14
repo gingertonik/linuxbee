@@ -48,7 +48,7 @@ The options are above the preview and the buttons below it.
 
 With nothing stored the controls show the organiser's defaults: no
 folder, the template `<Album Artist>\<Album>\<Disc-Track#> <Title>`,
-move, do not replace, leave other files, remove empty folders, leave
+move, do not replace, leave other files, leave emptied folders, leave
 files with missing tags.
 
 `options()` is what the controls say: the folder trimmed and cleaned

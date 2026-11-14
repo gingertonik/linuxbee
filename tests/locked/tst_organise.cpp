@@ -143,6 +143,7 @@ OrganiseOptions OrganiseTest::options()
     OrganiseOptions o;
     o.targetRoot = m_work + QStringLiteral("/out");
     o.replaced = OrganiseOptions::Replaced::Delete;
+    o.removeEmptyFolders = true; // asked for here; it is off unless asked for (emptyFolders)
     return o;
 }
 
@@ -530,8 +531,9 @@ void OrganiseTest::otherFiles()
 void OrganiseTest::emptyFolders()
 {
     const QString a = put("basic.mp3", s(u"in/a/b/c/x.mp3"));
+    QVERIFY(!OrganiseOptions().removeEmptyFolders); // O-EMPTY: off unless asked for
     OrganiseOptions o = options();
-    o.removeEmptyFolders = false;
+    o.removeEmptyFolders = OrganiseOptions().removeEmptyFolders;
     OrganiseReport r = linuxbee::executeOrganise(linuxbee::planOrganise({ a }, o), o);
     QCOMPARE(r.done, 1);
     QVERIFY(QFileInfo::exists(m_work + s(u"/in/a/b/c")));

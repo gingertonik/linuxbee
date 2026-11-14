@@ -77,7 +77,7 @@ moved: $work/in/a/y.flac -> $work/out/Adele/21/Someone.flac
 moved: $work/in/b/o.ogg -> $work/out/01-04 Ogg Title.ogg
 moved: $work/in/a/cover.jpg -> $work/out/Adele/21/cover.jpg
 removed folder: $work/in/a
-removed folder: $work/in/b" organise --other-files --to "$work/out" \
+removed folder: $work/in/b" organise --remove-empty-folders --other-files --to "$work/out" \
     --template '$If(<.Ext>=flac,Adele\21\Someone,<Album Artist>\<Album>\<Disc-Track#> <Title>)' "$work/in"
 [ ! -e "$work/in/a" ] && [ ! -e "$work/in/b" ] && [ -d "$work/in" ] && pass folder-removed || fail folder-removed
 # The inbox case: the last files leave a folder under a music folder that
@@ -85,7 +85,7 @@ removed folder: $work/in/b" organise --other-files --to "$work/out" \
 fresh
 mkdir -p "$work/in/music/inbox/new" && mv "$work/in/a/x.mp3" "$work/in/music/inbox/new/x.mp3"
 check inbox 0 "moved: $work/in/music/inbox/new/x.mp3 -> $work/out/$MP3
-removed folder: $work/in/music/inbox/new" organise --to "$work/out" "$work/in/music/inbox"
+removed folder: $work/in/music/inbox/new" organise --remove-empty-folders --to "$work/out" "$work/in/music/inbox"
 [ -d "$work/in/music/inbox" ] && pass inbox-stays || fail inbox-stays
 # A file named by itself: its own folder is the floor.
 fresh
@@ -93,14 +93,20 @@ mkdir -p "$work/in/lone" && mv "$work/in/a/x.mp3" "$work/in/lone/x.mp3"
 check lone-file 0 "moved: $work/in/lone/x.mp3 -> $work/out/$MP3" organise --to "$work/out" "$work/in/lone/x.mp3"
 [ -d "$work/in/lone" ] && pass lone-folder-stays || fail lone-folder-stays
 
-# --copy, --keep-names, --keep-empty-folders, --allow-missing
+# --copy, --keep-names, --allow-missing; an emptied folder stays unless asked (O-EMPTY)
 fresh
 check copy 0 "copied: $work/in/a/x.mp3 -> $work/out/x.mp3" organise --copy --keep-names \
     --to "$work/out" "$work/in/a/x.mp3"
 [ -f "$work/in/a/x.mp3" ] && pass copy-kept-source || fail copy-kept-source
 check allow-missing 0 "moved: $work/in/b/o.ogg -> $work/out/Unknown Album Artist/Unknown Album/01-04 Ogg Title.ogg" \
-    organise --allow-missing --keep-empty-folders --to "$work/out" "$work/in/b/o.ogg"
+    organise --allow-missing --to "$work/out" "$work/in/b/o.ogg"
 [ -d "$work/in/b" ] && pass kept-empty-folder || fail kept-empty-folder
+# Below a floor and emptied, and still there: nothing asked for it to go.
+fresh
+mkdir -p "$work/in/music/inbox/new" && mv "$work/in/a/x.mp3" "$work/in/music/inbox/new/x.mp3"
+check emptied-stays 0 "moved: $work/in/music/inbox/new/x.mp3 -> $work/out/$MP3" organise --to "$work/out" "$work/in/music/inbox"
+[ -d "$work/in/music/inbox/new" ] && pass emptied-folder-stays || fail emptied-folder-stays
+fresh
 # no --to: rename in place
 check in-place 0 "moved: $work/in/a/y.flac -> $work/in/a/Flac Title.flac" organise --template '<Title>' "$work/in/a/y.flac"
 

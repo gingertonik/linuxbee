@@ -54,7 +54,7 @@ QList<LibraryTrack> library()
         make(2, u"Adele", u"Skyfall", u"Skyfall", u"3", 5, 10, 2, 12, 2),
         make(3, u"Muse", u"Uprising", u"The Resistance", u"4.5", 5, 20, 9, 3, 3),
         make(4, u"Muse", u"Resistance", u"The Resistance", nullptr, 6, 20, 0, 0, 4),
-        make(5, u"ADELE", u" hello ", u"Live", u"4", 4, 30, 1, 5, 5), // the same song as 1, by A-DUP
+        make(5, u"ADELE", u" hello ", u"Live", u"4", 4, 30, 1, 5, 5), // the song of 1 on another album: no duplicate
         make(6, u"Bj\u00f6rk", u"J\u00f3ga", u"Homogenic", u"5", 5, 5, 4, 11, 6),
         make(7, u"Bjork", u"Joga", u"Homogenic", u"2", 5, 5, 0, 0, 7), // and the same as 6
         make(8, u"Muse", u"Gone", u"Absolution", u"5", 4, 1, 3, 1, 8),
@@ -240,13 +240,13 @@ void AutoPlaylistTest::limits()
 void AutoPlaylistTest::duplicates()
 {
     using S = AutoPlaylist::SelectedBy;
-    // A-DUP: the same artist and title, ignoring case, accents and outer spaces.
+    // A-DUP: the same artist, title and album, ignoring case, accents and outer spaces.
     // The first one in the order the tracks were given is the one kept, before any selection.
     AutoPlaylist p = by(S::LeastRecentlyAdded);
     p.filterDuplicates = true;
-    QCOMPARE(run(p), QList<qint64>({ 1, 2, 3, 4, 6 }));
+    QCOMPARE(run(p), QList<qint64>({ 1, 2, 3, 4, 5, 6 }));
     p.selectedBy = S::MostRecentlyAdded;
-    QCOMPARE(run(p), QList<qint64>({ 6, 4, 3, 2, 1 })); // still 1 and 6, not 5 and 7
+    QCOMPARE(run(p), QList<qint64>({ 6, 5, 4, 3, 2, 1 })); // 6 and not 7; 5 is on another album than 1
     // Only tracks that pass the rules count as "first".
     p.rules.rules = { rule(u"Album", linuxbee::RuleOperator::IsAnyOf, { s(u"Live"), s(u"Homogenic") }) };
     QCOMPARE(run(p), QList<qint64>({ 6, 5 }));
