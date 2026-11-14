@@ -150,13 +150,17 @@ int runOrganise(const QStringList &arguments)
     options.moveOtherFiles = parser.isSet(otherFilesOption);
     options.removeEmptyFolders = !parser.isSet(keepEmptyOption);
 
-    // A folder stands for the music files in it, below it too.
+    // A folder stands for the music files in it, below it too. Each folder
+    // named, and the folder of each file named, is a floor O-EMPTY never removes.
     QStringList files;
     for (const QString &input : inputs) {
-        if (QFileInfo(input).isDir())
+        if (QFileInfo(input).isDir()) {
             files += linuxbee::findMusicFiles(input, true);
-        else
+            options.sourceRoots.append(input);
+        } else {
             files.append(input);
+            options.sourceRoots.append(QFileInfo(input).absolutePath());
+        }
     }
     const QList<PlannedMove> plan = linuxbee::planOrganise(files, options);
 

@@ -154,7 +154,7 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
         if (options.moveOtherFiles)
             organise::takeAlongOtherFiles(&report);
         if (options.removeEmptyFolders)
-            organise::removeEmptiedFolders(&report);
+            organise::removeEmptiedFolders(&report, options.sourceRoots);
     }
     return report;
 }

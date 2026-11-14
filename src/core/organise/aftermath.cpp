@@ -4,6 +4,8 @@
 #include <QFileInfo>
 #include <QHash>
 
+#include <algorithm>
+
 #include "files/musicfiles.h"
 #include "transfer.h"
 
@@ -40,6 +42,42 @@ bool isEmptyFolder(const QString &folder)
     return QFileInfo(folder).isDir()
         && QDir(folder).isEmpty(
             QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
+}
+
+// A folder as an absolute path with no `.`, `..` or trailing slash.
+QString tidyFolder(const QString &folder)
+{
+    return QDir::cleanPath(QDir(folder).absolutePath());
+}
+
+// True when `folder` lies strictly below `floor`. Compared part by part, so
+// `/music/inbox2` is not below `/music/inbox`.
+bool isStrictlyBelow(const QString &folder, const QString &floor)
+{
+    if (folder == floor)
+        return false;
+    const QString prefix = floor == QStringLiteral("/") ? floor : floor + QLatin1Char('/');
+    return folder.startsWith(prefix);
+}
+
+// The deepest folder that holds every folder in `folders`, compared part by part.
+QString deepestCommonFolder(const QStringList &folders)
+{
+    QStringList common;
+    bool first = true;
+    for (const QString &folder : folders) {
+        const QStringList parts = folder.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        if (first) {
+            common = parts;
+            first = false;
+            continue;
+        }
+        int same = 0;
+        while (same < common.size() && same < parts.size() && common.at(same) == parts.at(same))
+            ++same;
+        common.resize(same);
+    }
+    return QLatin1Char('/') + common.join(QStringLiteral("/"));
 }
 
 }
@@ -96,7 +134,7 @@ void takeAlongOtherFiles(OrganiseReport *report)
     }
 }
 
-void removeEmptiedFolders(OrganiseReport *report)
+void removeEmptiedFolders(OrganiseReport *report, const QStringList &sourceRoots)
 {
     // The folders the planned tracks left, in the order they first appear.
     QStringList folders;
@@ -108,10 +146,23 @@ void removeEmptiedFolders(OrganiseReport *report)
             folders.append(from);
     }
 
-    // O-EMPTY: each folder, then its parent, and so on up, while each is empty.
+    // O-EMPTY floors: the folders the user named, or with none given, the
+    // deepest folder holding every moved track.
+    QStringList floors;
+    for (const QString &root : sourceRoots) {
+        if (!root.isEmpty())
+            floors.append(tidyFolder(root));
+    }
+    if (floors.isEmpty() && !folders.isEmpty())
+        floors.append(deepestCommonFolder(folders));
+
+    // O-EMPTY: each folder, then its parent, and so on up, while each lies below
+    // a floor and is empty. The floor itself, and anything above it, stays.
     for (const QString &start : folders) {
         QString folder = start;
-        while (isEmptyFolder(folder)) {
+        while (std::any_of(floors.cbegin(), floors.cend(), [&folder](const QString &floor) {
+            return isStrictlyBelow(folder, floor);
+        }) && isEmptyFolder(folder)) {
             const QString parent = QFileInfo(folder).absolutePath();
             if (parent == folder || !QDir().rmdir(folder))
                 break;
