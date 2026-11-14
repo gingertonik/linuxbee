@@ -36,6 +36,10 @@ public:
     QStringList sortFields() const;
     void setSortFields(const QStringList &fields);
 
+    // T-GIVEN: the tracks in the order they were given, not sorted.
+    bool givenOrder() const;
+    void setGivenOrder(bool on);
+
     void setTracks(const QList<LibraryTrack> &tracks);
     void upsertTracks(const QList<LibraryTrack> &tracks); // add, or replace by id
     void removeTracks(const QList<qint64> &ids);
