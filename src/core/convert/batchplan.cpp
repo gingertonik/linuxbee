@@ -23,6 +23,13 @@ QString stemOf(const QString &name)
     return dot > 0 ? name.left(dot) : name;
 }
 
+// The part file convertFile writes first (convert.md C-CLEAN): ".part" before
+// the extension. Every name built here has an extension.
+QString partNameOf(const QString &stem, const QString &extension)
+{
+    return stem + QStringLiteral(".part.") + extension;
+}
+
 }
 
 QList<ConvertJob> planBatch(const QStringList &sources, const BatchOptions &options)
@@ -47,11 +54,16 @@ QList<ConvertJob> planBatch(const QStringList &sources, const BatchOptions &opti
         const QString dir = folder.isEmpty() ? info.absolutePath() : folder;
         const QString stem = stemOf(info.fileName());
 
-        QString destination = QDir(dir).filePath(stem + QLatin1Char('.') + extension);
-        for (int n = 1; taken.contains(destination); ++n)
-            destination = QDir(dir).filePath(
-                stem + QLatin1Char('_') + QString::number(n) + QLatin1Char('.') + extension);
+        // A job writes its part file as well as its destination: neither may be a
+        // source or a path an earlier job writes.
+        QString name = stem;
+        for (int n = 1; taken.contains(QDir(dir).filePath(name + QLatin1Char('.') + extension))
+            || taken.contains(QDir(dir).filePath(partNameOf(name, extension)));
+            ++n)
+            name = stem + QLatin1Char('_') + QString::number(n);
+        const QString destination = QDir(dir).filePath(name + QLatin1Char('.') + extension);
         taken.insert(destination);
+        taken.insert(QDir(dir).filePath(partNameOf(name, extension)));
 
         ConvertJob job;
         job.source = source;
