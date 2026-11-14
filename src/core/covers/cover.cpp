@@ -1,6 +1,7 @@
 #include "covers/cover.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 
 namespace linuxbee {
@@ -80,9 +81,73 @@ QString coverFileIn(const QString &folder)
     return QString();
 }
 
-// STUB (plan 37). The builder writes the real bodies here.
-Cover findCover(const QString &, const CoverOptions &)
+namespace {
+
+// CV-FIND, embedded: the picture the music file holds, chosen by CV-EMBEDDED.
+Cover embeddedCover(const QString &musicFile, bool wantData)
 {
+    if (musicFile.isEmpty())
+        return { };
+    ReadOptions read;
+    read.pictures = true;
+    read.pictureData = wantData;
+    const ReadResult result = readTags(musicFile, read);
+    if (result.status != ReadResult::Status::Ok)
+        return { };
+    const int chosen = chooseEmbedded(result.tags.pictures);
+    if (chosen < 0)
+        return { };
+
+    const Picture &picture = result.tags.pictures.at(chosen);
+    Cover cover;
+    cover.source = Cover::Source::Embedded;
+    cover.file = musicFile;
+    cover.mimeType = picture.mimeType;
+    cover.type = picture.type;
+    cover.byteCount = picture.byteCount;
+    cover.data = wantData ? picture.data : QByteArray();
+    return cover;
+}
+
+// CV-FIND, file: the cover file in the music file's folder, CV-FILE.
+Cover fileCover(const QString &musicFile, bool wantData)
+{
+    if (musicFile.isEmpty())
+        return { };
+    const QString picturePath = coverFileIn(QFileInfo(musicFile).absolutePath());
+    if (picturePath.isEmpty())
+        return { };
+
+    const QFileInfo info(picturePath);
+    Cover cover;
+    cover.source = Cover::Source::File;
+    cover.file = picturePath;
+    cover.mimeType = info.suffix().toLower() == QLatin1String("png") ? QStringLiteral("image/png")
+                                                                     : QStringLiteral("image/jpeg");
+    cover.byteCount = qsizetype(info.size());
+    if (wantData) {
+        QFile file(picturePath);
+        if (!file.open(QIODevice::ReadOnly))
+            return { }; // a file that cannot be read is not a cover (the spec is silent here)
+        cover.data = file.readAll();
+    }
+    return cover;
+}
+
+}
+
+// CV-FIND: the sources in the order given; the first that has a cover answers.
+Cover findCover(const QString &musicFile, const CoverOptions &options)
+{
+    for (const Cover::Source source : options.order) {
+        Cover found;
+        if (source == Cover::Source::Embedded)
+            found = embeddedCover(musicFile, options.data);
+        else if (source == Cover::Source::File)
+            found = fileCover(musicFile, options.data);
+        if (found.source != Cover::Source::None)
+            return found;
+    }
     return { };
 }
 
