@@ -27,6 +27,23 @@ int failed(const QString &path, const QString &reason)
     return 3;
 }
 
+// SI-CLI-TARGET: a --to that is there and is not a settings file is never written
+// over. Returns why it is refused, or an empty string when it may be written. Only
+// reads: nothing is written here and no folder is made.
+QString targetRefusal(const QString &ini)
+{
+    const QFileInfo info(ini);
+    if (!info.exists())
+        return QString();
+    if (info.isDir())
+        return QStringLiteral("it is a folder");
+    QSettings probe(ini, QSettings::IniFormat);
+    probe.allKeys();
+    if (probe.status() != QSettings::NoError)
+        return QStringLiteral("it cannot be read as an INI settings file");
+    return QString();
+}
+
 // SI-CLI: linuxbeectl settings import. Prints what would be carried over, line by
 // line; with --apply, writes the imported lines to the INI file given with --to.
 int runSettings(const QStringList &arguments)
@@ -86,6 +103,10 @@ int runSettings(const QStringList &arguments)
         const QString targetPath = targetInfo.exists() ? targetInfo.canonicalFilePath() : QString();
         if (!targetPath.isEmpty() && targetPath == source)
             return failed(ini, QStringLiteral("this is the file being imported"));
+        // SI-CLI-TARGET: refused before a folder is made or anything is written.
+        const QString refusal = targetRefusal(ini);
+        if (!refusal.isEmpty())
+            return failed(ini, refusal);
         QDir().mkpath(QFileInfo(ini).absolutePath());
         QSettings target(ini, QSettings::IniFormat);
         written = linuxbee::applySettingsImport(plan, target);
