@@ -51,19 +51,29 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
         [this](const QStringList &paths, int index) { d->queue->playNow(paths, index); });
 
     // PS-NODE: a playlist the navigator reports activated is chosen first if it is
-    // not on show, then played whole, from its first track, in its own order. Any
-    // other node, or a playlist with no track the library knows, plays nothing.
+    // not on show, then played whole, from its first track, in its own order. An
+    // auto-playlist is chosen the same way, and the queue plays the tracks the list
+    // shows, in the order shown, from the first. Any other node, or a playlist with
+    // no track the library knows, or an auto-playlist that shows nothing, plays
+    // nothing.
     connect(d->libraryShell->navigator(), &NavigatorPanel::nodeActivated, this,
         [this](const QString &nodeId) {
+            const QString automatic = QStringLiteral("auto:");
             const QString prefix = QStringLiteral("playlist:");
-            if (!nodeId.startsWith(prefix) || nodeId.size() <= prefix.size())
+            const bool isAuto = nodeId.startsWith(automatic) && nodeId.size() > automatic.size();
+            if (!isAuto && (!nodeId.startsWith(prefix) || nodeId.size() <= prefix.size()))
                 return;
             NavigatorPanel *navigator = d->libraryShell->navigator();
             if (navigator->currentNode() != nodeId && !navigator->selectNode(nodeId))
                 return;
             QStringList paths;
-            for (const LibraryTrack &track : d->libraryShell->nodeTracks())
-                paths.append(track.path);
+            if (isAuto) {
+                // An auto-playlist has no order of its own: what the list shows, in its order.
+                paths = d->libraryShell->shownPaths();
+            } else {
+                for (const LibraryTrack &track : d->libraryShell->nodeTracks())
+                    paths.append(track.path);
+            }
             if (!paths.isEmpty())
                 d->queue->playNow(paths, 0);
         });

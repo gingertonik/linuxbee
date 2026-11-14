@@ -50,8 +50,19 @@ it; navigator.md) and the node is a playlist (`playlist:` and an id):
 
 That is the playlist's own order, whatever the list is sorted by, and
 all of it, whatever the search box holds. A playlist with no track the
-library knows plays nothing and leaves the queue alone. Every other node
-(a library section, Playing Tracks) plays nothing when activated.
+library knows plays nothing and leaves the queue alone.
+
+When the node is an auto-playlist (`auto:` and a name): it is chosen
+first in the same way, and the queue then plays the tracks the list
+shows, in the order shown, from the first (`PlayQueue::playNow` with
+`LibraryShell::shownPaths()` and index 0). An auto-playlist has no order
+of its own, so the order is the list's sort, and what the search box or
+a narrowing hides is not played: what is seen is what is played, as for
+a double-click on a track. One that shows nothing plays nothing and
+leaves the queue alone.
+
+Every other node (a library section, Playing Tracks) plays nothing when
+activated.
 
 MusicBee plays a playlist on a double-click (the owner, from memory,
 2026-11-14).
