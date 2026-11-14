@@ -40,6 +40,17 @@ QString playlistOf(const QString &nodeId)
     return nodeId.startsWith(kPlaylistPrefix) ? nodeId.mid(kPlaylistPrefix.size()) : QString();
 }
 
+namespace {
+
+// SH-NODE: a playlist and `playing` are shown in their own order; every other
+// node is sorted by the list's keys.
+bool shownInOwnOrder(const QString &nodeId)
+{
+    return nodeId.startsWith(kPlaylistPrefix) || nodeId == kPlayingNode;
+}
+
+}
+
 LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library *library,
     PlaylistStore *playlists, QSettings *settings, ShellHooks hooks, QObject *parent)
     : QObject(parent)
@@ -176,6 +187,10 @@ QList<LibraryTrack> LibraryShell::nodeTracks() const
 
 void LibraryShell::Private::showKept()
 {
+    // SH-NODE: the order is switched before the tracks are handed over. Every
+    // path that shows the kept tracks (a node change, a narrowing, a source's
+    // answer, the library or a playlist changing) ends here.
+    model->setGivenOrder(shownInOwnOrder(node));
     if (!narrowing) {
         model->setTracks(kept);
         return;
@@ -396,6 +411,10 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
                           [&gone](const LibraryTrack &t) { return gone.contains(t.id); }),
             d->kept.end());
     }
+    // SH-NODE: the order is set before tracks are handed over here too. On a
+    // section it is already off from the last showKept(), so this changes
+    // nothing and the selection is left alone.
+    d->model->setGivenOrder(shownInOwnOrder(d->node));
     if (!intoView.isEmpty())
         d->model->upsertTracks(intoView);
     if (!outOfView.isEmpty())
