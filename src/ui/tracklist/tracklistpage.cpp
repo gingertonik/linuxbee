@@ -42,13 +42,22 @@ struct TrackListPage::Private {
     void applySelection(const QSet<qint64> &ids)
     {
         quiet = true;
-        QItemSelectionModel *selection = view->selectionModel();
-        selection->clearSelection();
-        for (int row = 0; row < model->rowCount(); ++row) {
-            if (ids.contains(model->trackId(row)))
-                selection->select(
-                    model->index(row, 0), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+        // One selection of row ranges, handed over in one call: a call per
+        // row costs time in proportion to the rows already selected.
+        QItemSelection selection;
+        const int rows = model->rowCount();
+        int first = -1;
+        for (int row = 0; row <= rows; ++row) {
+            const bool wanted = row < rows && ids.contains(model->trackId(row));
+            if (wanted && first < 0)
+                first = row;
+            if (!wanted && first >= 0) {
+                selection.select(model->index(first, 0), model->index(row - 1, 0));
+                first = -1;
+            }
         }
+        view->selectionModel()->select(
+            selection, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
         quiet = false;
     }
 };

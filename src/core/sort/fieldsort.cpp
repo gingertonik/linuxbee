@@ -49,8 +49,9 @@ Parsed parseDuration(const QString &text)
         if (minutes < 60 && seconds < 60) {
             result.has = true;
             result.value = match.captured(1).toDouble() * 3600.0 + minutes * 60.0 + seconds;
+            return result;
         }
-        return result;
+        return parseNumberPrefix(trimmed);
     }
     match = twoPart.match(trimmed);
     if (match.hasMatch()) {
