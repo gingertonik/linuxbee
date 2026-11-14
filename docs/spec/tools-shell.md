@@ -64,6 +64,12 @@ outcome whose source still exists was a copy and changes nothing in the
 library. The message is `Organised: D done, S skipped, F failed`, the
 three numbers of the report.
 
+When the library holds another track at the target of such a move, that
+track is removed first (`Library::remove`): its file is no longer
+there, whether the move replaced it (O-REPLACED) or it had gone
+before. The moved track then takes the target as above, keeping its id
+and statistics. The statistics of the track removed are lost with it.
+
 ## TS-CONVERT
 
 The converter is given the selected paths and the settings. When it
