@@ -1,0 +1,3 @@
+5f4a7f67442176271d107d6010bd07fec266a4517bd945337c531a8acd3d9297  tests/locked/tst_ui_playbackshell.cpp
+c06f6ee8b5449d0457b82dc26a06444df56f033f97ee0e7503e25ced45189289  tests/locked/cli_playback.sh
+f0ca5cdf7763e625eec4a50542bd835d0bb0640bc1c32045e9779059269027c0  docs/spec/playback-shell.md
