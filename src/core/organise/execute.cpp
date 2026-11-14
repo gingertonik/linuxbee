@@ -34,8 +34,10 @@ QString skipMessage(PlannedMove::Status status, const QStringList &missingFields
     return { };
 }
 
-// A name in the target's folder that no file has yet, for the file being replaced.
-QString asideName(const QString &target)
+// A folder beside the target that no folder has yet, where the file being
+// replaced waits while the newcomer goes in. It is named so that nothing shows
+// it to the user: see recordTargetPath.
+QString waitingFolder(const QString &target)
 {
     const QFileInfo info(target);
     for (int n = 1; n <= 9999; ++n) {
@@ -47,10 +49,10 @@ QString asideName(const QString &target)
     return { };
 }
 
-// Sends a file to the desktop's trash. QFile::moveToTrash fails while the trash
-// folders are missing, as on a fresh account, so they are made first, the way
-// a file manager makes them.
-bool sendToTrash(const QString &path)
+// Sends a file to the desktop's trash, and says where it went. QFile::moveToTrash fails while the
+// trash folders are missing, as on a fresh account, so they are made first, the way a file manager
+// makes them.
+bool sendToTrash(const QString &path, QString *pathInTrash)
 {
     const QString dataHome = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     if (dataHome.isEmpty())
@@ -60,7 +62,27 @@ bool sendToTrash(const QString &path)
         || !QDir().mkpath(trash + QStringLiteral("/info"))) {
         return false;
     }
-    return QFile::moveToTrash(path);
+    return QFile::moveToTrash(path, pathInTrash);
+}
+
+// O-REPLACED: the trash record of a file sent from the waiting folder names
+// that folder as the place it came from. Rewrites its Path to the target's
+// folder, which is the waiting folder without its name. False when the record
+// cannot be rewritten.
+bool recordTargetPath(const QString &inTrash, const QString &waitingName)
+{
+    const QFileInfo trashed(inTrash);
+    const QString record
+        = trashed.dir().filePath(QStringLiteral("../info/%1.trashinfo").arg(trashed.fileName()));
+    QFile file(record);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    QByteArray text = file.readAll();
+    file.close();
+    text.replace(QByteArray("/") + waitingName.toUtf8() + QByteArray("/"), QByteArray("/"));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return false;
+    return file.write(text) == text.size();
 }
 
 MoveOutcome failedWith(MoveOutcome outcome, const QString &message)
@@ -89,30 +111,59 @@ MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options)
     if (!QDir().mkpath(QFileInfo(move.target).absolutePath()))
         return failedWith(outcome, QStringLiteral("could not create the folder"));
 
-    // The file being replaced is put aside, and dealt with only once the
-    // newcomer is in place.
+    // The file being replaced waits in a folder of its own, beside the target,
+    // until the newcomer is in place. Only then is it trashed or deleted, and
+    // the waiting folder goes with it.
     const bool moving = options.mode == OrganiseOptions::Mode::Move;
+    QString waiting;
     QString aside;
     if (targetThere) {
-        aside = asideName(move.target);
-        if (aside.isEmpty() || !QFile::rename(move.target, aside))
+        waiting = waitingFolder(move.target);
+        if (waiting.isEmpty() || !QDir().mkdir(waiting))
             return failedWith(
                 outcome, QStringLiteral("could not put the file being replaced aside"));
+        aside = waiting + QLatin1Char('/') + QFileInfo(move.target).fileName();
+        if (!QFile::rename(move.target, aside)) {
+            QDir().rmdir(waiting);
+            return failedWith(
+                outcome, QStringLiteral("could not put the file being replaced aside"));
+        }
     }
 
     QString error = organise::transferFile(move.source, move.target, moving);
     if (!error.isEmpty()) {
         if (!aside.isEmpty() && !QFile::rename(aside, move.target))
             error += QStringLiteral("; the old file is at %1").arg(aside);
+        else if (!waiting.isEmpty())
+            QDir().rmdir(waiting);
         return failedWith(outcome, error);
     }
 
     if (!aside.isEmpty()) {
-        const bool disposed = options.replaced == OrganiseOptions::Replaced::Delete
-            ? QFile::remove(aside)
-            : sendToTrash(aside);
-        if (!disposed)
-            outcome.message = QStringLiteral("replaced; the old file is still at %1").arg(aside);
+        outcome.replaced = true;
+        if (options.replaced == OrganiseOptions::Replaced::Delete) {
+            if (QFile::remove(aside)) {
+                QDir().rmdir(waiting);
+            } else {
+                outcome.replacedNow = aside;
+                outcome.message
+                    = QStringLiteral("replaced; the old file is still at %1").arg(aside);
+            }
+        } else {
+            QString inTrash;
+            if (sendToTrash(aside, &inTrash)) {
+                outcome.replacedNow = inTrash;
+                QDir().rmdir(waiting);
+                if (!recordTargetPath(inTrash, QFileInfo(waiting).fileName())) {
+                    outcome.message = QStringLiteral(
+                        "replaced; the trash record does not name the target folder");
+                }
+            } else {
+                outcome.replacedNow = aside;
+                outcome.message
+                    = QStringLiteral("replaced; the old file is still at %1").arg(aside);
+            }
+        }
     }
     return outcome;
 }
@@ -154,7 +205,7 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
         if (options.moveOtherFiles)
             organise::takeAlongOtherFiles(&report);
         if (options.removeEmptyFolders)
-            organise::removeEmptiedFolders(&report);
+            organise::removeEmptiedFolders(&report, options.sourceRoots);
     }
     return report;
 }
