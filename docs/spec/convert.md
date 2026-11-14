@@ -101,8 +101,9 @@ name of the setting and a colon:
 - `bitrate:` or `quality:` outside C-RATE, for the control that is selected;
 - `bit depth:` set (not 0) on a lossy format; not 16, 24 or 32 on a lossless
   one; 32 on Alac;
-- `compression level:` set (not -1) on anything but Flac; outside 0 to 12 on
-  Flac;
+- `compression level:` -1 means "not set" and is valid on every format. A
+  level that is set is a problem on anything but Flac, and on Flac when it
+  is outside 0 to 12;
 - `sample rate:` not 0 and not one of 8000, 11025, 12000, 16000, 22050,
   24000, 32000, 44100, 48000, 88200, 96000, 176400, 192000; above 48000 on
   Mp3; on Opus anything but 8000, 12000, 16000, 24000, 48000;
@@ -175,7 +176,8 @@ A quality is printed with no trailing zeros: `0`, `6.5`.
 8. Copy the tags to the part file (C-TAGS).
 9. Move the part file onto the destination, replacing it when C-EXISTS said
    to overwrite. Call the progress function with 1. `Converted`, with
-   `outputPath` set.
+   `outputPath` set. The file is finished by then: what that last call
+   answers changes nothing.
 
 The source is never opened for writing.
 
@@ -187,7 +189,7 @@ When the destination exists already:
 |---|---|
 | Skip (default) | `Skipped`. Nothing is run or written. `outputPath` is the destination. |
 | Overwrite | The conversion runs. The old file is replaced only at step 9, so a failed or cancelled run leaves it as it was. |
-| Rename | The result goes to the first free name from `uniqueRelativePath` (`song_1.mp3`, `song_2.mp3`: P-DUP in `docs/spec/paths.md`). |
+| Rename | The result goes to the first free name from `uniqueRelativePath` (`song_1.mp3`, `song_2.mp3`: P-DUP in `docs/spec/paths.md`). Two conversions started at the same moment into one folder may both choose the same free name; then one of them ends `Failed` and no file is overwritten. Callers that run several at once give each its own destination (convert-batch.md). |
 | UpdateTags | ffmpeg is not run. C-TAGS is applied to the existing file: `TagsUpdated`. With `copyTags` false this is `Skipped`. (W-CV: "skip conversion when the output exists and sync tags only".) |
 
 ### C-TAGS
@@ -219,6 +221,11 @@ starts. While ffmpeg runs it is called for each `out_time_us=N` line ffmpeg
 prints, with N divided by the source's length in microseconds, never less
 than the previous value and never more than 0.99. After a successful job it
 is called once with exactly 1.
+
+An encoder that says nothing can still be stopped: while ffmpeg runs the
+function is asked at least about once a second. When a second has gone by
+without an `out_time_us` line, it is called again with the value it was
+last given (0 before the first line).
 
 Whenever it returns false the job stops: ffmpeg is killed and the result is
 `Cancelled`.
