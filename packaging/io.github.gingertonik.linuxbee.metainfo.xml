@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.gingertonik.linuxbee</id>
+  <name>linuxBee</name>
+  <summary>Organise, tag, convert and play a music library</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.gingertonik">
+    <name>The linuxBee contributors</name>
+  </developer>
+  <description>
+    <p>linuxBee is a music manager and player for Linux, made for people with a large, carefully tagged library. It edits tags one file or a thousand at a time, renames and moves files from their tags, and converts between formats.</p>
+    <p>It is an independent project, written from public documentation, and is not affiliated with any other music player.</p>
+  </description>
+  <launchable type="desktop-id">io.github.gingertonik.linuxbee.desktop</launchable>
+  <url type="homepage">https://github.com/gingertonik/linuxbee</url>
+  <url type="bugtracker">https://github.com/gingertonik/linuxbee/issues</url>
+  <url type="vcs-browser">https://github.com/gingertonik/linuxbee</url>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Player</category>
+  </categories>
+  <provides>
+    <binary>linuxbee</binary>
+    <binary>linuxbeectl</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

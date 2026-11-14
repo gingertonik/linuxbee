@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=linuxBee
+GenericName=Music Manager
+Comment=Organise, tag, convert and play a music library
+Exec=linuxbee %F
+Icon=io.github.gingertonik.linuxbee
+Terminal=false
+Categories=AudioVideo;Audio;Player;Qt;
+MimeType=audio/flac;audio/mpeg;audio/mp4;audio/ogg;audio/opus;audio/x-wav;audio/x-ape;audio/x-musepack;audio/x-wavpack;audio/x-ms-wma;audio/aac;audio/x-mpegurl;audio/x-scpls;
+Keywords=music;audio;tag;library;convert;flac;mp3;
+StartupWMClass=linuxbee
