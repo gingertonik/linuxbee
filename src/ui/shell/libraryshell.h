@@ -91,6 +91,8 @@ private:
     void refreshCounts(); // SH-COUNTS
     QStringList playlistIds() const;
     void onLibraryChanged(const QList<qint64> &ids); // SH-LIVE
+    void applyLibraryDelta(
+        const QList<qint64> &ids, const QString &section); // SH-LIVE on a library node
     void onPlaylistsChanged(); // SH-LIVE
     void onPlaylistTracksChanged(const QString &id); // SH-LIVE
     void showMessage(const QString &text); // SH-MESSAGE

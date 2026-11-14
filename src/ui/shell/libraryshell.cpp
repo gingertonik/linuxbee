@@ -300,8 +300,43 @@ QStringList LibraryShell::playlistIds() const
 
 void LibraryShell::onLibraryChanged(const QList<qint64> &ids)
 {
-    Q_UNUSED(ids);
-    // SH-LIVE lands in task 3.
+    refreshCounts(); // SH-COUNTS: kept up to date on every library change
+    // SH-EXTEND (task 8): a node a source answers for is read again on
+    // every change of the library.
+    for (const NodeSource &source : d->nodeSources) {
+        if (source && source(d->node, nullptr)) {
+            showNode();
+            return;
+        }
+    }
+    if (const QString section = sectionOf(d->node); !section.isEmpty()) {
+        applyLibraryDelta(ids, section);
+        return;
+    }
+    // SH-LIVE: on a playlist node or on `playing`, the node's tracks are
+    // read again.
+    showNode();
+}
+
+void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &section)
+{
+    // SH-LIVE: each track named that belongs to the section on show is added
+    // or replaced in the list; each that does not (it moved to another
+    // section) is taken out. The rest of the list, and the selection, are
+    // left alone: upsert/remove, never setTracks.
+    QList<LibraryTrack> intoView;
+    QList<qint64> outOfView;
+    for (const qint64 id : ids) {
+        const auto track = d->library->track(id);
+        if (track && track->category == section)
+            intoView.append(*track);
+        else
+            outOfView.append(id);
+    }
+    if (!intoView.isEmpty())
+        d->model->upsertTracks(intoView);
+    if (!outOfView.isEmpty())
+        d->model->removeTracks(outOfView);
 }
 
 void LibraryShell::onPlaylistsChanged()
