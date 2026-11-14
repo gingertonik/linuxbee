@@ -107,7 +107,11 @@ public:
 
     bool eventFilter(QObject *watched, QEvent *event) override
     {
-        if (event->type() == QEvent::MouseButtonPress
+        // A right double-click arrives as a press, then a double-click event. Swallowing only the
+        // press lets QAbstractItemView::mouseDoubleClickEvent make a press of its own and choose
+        // the row, so the double-click is swallowed too.
+        const QEvent::Type type = event->type();
+        if ((type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick)
             && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)
             return true;
         return QObject::eventFilter(watched, event);
