@@ -18,7 +18,7 @@ using linuxbee::cli::usageError;
 const char *const kUsage = "usage: linuxbeectl organise [--to DIR] [--template T | --keep-names]\n"
                            "                             [--copy] [--replace] [--delete-replaced]\n"
                            "                             [--allow-missing] [--other-files]\n"
-                           "                             [--keep-empty-folders] [--dry-run]\n"
+                           "                             [--remove-empty-folders] [--dry-run]\n"
                            "                             FILE_OR_FOLDER...";
 
 // The words for an entry that will be skipped. These match the skip messages
@@ -123,12 +123,12 @@ int runOrganise(const QStringList &arguments)
         QStringLiteral("Organise files whose naming tags are missing, as Unknown."));
     const QCommandLineOption otherFilesOption(QStringLiteral("other-files"),
         QStringLiteral("Also move the other files of a folder the tracks left."));
-    const QCommandLineOption keepEmptyOption(QStringLiteral("keep-empty-folders"),
-        QStringLiteral("Leave folders that the moves emptied."));
+    const QCommandLineOption removeEmptyOption(QStringLiteral("remove-empty-folders"),
+        QStringLiteral("Remove folders that the moves emptied."));
     const QCommandLineOption dryRunOption(
         QStringLiteral("dry-run"), QStringLiteral("Print the plan and change nothing."));
     parser.addOptions({ toOption, templateOption, keepNamesOption, copyOption, replaceOption,
-        deleteReplacedOption, allowMissingOption, otherFilesOption, keepEmptyOption,
+        deleteReplacedOption, allowMissingOption, otherFilesOption, removeEmptyOption,
         dryRunOption });
 
     // parse(), not process(): an unknown option is a usage mistake, which exits 2.
@@ -163,7 +163,7 @@ int runOrganise(const QStringList &arguments)
                                                           : OrganiseOptions::Replaced::MoveToTrash;
     options.pathRules.skipWhenTagsMissing = !parser.isSet(allowMissingOption);
     options.moveOtherFiles = parser.isSet(otherFilesOption);
-    options.removeEmptyFolders = !parser.isSet(keepEmptyOption);
+    options.removeEmptyFolders = parser.isSet(removeEmptyOption);
 
     // A folder stands for the music files in it, below it too. Each folder
     // named, and the folder of each file named, is a floor O-EMPTY never removes.

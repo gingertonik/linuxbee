@@ -36,8 +36,8 @@ struct OrganiseOptions {
 
     // O-OTHER: Move only. Take the remaining non-music files of a folder along.
     bool moveOtherFiles = false;
-    // O-EMPTY: Move only. Remove folders the move left empty.
-    bool removeEmptyFolders = true;
+    // O-EMPTY: Move only. Remove folders the move left empty. Off unless asked for.
+    bool removeEmptyFolders = false;
     // O-EMPTY: the folders the user named. Nothing at or above one of them is
     // ever removed. Empty: the deepest folder holding every moved track
     // stands in for them.
