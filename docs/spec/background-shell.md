@@ -76,9 +76,16 @@ it (cleaned, each folder once). It scans nothing.
 ## BG-RELOAD
 
 `reload()` is for when something else changed the settings: the monitor
-is given the stored `monitored` folders again. It scans nothing, says
-nothing, and does not act on `checkOnStartup`. (The section needs no
-reloading: BG-MONITOR.)
+is given the stored `monitored` folders again.
+
+When that leaves the monitor with a folder it did not have before the
+call, every monitored folder is checked once (`FolderMonitor::checkNow`),
+not inside `reload()` but as soon as the event loop runs. So a folder
+that is added in the preferences has its files taken in at once, as
+MusicBee does (Dillon, from memory, 2026-11-14), with the message of
+BG-MONITOR. A reload that adds no folder (the same list, a shorter one,
+another order) checks nothing and says nothing. `checkOnStartup` is not
+acted on here. (The section needs no reloading: BG-MONITOR.)
 
 ## BG-STARTUP
 
