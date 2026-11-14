@@ -7,7 +7,9 @@
 #include "tracklist/tracklistmodel.h"
 #include "tracklist/tracklistpage.h"
 
+#include <QHash>
 #include <QList>
+#include <QSet>
 #include <QSettings>
 #include <QSplitter>
 #include <QStatusBar>
@@ -169,13 +171,29 @@ void LibraryShell::setPlayingPaths(const QStringList &paths)
 
 QList<LibraryTrack> LibraryShell::nodeTracks() const
 {
-    return readNodeTracks();
+    return d->kept; // SH-EXTEND: as last read; the library is not touched
+}
+
+void LibraryShell::Private::showKept()
+{
+    if (!narrowing) {
+        model->setTracks(kept);
+        return;
+    }
+    QList<LibraryTrack> shown;
+    for (const LibraryTrack &track : kept) {
+        if (narrowing(track))
+            shown.append(track);
+    }
+    model->setTracks(shown);
 }
 
 void LibraryShell::setNarrowing(std::function<bool(const LibraryTrack &)> keep)
 {
+    // SH-EXTEND: setting or ending a narrowing reads nothing and says
+    // nothing: the node's tracks did not change.
     d->narrowing = std::move(keep);
-    showNode();
+    d->showKept();
 }
 
 void LibraryShell::setBrowser(QWidget *browser)
@@ -226,14 +244,10 @@ void LibraryShell::onNodeSelected(const QString &nodeId)
 
 void LibraryShell::showNode()
 {
-    QList<LibraryTrack> tracks = readNodeTracks();
-    if (d->narrowing) {
-        const auto keep = d->narrowing;
-        tracks.erase(std::remove_if(tracks.begin(), tracks.end(),
-                         [&keep](const LibraryTrack &t) { return !keep(t); }),
-            tracks.end());
-    }
-    d->model->setTracks(tracks);
+    // SH-EXTEND: the one place the node is read. The kept tracks are
+    // replaced, the list follows, and the change is said once.
+    d->kept = readNodeTracks();
+    d->showKept();
     emit nodeTracksChanged();
 }
 
@@ -314,15 +328,17 @@ void LibraryShell::onLibraryChanged(const QList<qint64> &ids)
     refreshCounts(); // SH-COUNTS: kept up to date on every library change
     // SH-EXTEND: a node a source answers for is read again on every change
     // of the library. Sources are asked with a real list pointer — a source
-    // that answers true has written its answer into it. The answer read
-    // here is thrown away; showNode() reads the node through every source
-    // in order, as SH-NODE and SH-EXTEND arrange.
+    // that answers true has written its answer into it. The first that
+    // does is the node's read (the same order readNodeTracks() uses), so its
+    // answer replaces the kept tracks and the node is read once, not twice.
     for (const NodeSource &source : d->nodeSources) {
         if (!source)
             continue;
         QList<LibraryTrack> answer;
         if (source(d->node, &answer)) {
-            showNode();
+            d->kept = answer;
+            d->showKept();
+            emit nodeTracksChanged();
             return;
         }
     }
@@ -347,17 +363,38 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
     // SH-EXTEND: the narrowing holds through library changes — a track that
     // arrives or is updated is listed only if `keep` accepts it as it is
     // now, and a kept track that stops being kept leaves the list.
+    // SH-EXTEND: the kept tracks follow the same ids, as the tracks are now
+    // (added, replaced in place, or taken out); the section is not read.
+    QHash<qint64, qsizetype> at;
+    for (qsizetype i = 0; i < d->kept.size(); ++i)
+        at.insert(d->kept.at(i).id, i);
+    QSet<qint64> gone;
     QList<LibraryTrack> intoView;
     QList<qint64> outOfView;
     for (const qint64 id : ids) {
         const auto track = d->library->track(id);
         const bool inSection = track && track->category == section;
+        if (inSection) {
+            if (const auto it = at.constFind(id); it != at.constEnd()) {
+                d->kept[it.value()] = *track;
+            } else {
+                d->kept.append(*track);
+                at.insert(id, d->kept.size() - 1);
+            }
+        } else if (at.contains(id)) {
+            gone.insert(id);
+        }
         const bool shownNow = d->model->rowOf(id) >= 0;
         const bool keep = !d->narrowing || (track && d->narrowing(*track));
         if (inSection && keep)
             intoView.append(*track);
         else if (shownNow)
             outOfView.append(id);
+    }
+    if (!gone.isEmpty()) {
+        d->kept.erase(std::remove_if(d->kept.begin(), d->kept.end(),
+                          [&gone](const LibraryTrack &t) { return gone.contains(t.id); }),
+            d->kept.end());
     }
     if (!intoView.isEmpty())
         d->model->upsertTracks(intoView);
