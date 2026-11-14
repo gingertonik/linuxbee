@@ -28,6 +28,7 @@ struct DesktopState {
     bool running = false; // MP-START: registered and owning the name
 
     QString trackId; // MP-METADATA: the id of the track last started; empty: none
+    QString trackIdPath; // MP-METADATA: the file trackId was issued for
     qint64 trackSerial = 0; // MP-METADATA: the N of that id, a new one for every play
 
     PlayerAdaptor *playerAdaptor = nullptr; // MP-SEEK: where the Seeked signal lives
@@ -127,6 +128,13 @@ public:
     // covers moving along, and a panel asks for Position when it wants it.
     QVariantMap announcedProperties() const;
 
+    // MP-PROPS: the properties a panel may write, reached through
+    // Properties.Set only. Not slots: an adaptor exports every slot as a method.
+    void setLoopStatus(const QString &text);
+    void setShuffle(bool on);
+    void setVolume(double volume);
+    void setRate(double rate);
+
 public slots:
     // MP-METHODS: the player's own functions, under the names the desktop uses.
     void Play();
@@ -136,12 +144,6 @@ public slots:
     void Next();
     void Previous();
     void OpenUri(const QString &uri);
-
-    // MP-PROPS: the properties a panel may write.
-    void setLoopStatus(const QString &text);
-    void setShuffle(bool on);
-    void setVolume(double volume);
-    void setRate(double rate);
 
     // MP-SEEK: both take and give positions in microseconds.
     void Seek(qlonglong offsetUs);

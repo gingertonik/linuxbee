@@ -122,6 +122,13 @@ QVariantMap metadataOf(const DesktopState &state)
 // service says nothing, because start() records the values it starts with.
 void announceChanges(DesktopState &state)
 {
+    // MP-METADATA: a starting track reports its state, position and length
+    // before Player::trackChanged gives it its id. Until then the map would
+    // pair the new file with the old id, so nothing is said yet; the
+    // trackChanged that follows announces all of it.
+    const QString path = state.player->currentPath();
+    if (!path.isEmpty() && path != state.trackIdPath)
+        return;
     const QVariantMap now = state.playerAdaptor->announcedProperties();
     if (!state.running) {
         // MP-START: a service that is not running follows quietly, so that a
@@ -167,6 +174,7 @@ MprisService::MprisService(Player *player, PlayQueue *queue, Hooks hooks, QObjec
             d->state.trackId.clear();
         else
             d->state.trackId = newTrackId(++d->state.trackSerial);
+        d->state.trackIdPath = path;
     });
 
     // MP-SEEK: a position report that jumps is a seek, and the desktop hears
@@ -251,8 +259,10 @@ bool MprisService::start(const QDBusConnection &connection, QString *error)
     d->state.running = true;
     // MP-METADATA: a track that started before the service did has to be
     // given an id of its own, the same as one that starts while it runs.
-    if (d->state.trackId.isEmpty() && !d->state.player->currentPath().isEmpty())
+    if (d->state.trackId.isEmpty() && !d->state.player->currentPath().isEmpty()) {
         d->state.trackId = newTrackId(++d->state.trackSerial);
+        d->state.trackIdPath = d->state.player->currentPath();
+    }
     // MP-CHANGED: starting announces nothing, so what the properties are
     // right now counts as already said.
     d->state.sent = d->state.playerAdaptor->announcedProperties();
