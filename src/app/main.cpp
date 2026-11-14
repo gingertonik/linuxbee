@@ -22,6 +22,7 @@
 #include "playlists/playliststore.h"
 #include "audio/devicesink.h"
 #include "playback/audioengine.h"
+#include "shell/albumviewing.h"
 #include "shell/artistbrowsing.h"
 #include "shell/autoplaylistnodes.h"
 #include "shell/backgroundshell.h"
@@ -30,6 +31,7 @@
 #include "shell/playbackshell.h"
 #include "shell/playlistediting.h"
 #include "shell/toolsshell.h"
+#include "skins/skinapplier.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
@@ -129,6 +131,10 @@ int main(int argc, char *argv[])
     linuxbee::ui::ActionRegistry registry;
     registry.load(settings);
 
+    // SK-MAIN (docs/spec/skins.md): the stored skin is applied to the application at once, made
+    // before the window, so the window is drawn in it.
+    linuxbee::ui::SkinApplier skinApplier(&application, &settings);
+
     linuxbee::ui::MainWindow window(&registry, &settings);
 
     // SH-MAIN: the choosers start in the user's music folder; `now` is UTC.
@@ -163,6 +169,10 @@ int main(int argc, char *argv[])
     // AB-MAIN: the artist browser beside the track list, over the library shell;
     // it is destroyed before the shell.
     linuxbee::ui::ArtistBrowsing artistBrowsing(&shell, &settings);
+
+    // AV-MAIN (docs/spec/album-view.md): the Album and Tracks view in the library page, over the
+    // library shell and the settings; declared after the shell, so it is destroyed before it.
+    linuxbee::ui::AlbumViewing albumViewing(&shell, &settings);
 
     // PE-MAIN: the playlist commands of the navigator's right click and File > Playlists > New
     // Playlist, with the window's own dialogs; declared after the shell, it goes before the shell.
@@ -229,6 +239,13 @@ int main(int argc, char *argv[])
             << '\n';
         // AN-MAIN: how many auto-playlists the store holds.
         out << QStringLiteral("auto-playlists=%1").arg(autoPlaylists.names().size()) << '\n';
+        // AV-MAIN: which view the library page starts on, albums or tracks.
+        out << QStringLiteral("main-view=%1").arg(albumViewing.mode()) << '\n';
+        // SK-MAIN: the skin by the name of its file, or none when there is no skin.
+        const QString skinFile = skinApplier.currentFile();
+        out << (skinFile.isEmpty() ? QStringLiteral("skin=none")
+                                   : QStringLiteral("skin=%1").arg(QFileInfo(skinFile).fileName()))
+            << '\n';
         out.flush();
         return 0;
     }

@@ -176,11 +176,6 @@ mistake: no or an unknown subcommand, no file or more than one.
 
 ## SK-MAIN
 
-(Built separately, after the parts above: it is the only part that
-touches `src/app/main.cpp`. Until then a skin can be read, shown by
-`linuxbeectl skin show` and applied by the class, but the application
-does not apply one.)
-
 `src/app/main.cpp` additionally:
 
 - creates a `SkinApplier` over the application and the settings, before

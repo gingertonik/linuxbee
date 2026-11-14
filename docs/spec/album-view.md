@@ -209,10 +209,6 @@ In mode `tracks` the view is given no tracks and nothing above happens.
 
 ## AV-MAIN
 
-(Built separately, after the classes above: it is the only part that
-touches `src/app/main.cpp`. Until then the view exists and is tested,
-but the application does not show it.)
-
 `src/app/main.cpp` additionally:
 
 - creates an `AlbumViewing` over the library shell and the settings,
