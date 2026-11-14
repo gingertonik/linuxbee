@@ -1,5 +1,6 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QDir>
 #include <QFileInfo>
 #include <QTextStream>
 
@@ -67,6 +68,17 @@ void printPlanned(QTextStream &out, const PlannedMove &move, OrganiseOptions::Mo
                    move.replaces ? QStringLiteral(" (replaces)") : QString());
 }
 
+// O-REPLACED: what became of the file a new one replaced. A file still in the
+// waiting folder is named where it was left; one in the trash sits in a `files` folder.
+QString replacedWords(const linuxbee::MoveOutcome &outcome)
+{
+    if (outcome.replacedNow.isEmpty())
+        return QStringLiteral("the old file was deleted");
+    if (QFileInfo(outcome.replacedNow).dir().dirName() == QLatin1String("files"))
+        return QStringLiteral("the old file is in the trash: %1").arg(outcome.replacedNow);
+    return QStringLiteral("the old file is still at %1").arg(outcome.replacedNow);
+}
+
 // O-CLI: one line per outcome. Skips go to standard output, failures to standard error.
 void printOutcome(QTextStream &out, QTextStream &err, const linuxbee::MoveOutcome &outcome,
     OrganiseOptions::Mode mode)
@@ -76,6 +88,9 @@ void printOutcome(QTextStream &out, QTextStream &err, const linuxbee::MoveOutcom
         const QString verb = mode == OrganiseOptions::Mode::Copy ? QStringLiteral("copied")
                                                                  : QStringLiteral("moved");
         out << QStringLiteral("%1: %2 -> %3\n").arg(verb, outcome.source, outcome.target);
+        if (outcome.replaced)
+            out << QStringLiteral("replaced: %1 (%2)\n")
+                       .arg(outcome.target, replacedWords(outcome));
         if (!outcome.message.isEmpty())
             err << QStringLiteral("warning: %1: %2\n").arg(outcome.source, outcome.message);
         break;
