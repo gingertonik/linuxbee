@@ -52,6 +52,7 @@ struct LibraryShell::Private {
 
     QString node; // the chosen node id (SH-NODE)
     QList<LibraryTrack> kept; // SH-EXTEND: the node's tracks as last read, before narrowing
+    void switchOrder(); // SH-NODE: the model's given order for `node`; see its callers
     void showKept(); // the list shows those of `kept` that `narrowing` accepts; reads nothing
     QStringList playingPaths; // SH-NODE: what `playing` shows
     std::function<bool(const LibraryTrack &)> narrowing; // SH-EXTEND
