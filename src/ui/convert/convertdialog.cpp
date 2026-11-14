@@ -200,8 +200,15 @@ ConvertBatch *ConvertDialog::batch() const
     return d->batch;
 }
 
+// CD-RUN: Close, Escape and the window's close button all come through here.
+// During a run they ask the batch to stop and the dialog stays open; the
+// run's end decides whether it closes.
 void ConvertDialog::reject()
 {
+    if (d->batch->isRunning()) {
+        d->batch->cancel();
+        return;
+    }
     QDialog::reject();
 }
 
