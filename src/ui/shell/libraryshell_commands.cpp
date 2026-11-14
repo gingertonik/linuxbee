@@ -28,10 +28,15 @@ void LibraryShell::registerShellCommands()
         [this] { sendToSection(QStringLiteral("Music")); });
     d->actions->implement(QStringLiteral("track.sendToAudiobooks"), this,
         [this] { sendToSection(QStringLiteral("Audiobooks")); });
+    // SH-COMMANDS: view.refresh — counts, playlists and the node's tracks
+    // are read again (refreshAll); the search text is the user's and stays,
+    // because showNode() never touches the box. Task 7's gate is
+    // `searchAndFind stored`.
     d->actions->implement(QStringLiteral("view.refresh"), this, [this] { refreshAll(); });
     // T-PAGE: the track list page implements edit.find itself (focus with
     // the text selected); the registry keeps the first implementation, and
-    // it is freed with the page, which the window owns.
+    // it is freed with the page, which the window owns. SH-COMMANDS:
+    // edit.find puts the keyboard focus in the list's search box.
     d->actions->implement(QStringLiteral("edit.find"), this, [this] {
         // The fallback, used only when no page answered the command first.
         if (QWidget *box = d->page->findChild<QLineEdit *>(QStringLiteral("searchBox")))
