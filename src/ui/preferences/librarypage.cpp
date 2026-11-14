@@ -3,12 +3,15 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QFileDialog>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
 #include <QPushButton>
 #include <QSettings>
 #include <QVBoxLayout>
+
+#include <utility>
 
 #include "library/library.h"
 
@@ -54,6 +57,7 @@ bool storedCheckOnStartup(const QSettings *settings)
 
 struct LibraryPage::Private {
     QSettings *settings = nullptr;
+    Hooks hooks;
     QListWidget *monitoredList = nullptr;
     QPushButton *addFolderButton = nullptr;
     QPushButton *removeFolderButton = nullptr;
@@ -65,8 +69,8 @@ LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
     : PreferencesPage(parent)
     , d(new Private)
 {
-    Q_UNUSED(hooks);
     d->settings = settings;
+    d->hooks = std::move(hooks);
 
     auto *layout = new QVBoxLayout(this);
 
@@ -98,6 +102,20 @@ LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
     d->checkOnStartupBox = new QCheckBox(tr("Check for new files on start-up"), this);
     d->checkOnStartupBox->setObjectName(QStringLiteral("checkOnStartupBox"));
     layout->addWidget(d->checkOnStartupBox);
+
+    // LP-REMOVE: the remove button is enabled only while a row is the current one.
+    connect(d->monitoredList, &QListWidget::currentRowChanged, this,
+        [this](int row) { d->removeFolderButton->setEnabled(row >= 0); });
+    // LP-ADD: the chooser answers a folder, or nothing when the user gave up.
+    connect(d->addFolderButton, &QPushButton::clicked, this, [this] {
+        const QString folder = d->hooks.chooseFolder
+            ? d->hooks.chooseFolder(this)
+            : QFileDialog::getExistingDirectory(this, tr("Monitored Folder"));
+        if (!folder.isEmpty())
+            addFolder(folder);
+    });
+    connect(d->removeFolderButton, &QPushButton::clicked, this,
+        [this] { delete d->monitoredList->takeItem(d->monitoredList->currentRow()); });
 
     load();
 }
@@ -140,13 +158,33 @@ QStringList LibraryPage::folders() const
 
 bool LibraryPage::addFolder(const QString &folder)
 {
-    Q_UNUSED(folder);
-    return false;
+    // LP-ADD: empty or not absolute is refused; listed already selects that row.
+    if (folder.isEmpty() || !QDir::isAbsolutePath(folder))
+        return false;
+    const QString tidy = QDir::cleanPath(folder);
+    for (int row = 0; row < d->monitoredList->count(); ++row) {
+        if (d->monitoredList->item(row)->text() == tidy) {
+            d->monitoredList->setCurrentRow(row);
+            return false;
+        }
+    }
+    d->monitoredList->addItem(tidy);
+    d->monitoredList->setCurrentRow(d->monitoredList->count() - 1);
+    return true;
 }
 
 bool LibraryPage::removeFolder(const QString &folder)
 {
-    Q_UNUSED(folder);
+    // LP-REMOVE: compared tidied; nothing is listed under an empty name.
+    if (folder.isEmpty())
+        return false;
+    const QString tidy = QDir::cleanPath(folder);
+    for (int row = 0; row < d->monitoredList->count(); ++row) {
+        if (d->monitoredList->item(row)->text() == tidy) {
+            delete d->monitoredList->takeItem(row);
+            return true;
+        }
+    }
     return false;
 }
 
