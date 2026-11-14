@@ -3,10 +3,12 @@
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
 #include "shell/libraryshell.h"
+#include "organise/organisedialog.h"
 #include "tageditor/tageditordialog.h"
 
 #include <QCoreApplication>
 #include <QDialog>
+#include <QFile>
 #include <QStatusBar>
 
 namespace linuxbee::ui {
@@ -80,11 +82,33 @@ struct ToolsShell::Private {
         showMessage(text);
     }
 
+    // TS-ORGANISE: the organiser is given the selected paths and the settings.
     void organise()
     {
         if (selectedIds().isEmpty())
             return;
-        // TS-ORGANISE: the organiser is opened here in task 4.
+        OrganiseDialog dialog(libraryShell->selectedPaths(), settings, window);
+        QObject::connect(&dialog, &OrganiseDialog::organised, owner,
+            [this](const OrganiseReport &report) { organisedFiles(report); });
+        presenter(&dialog);
+    }
+
+    // TS-ORGANISE: a file that was moved keeps its library track, now at the new place.
+    // A copy leaves the library as it was: its source still exists.
+    void organisedFiles(const OrganiseReport &report)
+    {
+        for (const MoveOutcome &outcome : report.outcomes) {
+            if (outcome.status != MoveOutcome::Status::Done || outcome.target == outcome.source
+                || QFile::exists(outcome.source))
+                continue;
+            if (const std::optional<LibraryTrack> track = library->trackByPath(outcome.source))
+                library->setPath(track->id, outcome.target);
+        }
+        showMessage(QCoreApplication::translate(
+            "linuxbee::ui::ToolsShell", "Organised: %1 done, %2 skipped, %3 failed")
+                .arg(report.done)
+                .arg(report.skipped)
+                .arg(report.failed));
     }
 
     void convert()
