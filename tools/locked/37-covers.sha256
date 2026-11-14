@@ -1,0 +1,4 @@
+047baf2f974fc187811cd12826bbc15ba8bc701599afc78106a1621c84e366fb  docs/spec/covers.md
+3d5854c1fa39269d99b5313f23d3e26795747b54cd52b13c845ce1ce69bfdacc  src/core/covers/cover.h
+2ad003497acef62f7c32497a9221343563b535f5e950ad353952378938b8670c  tests/locked/cli_cover.sh
+4b3bbfe67ffa448a2c7a10f7b49e1b2d96af4e922e8bae5824fa37ec8c3d6bb6  tests/locked/tst_covers.cpp
