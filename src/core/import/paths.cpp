@@ -8,21 +8,46 @@ namespace linuxbee {
 
 namespace {
 
-// QDir::cleanPath turns a leading "//" into "/", so a network path gets its
-// second slash back.
-QString cleanKeepingNetwork(const QString &path)
-{
-    const bool network = path.startsWith(QStringLiteral("//"));
-    QString out = QDir::cleanPath(path);
-    if (network && !out.startsWith(QStringLiteral("//")))
-        out.prepend(QLatin1Char('/'));
-    return out;
-}
-
 // "C:" or "C:/": a drive letter and a colon at the start.
 bool hasDriveLetter(const QString &path)
 {
     return path.size() >= 2 && path.at(1) == QLatin1Char(':') && path.at(0).isLetter();
+}
+
+// Cleans a path: no ".", "..", doubled or trailing slashes. A ".." at a root
+// stays at that root ("/", "//" of a network path, "C:/"), so a rooted path
+// never climbs above it and never loses its drive letter. QDir::cleanPath
+// alone keeps "/.." and treats "C:" as an ordinary folder.
+QString cleanKeepingNetwork(const QString &path)
+{
+    QString root;
+    QString rest = path;
+    if (path.startsWith(QStringLiteral("//"))) {
+        root = QStringLiteral("//");
+        rest = path.mid(2);
+    } else if (hasDriveLetter(path) && (path.size() == 2 || path.at(2) == QLatin1Char('/'))) {
+        root = path.left(2) + QLatin1Char('/');
+        rest = path.mid(3);
+    } else if (path.startsWith(QLatin1Char('/'))) {
+        root = QStringLiteral("/");
+        rest = path.mid(1);
+    } else {
+        return QDir::cleanPath(path);
+    }
+    QStringList parts;
+    for (const QString &part : rest.split(QLatin1Char('/'), Qt::SkipEmptyParts)) {
+        if (part == QLatin1String("."))
+            continue;
+        if (part == QLatin1String("..")) {
+            if (!parts.isEmpty())
+                parts.removeLast();
+            continue;
+        }
+        parts.append(part);
+    }
+    if (parts.isEmpty() && root.size() == 3)
+        return root.left(2); // "C:/.." is "C:", as QDir::cleanPath gave
+    return root + parts.join(QLatin1Char('/'));
 }
 
 // Removes trailing slashes, but keeps "/" and a drive root such as "C:/".
