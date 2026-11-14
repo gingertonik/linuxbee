@@ -64,6 +64,19 @@ QStringList cleanedParts(const QString &name)
     return parts;
 }
 
+// V-AUTO: trimmed; an empty name, and one that repeats an earlier one, is dropped. A slash is
+// part of the name: auto-playlists have no folders.
+QStringList cleanedAutoNames(const QStringList &names)
+{
+    QStringList out;
+    for (const QString &name : names) {
+        const QString trimmed = name.trimmed();
+        if (!trimmed.isEmpty() && !out.contains(trimmed))
+            out.append(trimmed);
+    }
+    return out;
+}
+
 // Exact match on the id. An empty id matches nothing, so headings are never found.
 QTreeWidgetItem *findNode(QTreeWidget *tree, const QString &nodeId)
 {
@@ -125,7 +138,59 @@ struct NavigatorPanel::Private {
     QTreeWidgetItem *playlistsRoot = nullptr;
     QMap<QString, int> counts;
     QString current;
-    bool rebuilding = false; // set while setPlaylists rebuilds rows; the tree's signals stay quiet
+    bool rebuilding
+        = false; // set while the rows under Playlists are rebuilt; the signals stay quiet
+    QStringList playlists; // V-PLAYLISTS: as last given
+    QStringList autos; // V-AUTO: cleaned, as last given
+
+    // Rebuilds every row under Playlists: the auto-playlists first, then the playlists and their
+    // folders. Returns false when the chosen node is gone; Music is then chosen in its place, and
+    // the caller says so.
+    bool rebuildPlaylistRows()
+    {
+        rebuilding = true;
+        qDeleteAll(playlistsRoot->takeChildren());
+        for (const QString &name : autos)
+            addRow(tree, playlistsRoot, name, QStringLiteral("auto:") + name);
+
+        QStringList seenPaths;
+        QMap<QString, QTreeWidgetItem *> folders; // folder path ("Rock/Live") to its row
+        for (const QString &name : playlists) {
+            const QStringList parts = cleanedParts(name);
+            if (parts.isEmpty())
+                continue;
+            const QString path = parts.join(QLatin1Char('/'));
+            if (seenPaths.contains(path))
+                continue;
+            seenPaths.append(path);
+
+            QTreeWidgetItem *parent = playlistsRoot;
+            QString folderPath;
+            for (int i = 0; i < parts.size() - 1; ++i) {
+                folderPath = folderPath.isEmpty() ? parts.at(i)
+                                                  : folderPath + QLatin1Char('/') + parts.at(i);
+                QTreeWidgetItem *folder = folders.value(folderPath, nullptr);
+                if (!folder) {
+                    folder = addRow(tree, parent, parts.at(i), QString());
+                    folder->setExpanded(true);
+                    folders.insert(folderPath, folder);
+                }
+                parent = folder;
+            }
+            addRow(tree, parent, parts.last(), QStringLiteral("playlist:") + path);
+        }
+
+        // V-PLAYLISTS, V-AUTO: the choice stays when its node still exists, and nothing is said.
+        QTreeWidgetItem *chosen = findNode(tree, current);
+        const bool kept = chosen != nullptr;
+        if (!kept) {
+            current = QStringLiteral("library:Music");
+            chosen = findNode(tree, current);
+        }
+        tree->setCurrentItem(chosen);
+        rebuilding = false;
+        return kept;
+    }
 };
 
 NavigatorPanel::NavigatorPanel(QWidget *parent)
@@ -205,50 +270,23 @@ void NavigatorPanel::setLibraryCounts(const QMap<QString, int> &counts)
     }
 }
 
+// Replaces the whole list. The auto-playlist rows stay first, whatever the playlists are.
 void NavigatorPanel::setPlaylists(const QStringList &names)
 {
-    // Replace the whole list: drop the old rows under Playlists, then build the new ones.
-    d->rebuilding = true;
-    qDeleteAll(d->playlistsRoot->takeChildren());
+    d->playlists = names;
+    // V-PLAYLISTS: when the chosen playlist is gone, Music becomes the choice, and that is said
+    // once.
+    if (!d->rebuildPlaylistRows())
+        emit nodeSelected(d->current);
+}
 
-    QStringList seenPaths;
-    QMap<QString, QTreeWidgetItem *> folders; // folder path ("Rock/Live") to its row
-    for (const QString &name : names) {
-        const QStringList parts = cleanedParts(name);
-        if (parts.isEmpty())
-            continue;
-        const QString path = parts.join(QLatin1Char('/'));
-        if (seenPaths.contains(path))
-            continue;
-        seenPaths.append(path);
-
-        QTreeWidgetItem *parent = d->playlistsRoot;
-        QString folderPath;
-        for (int i = 0; i < parts.size() - 1; ++i) {
-            folderPath
-                = folderPath.isEmpty() ? parts.at(i) : folderPath + QLatin1Char('/') + parts.at(i);
-            QTreeWidgetItem *folder = folders.value(folderPath, nullptr);
-            if (!folder) {
-                folder = addRow(d->tree, parent, parts.at(i), QString());
-                folder->setExpanded(true);
-                folders.insert(folderPath, folder);
-            }
-            parent = folder;
-        }
-        addRow(d->tree, parent, parts.last(), QStringLiteral("playlist:") + path);
-    }
-
-    // V-PLAYLISTS: the choice stays when its node still exists, and nothing is said.
-    // When the chosen playlist is gone, Music becomes the choice, and that is said once.
-    QTreeWidgetItem *chosen = findNode(d->tree, d->current);
-    const bool kept = chosen != nullptr;
-    if (!kept) {
-        d->current = QStringLiteral("library:Music");
-        chosen = findNode(d->tree, d->current);
-    }
-    d->tree->setCurrentItem(chosen);
-    d->rebuilding = false;
-    if (!kept)
+// V-AUTO: replaces the auto-playlist rows; the playlists are left alone.
+void NavigatorPanel::setAutoPlaylists(const QStringList &names)
+{
+    d->autos = cleanedAutoNames(names);
+    // V-AUTO: when the chosen auto-playlist is gone, Music becomes the choice, and that is said
+    // once.
+    if (!d->rebuildPlaylistRows())
         emit nodeSelected(d->current);
 }
 
