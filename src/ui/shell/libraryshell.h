@@ -78,6 +78,28 @@ signals:
 private:
     struct Private;
     Private *d;
+
+    // Private helpers, defined in libraryshell.cpp (the state lives in
+    // libraryshell_p.h; the commands are registered in
+    // libraryshell_commands.cpp).
+    void registerShellCommands();
+    void onNodeSelected(const QString &nodeId);
+    void showNode(); // list the chosen node's tracks (SH-NODE, SH-EXTEND)
+    QList<LibraryTrack> readNodeTracks() const; // sources first, then SH-NODE
+    QList<LibraryTrack> playlistTracks(const QString &id) const;
+    QList<LibraryTrack> playingTracks() const;
+    void refreshCounts(); // SH-COUNTS
+    QStringList playlistIds() const;
+    void onLibraryChanged(const QList<qint64> &ids); // SH-LIVE
+    void onPlaylistsChanged(); // SH-LIVE
+    void onPlaylistTracksChanged(const QString &id); // SH-LIVE
+    void showMessage(const QString &text); // SH-MESSAGE
+    void scanFolders(); // SH-COMMANDS
+    void addFiles(); // SH-COMMANDS
+    void removeSelected(); // SH-COMMANDS
+    void sendToSection(const QString &section); // SH-COMMANDS
+    QString targetSection() const; // the library section on show, else Music
+    void refreshAll(); // view.refresh: counts, playlists, the node
 };
 
 }
