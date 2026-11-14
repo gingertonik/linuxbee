@@ -139,6 +139,17 @@ int runLibrary(const QStringList &arguments)
                    .arg(report.found.size())
                    .arg(report.notAudio.size())
             << '\n';
+        // L-CLI, L-NAMES: the names passed over, after that line, on standard
+        // output; the exit status does not change.
+        if (report.unreadableNames > 0) {
+            out << QStringLiteral("passed over %1 %2 not valid UTF-8, in:")
+                       .arg(report.unreadableNames)
+                       .arg(report.unreadableNames == 1 ? QStringLiteral("name that is")
+                                                        : QStringLiteral("names that are"))
+                << '\n';
+            for (const QString &folder : report.unreadableIn)
+                out << QStringLiteral("  ") << folder << '\n';
+        }
         return 0;
     }
     // L-CLI: one line per track, in ascending order of path, which is the order
