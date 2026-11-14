@@ -1,5 +1,6 @@
 #pragma once
 #include <QMap>
+#include <QPoint>
 #include <QString>
 #include <QStringList>
 #include <QWidget>
@@ -26,9 +27,19 @@ public:
     bool selectNode(const QString &nodeId); // false: no such node (the choice stays)
     QStringList nodes() const; // every node that can be chosen, top to bottom
 
+    // V-MENU: the row a menu would be about, for a point inside the tree
+    // (in the tree's viewport coordinates). A node id, or "folder:" and a
+    // playlist folder's path, or "playlists" for the Playlists heading;
+    // empty anywhere else.
+    QString rowAt(const QPoint &viewportPos) const;
+    // The same ids, for every row that has one, top to bottom.
+    QStringList rows() const;
+
 signals:
     void nodeSelected(const QString &nodeId); // the choice changed, by hand or by selectNode
     void nodeActivated(const QString &nodeId); // double-click or Return on a node
+    // V-MENU: a context menu was asked for on a row; `globalPos` is where to show it.
+    void menuRequested(const QString &rowId, const QPoint &globalPos);
 
 private:
     struct Private;

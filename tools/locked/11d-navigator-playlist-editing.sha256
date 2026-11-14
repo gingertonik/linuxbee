@@ -1,0 +1,3 @@
+1dc5cab1dae7e90ad0cdd9011c7491045cda9a2ccf0ce8c9e9b7f0984e0fd776  tests/locked/tst_ui_playlistediting.cpp
+05fdc701692a5e48f241248c52846330f16eae7d9689caab2d648d3bf90b80ce  tests/locked/cli_playlistediting.sh
+2087bff2fbb951ca33d61519cf3aa4b1842f30b6510dad44a4b8de9059f208aa  docs/spec/playlist-editing.md
