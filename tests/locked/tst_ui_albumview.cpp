@@ -655,6 +655,7 @@ void AlbumViewTest::selectionAndPlay()
     QCOMPARE(play.count(), 2);
     // Narrowed by the search, "everything shown" is less.
     r.shell->trackList()->setSearchText(s(u"adele"));
+    view = viewing.view(); // AV-FILL: asking brings the view up to date
     QVERIFY(!view->groups().isEmpty());
     const qint64 first = view->groups().at(0).trackIds.value(0);
     int count = 0;

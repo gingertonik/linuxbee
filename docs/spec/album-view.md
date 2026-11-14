@@ -78,7 +78,7 @@ For example `Boards of Canada • 1998 • Electronic • 17 tracks • 63 min`.
 
 `jumpIndex(groups, letter, options)`: each group has a first character:
 that of its artist, trimmed, after one leading word of
-`options.ignoreWords` and the space after it are dropped (case ignored;
+`options.ignoreWords` and the spaces after it are dropped (case ignored;
 so `The Beatles` begins with B), folded as for search (`foldForSearch`:
 `É` counts as E) and made upper case. For a letter from `A` to `Z`
 (either case) the answer is the first group whose first character is
@@ -110,6 +110,13 @@ Widgets, by object name:
 
 `groups()` is what the tree was filled from. `setTracks` keeps the
 selection (AV-SELECT) for the tracks that are still there.
+
+Speed. No column is sized to its contents, because that measures every
+row at every fill: the title column stretches and the other two have a
+width worked out once from the font. The headings are expanded in one
+step, not one by one. `fills()` is the number of times `setTracks` has
+built the rows. (Measured in review, not locked: about 4,900 tracks in
+1,300 albums fill in about a quarter of a second.)
 
 ## AV-SELECT
 
@@ -165,9 +172,17 @@ mode, stores `view/mainPanel` (`albums` or `tracks`) at once and emits
 
 What the view shows, in mode `albums`: the tracks the track list's model
 holds (after the navigator's node, a browser's narrowing and the search
-box have had their say), put in order by `sortedForAlbums`. It follows
-every change of the model. The order the plain list is sorted in is not
-touched.
+box have had their say), put in order by `sortedForAlbums`. The order
+the plain list is sorted in is not touched.
+
+**AV-FILL: one fill for many changes.** A change of the model or of the
+node's tracks does not fill the view; it makes it stale. A stale view is
+filled once: at the next turn of the event loop, or at once when
+`AlbumViewing::view()` is asked, whichever comes first. So one change of
+the library, which reaches this object as several signals, costs one
+fill, and so does a run of changes made in one turn. A change of mode
+fills (or empties) at once. In mode `tracks` the view is emptied once
+and nothing makes it stale.
 
 While in mode `albums`:
 
@@ -175,6 +190,12 @@ While in mode `albums`:
   are selected in the track list (`TrackListPage::selectTracks`), so
   `LibraryShell::selectedTrackIds()` and every command that acts on the
   selection follow;
+- and the other way round: when the track list's selection changes
+  (`TrackListPage::selectionChanged`; Select All does this) to ids other
+  than the view's, the view is brought up to date and selects those ids
+  (`selectTracks`). When it already has them, nothing is touched, so a
+  selected heading stays selected. On a change to mode `albums` the view
+  selects what the track list has selected;
 - `trackActivated(id)` makes the shell emit
   `playRequested(paths, index)` with the paths of every track the view
   shows, in the view's order, and the position of that track (SHOT:

@@ -21,6 +21,7 @@ public:
     // The tracks, already in the order to show (AV-ORDER is the caller's business).
     void setTracks(const QList<LibraryTrack> &tracksInOrder);
     QList<AlbumGroup> groups() const;
+    int fills() const; // AV-VIEW: how often setTracks has built the rows
 
     QList<qint64> selectedTrackIds() const; // AV-SELECT; in the order shown
     void selectTracks(const QList<qint64> &ids);
