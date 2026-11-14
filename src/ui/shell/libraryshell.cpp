@@ -348,13 +348,21 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
 
 void LibraryShell::onPlaylistsChanged()
 {
-    // SH-LIVE lands in task 6.
+    // SH-LIVE: the navigator gets the new list of ids. When the playlist on
+    // show is gone the navigator falls back to library:Music and announces
+    // nodeSelected, which the shell follows (V-PLAYLISTS).
+    d->navigator->setPlaylists(playlistIds());
+    if (const QString playlist = playlistOf(d->node);
+        !playlist.isEmpty() && d->node == d->navigator->currentNode())
+        showNode(); // a created, renamed or removed playlist elsewhere
+    refreshCounts();
 }
 
 void LibraryShell::onPlaylistTracksChanged(const QString &id)
 {
-    Q_UNUSED(id);
-    // SH-LIVE lands in task 6.
+    // SH-LIVE: when that playlist is on show, its tracks are read again.
+    if (d->node == kPlaylistPrefix + id)
+        showNode();
 }
 
 }
