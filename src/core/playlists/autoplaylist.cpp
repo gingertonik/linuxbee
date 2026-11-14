@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <random>
 #include <set>
+#include <tuple>
 #include <utility>
 
 #include "search/search.h"
@@ -116,18 +117,19 @@ QString firstValue(const LibraryTrack &track, const QString &field)
     return values.isEmpty() ? QString() : values.first();
 }
 
-// A-DUP: the artist values joined by "; ", and the first title, both folded.
-std::pair<QString, QString> duplicateKey(const LibraryTrack &track)
+// A-DUP: the artist values joined by "; ", the first title and the first album, all folded.
+std::tuple<QString, QString, QString> duplicateKey(const LibraryTrack &track)
 {
     const QStringList artists = track.tags.fields.value(QStringLiteral("Artist"));
     return { foldedText(artists.join(QStringLiteral("; "))),
-        foldedText(firstValue(track, QStringLiteral("Title"))) };
+        foldedText(firstValue(track, QStringLiteral("Title"))),
+        foldedText(firstValue(track, QStringLiteral("Album"))) };
 }
 
 // A-DUP: the first candidate in the order the tracks were given is kept.
 void removeDuplicates(QList<const LibraryTrack *> *candidates)
 {
-    std::set<std::pair<QString, QString>> seen;
+    std::set<std::tuple<QString, QString, QString>> seen;
     QList<const LibraryTrack *> kept;
     for (const LibraryTrack *track : *candidates) {
         if (seen.insert(duplicateKey(*track)).second)
