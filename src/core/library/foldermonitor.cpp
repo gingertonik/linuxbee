@@ -7,7 +7,6 @@
 
 #include <algorithm>
 
-// Stub. Plan 19 replaces every body in this file.
 namespace linuxbee {
 
 namespace {
@@ -111,10 +110,15 @@ QStringList rootsFor(const QStringList &changedDirectories, const QStringList &r
 FolderMonitor::Scanner libraryScanner(
     Library *library, const QString &category, std::function<QDateTime()> now)
 {
-    Q_UNUSED(library);
-    Q_UNUSED(category);
-    Q_UNUSED(now);
-    return [](const QStringList &) { return ScanReport { }; };
+    return [library, category, now](const QStringList &folders) {
+        // Without a library or a clock there is nothing to scan into.
+        if (!library || !now)
+            return ScanReport { };
+        ScanOptions options;
+        options.category = category;
+        options.now = now();
+        return library->scan(folders, options);
+    };
 }
 
 }

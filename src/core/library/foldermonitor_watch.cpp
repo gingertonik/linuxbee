@@ -179,6 +179,11 @@ void FolderMonitor::setFolders(const QStringList &roots)
             cleaned.append(folder);
     }
     d->folders = cleaned;
+    // FM-WATCH: anything that was waiting is dropped. Setting folders never scans.
+    d->timer.stop();
+    d->changed.clear();
+    d->snapshots.clear();
+    d->pending = false;
     d->reconcile();
 }
 
