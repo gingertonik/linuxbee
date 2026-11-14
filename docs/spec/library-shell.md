@@ -50,12 +50,16 @@ The list shows the tracks of the navigator's chosen node:
 Choosing another node empties the search box first.
 
 A playlist and `playing` are shown in their own order: the playlist's,
-and the order last given to `setPlayingPaths`. For these two kinds of
-node the shell switches the model's given order on before it hands over
-the tracks, and for every other node off (track-list.md, T-GIVEN). The
+and the order last given to `setPlayingPaths`. The shell switches the
+model's given order (track-list.md, T-GIVEN) when a node is chosen, the
+node it starts on included, and on `view.refresh`: on for these two
+kinds of node, off for every other. It switches it at no other time. The
 list's sorting is neither changed nor stored differently by this. A
-click on a header sorts the rows on show, as anywhere; choosing the
-node again shows its own order again. So what a double-click on a
+click on a header sorts the rows on show, as anywhere, and that sort
+holds while the node stays: a narrowing, the search box, a change of the
+library, of the playlist or of the queue, and `reloadNode()` leave it,
+and a track that arrives falls into the sort. Choosing another node and
+this one again, or `view.refresh`, shows its own order again. So what a double-click on a
 track plays (SH-PLAY) follows the playlist, as in MusicBee.
 
 ## SH-COUNTS
@@ -132,6 +136,11 @@ another node was chosen, the library or a playlist changed what the node
 holds (SH-LIVE), or the node was read again. It is emitted once for each
 of those, and for nothing else: not for a narrowing, not for the search
 box.
+
+**A source says when its answer changes.** A node source whose answer
+for the chosen node has changed for a reason the shell cannot see (its
+own store changed, or it stops or starts answering for that node) calls
+`reloadNode()`. After a change of the library the shell asks it anyway.
 
 **Kept, not read again.** The shell keeps the node's tracks as it last
 read them, and `nodeTracks()` answers from that without touching the
