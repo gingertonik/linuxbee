@@ -18,10 +18,12 @@
 #include "desktop/mprisservice.h"
 #include "library/library.h"
 #include "mainwindow/mainwindow.h"
+#include "playlists/autoplayliststore.h"
 #include "playlists/playliststore.h"
 #include "audio/devicesink.h"
 #include "playback/audioengine.h"
 #include "shell/artistbrowsing.h"
+#include "shell/autoplaylistnodes.h"
 #include "shell/backgroundshell.h"
 #include "shell/librarypreferences.h"
 #include "shell/libraryshell.h"
@@ -151,6 +153,13 @@ int main(int argc, char *argv[])
     linuxbee::ui::LibraryShell shell(
         &window, &registry, library.get(), &playlists, &settings, hooks);
 
+    // AN-MAIN: the auto-playlists in the folder `auto-playlists` beside `playlists`, listed in the
+    // navigator and shown by the shell with the default hooks; declared after the shell, so they
+    // go before it.
+    linuxbee::AutoPlaylistStore autoPlaylists(dataDir + QStringLiteral("/auto-playlists"));
+    linuxbee::ui::AutoPlaylistNodes autoPlaylistNodes(
+        &window, &shell, library.get(), &autoPlaylists);
+
     // AB-MAIN: the artist browser beside the track list, over the library shell;
     // it is destroyed before the shell.
     linuxbee::ui::ArtistBrowsing artistBrowsing(&shell, &settings);
@@ -218,6 +227,8 @@ int main(int argc, char *argv[])
         out << (artistBrowsing.isShown() ? QStringLiteral("artist-browser=shown")
                                          : QStringLiteral("artist-browser=hidden"))
             << '\n';
+        // AN-MAIN: how many auto-playlists the store holds.
+        out << QStringLiteral("auto-playlists=%1").arg(autoPlaylists.names().size()) << '\n';
         out.flush();
         return 0;
     }
