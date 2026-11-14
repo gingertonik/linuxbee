@@ -97,13 +97,16 @@ struct ToolsShell::Private {
     }
 
     // TS-ORGANISE: a file that was moved keeps its library track, now at the new place.
-    // A copy leaves the library as it was: its source still exists.
+    // A copy leaves the library as it was: its source still exists. A track that held the
+    // target goes first, since its file is no longer there, so the path is free to take.
     void organisedFiles(const OrganiseReport &report)
     {
         for (const MoveOutcome &outcome : report.outcomes) {
             if (outcome.status != MoveOutcome::Status::Done || outcome.target == outcome.source
                 || QFile::exists(outcome.source))
                 continue;
+            if (const std::optional<LibraryTrack> held = library->trackByPath(outcome.target))
+                library->remove({ held->id });
             if (const std::optional<LibraryTrack> track = library->trackByPath(outcome.source))
                 library->setPath(track->id, outcome.target);
         }
