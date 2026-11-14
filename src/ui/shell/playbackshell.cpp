@@ -109,6 +109,11 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
 
 PlaybackShell::~PlaybackShell()
 {
+    // PS-BUILD: the sound stops first. Then the bar leaves the window, which
+    // deletes it while the player still exists, and its commands go with it.
+    // The shell's own commands go when this object is destroyed.
+    d->player->stop();
+    d->window->setPanelWidget(MainWindow::Panel::PlayerBar, nullptr);
     delete d;
 }
 
@@ -148,6 +153,8 @@ QString PlaybackShell::lastMessage() const
 
 void PlaybackShell::saveState()
 {
+    // PS-STORE: the bar's state (PB-STORE). The queue is not remembered.
+    d->bar->saveState(*d->settings);
 }
 
 }
