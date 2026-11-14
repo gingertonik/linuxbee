@@ -352,6 +352,26 @@ std::optional<LibraryTrack> Store::byId(qint64 id) const
     return rowFromRead(query);
 }
 
+ScanKnown Store::scanKnown() const
+{
+    ScanKnown known;
+    if (!d->opened)
+        return known;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    if (!query.exec(
+            QStringLiteral("SELECT id, path, size_bytes, modified_secs, missing FROM tracks")))
+        return known;
+    while (query.next()) {
+        ScanKnown::Entry entry;
+        entry.id = query.value(0).toLongLong();
+        entry.sizeBytes = query.value(2).toLongLong();
+        entry.modified = toDateTime(query.value(3).toLongLong());
+        entry.missing = query.value(4).toBool();
+        known.byPath.insert(query.value(1).toString(), entry);
+    }
+    return known;
+}
+
 std::optional<LibraryTrack> Store::byPath(const QString &path) const
 {
     if (!d->opened)

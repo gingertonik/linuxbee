@@ -11,6 +11,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+#include <algorithm>
 #include <cstring>
 #include <set>
 #include <utility>
@@ -142,7 +143,197 @@ void walkForUnreadable(const QString &folder, UnreadableWalk *walk)
         walk->folders.append(folder);
 }
 
+// L-PARTS: what looking at one file finds, put into `found`. A file the
+// library does not know is read and is `fresh`; a known file that is marked
+// missing and is there is `found`, and is read again when it differs; a known
+// file as stored is unchanged; one that differs is read again.
+void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found)
+{
+    const auto entry = known.byPath.constFind(QDir::cleanPath(path));
+    if (entry == known.byPath.cend()) {
+        LibraryTrack track;
+        if (!readAsTrack(path, &track)) {
+            found->notAudio.append(path); // L-SCAN: nothing is stored for it
+            return;
+        }
+        found->fresh.append(track);
+        return;
+    }
+    const QFileInfo info(path);
+    const bool asStored = info.size() == entry->sizeBytes && fileModified(info) == entry->modified;
+    if (entry->missing) {
+        // L-SCAN: a known track marked missing whose file is there is found,
+        // and is read again when it differs. It is not also counted as
+        // unchanged or updated.
+        found->found.append(entry->id);
+        if (!asStored) {
+            ScanFindings::Reread again;
+            again.id = entry->id;
+            again.wasMissing = true;
+            if (readAsTrack(path, &again.reading))
+                found->reread.append(again);
+        }
+        return;
+    }
+    // L-SCAN: a known file whose size and time are as stored is unchanged,
+    // and is not read.
+    if (asStored) {
+        ++found->unchanged;
+        return;
+    }
+    // L-SCAN: a known file that differs is read again.
+    ScanFindings::Reread again;
+    again.id = entry->id;
+    if (!readAsTrack(path, &again.reading)) {
+        found->notAudio.append(path); // the file is there and is not audio
+        return;
+    }
+    found->reread.append(again);
+}
+
+// L-SCAN, L-PARTS: every known track that is not missing, lies inside one of
+// the scanned folders, and has no file left; in ascending order of path, the
+// order the store keeps (its bytes, not UTF-16 code units).
+QList<qint64> goneFromFolders(const ScanKnown &known, const QStringList &folders)
+{
+    QList<std::pair<QByteArray, qint64>> gone;
+    for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
+        if (entry->missing || !insideAnyFolder(entry.key(), folders))
+            continue;
+        if (QFileInfo::exists(entry.key()))
+            continue;
+        gone.append({ entry.key().toUtf8(), entry->id });
+    }
+    std::sort(gone.begin(), gone.end());
+    QList<qint64> ids;
+    for (const auto &one : std::as_const(gone))
+        ids.append(one.second);
+    return ids;
+}
+
+// L-NAMES: the entries inside the scanned folders whose names are not valid
+// UTF-8, each folder named once in ascending order.
+void findUnreadableNames(const QStringList &folders, ScanFindings *found)
+{
+    UnreadableWalk walk;
+    for (const QString &folder : folders) {
+        const QString clean = libraryPath(folder);
+        if (!clean.isEmpty())
+            walkForUnreadable(clean, &walk);
+    }
+    walk.folders.removeDuplicates();
+    walk.folders.sort();
+    found->unreadableNames = walk.names;
+    found->unreadableIn = walk.folders;
+}
+
 } // namespace
+
+ScanFindings findForScan(
+    const QStringList &folders, const ScanKnown &known, const ScanFindOptions &options)
+{
+    ScanFindings found;
+    const bool inParts = options.partSize > 0 && static_cast<bool>(options.part);
+    const QStringList files = filesToScan(folders);
+    int sinceHandOver = 0;
+    for (int index = 0; index < files.size(); ++index) {
+        // L-SCAN: before each file, the number of files looked at and the
+        // total. False stops the looking, and what was found stays found.
+        if (options.progress && !options.progress(index, files.size())) {
+            found.cancelled = true;
+            break;
+        }
+        lookAtFile(files.at(index), known, &found);
+        // L-PARTS: every partSize files looked at, hand over what was found
+        // and start afresh.
+        if (inParts && ++sinceHandOver == options.partSize) {
+            options.part(found);
+            found = ScanFindings { };
+            sinceHandOver = 0;
+        }
+    }
+    // L-SCAN, L-NAMES: a cancelled scan leaves out what has gone and claims
+    // nothing about names.
+    if (!found.cancelled) {
+        found.nowMissing = goneFromFolders(known, folders);
+        findUnreadableNames(folders, &found);
+    }
+    return found;
+}
+
+ScanReport addedUp(const ScanReport &a, const ScanReport &b)
+{
+    ScanReport sum = a;
+    sum.added += b.added;
+    sum.updated += b.updated;
+    sum.nowMissing += b.nowMissing;
+    sum.found += b.found;
+    sum.unchanged += b.unchanged;
+    sum.notAudio += b.notAudio;
+    sum.unreadableNames += b.unreadableNames;
+    sum.unreadableIn += b.unreadableIn;
+    sum.cancelled = a.cancelled || b.cancelled;
+    return sum;
+}
+
+ScanKnown Library::scanKnown() const
+{
+    return d->store.scanKnown();
+}
+
+ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &options)
+{
+    ScanReport report;
+    // L-SCAN: an invalid "now" or an unknown category does nothing.
+    if (!options.now.isValid() || !categories().contains(options.category))
+        return report;
+
+    d->store.beginBatch();
+    // L-SCAN: a track that was marked missing and whose file is there is
+    // found. L-MISSING keeps its tags, its statistics and its id.
+    for (const qint64 id : findings.found) {
+        if (d->store.setMissing(id, false))
+            report.found.append(id);
+    }
+    // L-PARTS: a file the library holds by now is left alone.
+    for (const LibraryTrack &reading : findings.fresh) {
+        if (d->store.byPath(QDir::cleanPath(reading.path)))
+            continue;
+        LibraryTrack track = reading;
+        track.category = options.category;
+        track.dateAdded = options.now;
+        const qint64 id = d->store.insert(track);
+        if (id > 0)
+            report.added.append(id);
+    }
+    // L-SCAN: a known file that differs is read again. Its id, category, date
+    // added and statistics stay, which is what updateReading leaves. One that
+    // was marked missing is found, and is not also updated.
+    for (const ScanFindings::Reread &again : findings.reread) {
+        if (d->store.updateReading(again.id, again.reading) && !again.wasMissing)
+            report.updated.append(again.id);
+    }
+    for (const qint64 id : findings.nowMissing) {
+        if (d->store.setMissing(id, true))
+            report.nowMissing.append(id);
+    }
+    report.unchanged = findings.unchanged;
+    report.notAudio = findings.notAudio;
+    report.unreadableNames = findings.unreadableNames;
+    report.unreadableIn = findings.unreadableIn;
+    report.cancelled = findings.cancelled;
+    d->store.commitBatch();
+
+    // L-SIGNALS: at most one signal of each kind, after the changes are
+    // stored: one for what was added, one for everything else that changed
+    // about a track, in the order found, updated, gone missing.
+    if (!report.added.isEmpty())
+        emit tracksAdded(report.added);
+    const QList<qint64> changed = report.found + report.updated + report.nowMissing;
+    if (!changed.isEmpty())
+        emit tracksUpdated(changed);
+    return report;
+}
 
 ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
 {
