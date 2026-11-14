@@ -78,6 +78,32 @@ treated as a number, and what is not a number comes last.
 
 No locale is consulted: the order is the same on every machine.
 
+### T-PREPARED
+
+Putting many values in order compares each of them many times, and
+the dear part of T-COMPARE (finding the kind, folding, dropping an
+ignore word, reading a number) depends on one value only. So it can be
+done once:
+
+- `prepareFieldValue(field, value, options)` gives a `PreparedValue`.
+  Its member `blank` says whether the value, trimmed, is empty.
+- `comparePrepared(a, b)`, for two values prepared with the same field
+  and options, has the sign of `compareFieldValues(field, a, b,
+  options)`, for every pair of values. It folds nothing.
+
+Whatever sorts tracks or names prepares each value once and compares
+prepared values: the model's order (T-MODEL), the order of the album
+view (album-view.md, AV-ORDER) and the browser's list
+(artist-browser.md). Sorting N tracks by K keys prepares at most N x K
+values and calls `compareFieldValues` not once.
+
+Two counters make that checkable, for a test and for a person timing
+the program; nothing decides anything by them. Each counts for the
+whole process since it started: `fieldValuesPrepared()`, the calls of
+`prepareFieldValue`; `fieldValueComparisons()`, the calls of
+`compareFieldValues`. `comparePrepared` adds to neither, and
+`compareFieldValues` does not add to the first.
+
 ### T-SUMMARY
 
 `formatTrackSummary(count, bytes, ms)` gives `COUNT tracks, SIZE, TIME`:

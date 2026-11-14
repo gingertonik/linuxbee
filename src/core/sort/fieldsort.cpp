@@ -4,6 +4,8 @@
 
 #include <QRegularExpression>
 
+#include <atomic>
+
 // Contract: docs/spec/track-list.md (T-KIND, T-COMPARE). No locale is consulted.
 namespace linuxbee {
 
@@ -167,22 +169,55 @@ int compareText(const QString &a, const QString &b)
     return endA ? -1 : 1;
 }
 
-int compareTextValues(const QString &a, const QString &b, const SortOptions &options)
+// T-PREPARED: the per-value work of T-COMPARE, done once. This helper does not
+// touch the prepared counter, so compareFieldValues can share it.
+PreparedValue prepareValue(
+    const QString &fieldName, const QString &value, const SortOptions &options)
 {
-    QStringList foldedWords;
-    for (const QString &word : options.ignoreWords)
-        foldedWords << foldForSearch(word).trimmed();
-    const QString textA = dropIgnoreWord(foldForSearch(a).trimmed(), foldedWords);
-    const QString textB = dropIgnoreWord(foldForSearch(b).trimmed(), foldedWords);
-    const bool blankA = textA.isEmpty();
-    const bool blankB = textB.isEmpty();
+    PreparedValue prepared;
+    prepared.blank = value.trimmed().isEmpty();
+    prepared.kind = fieldKind(fieldName);
+    Parsed parsed;
+    switch (prepared.kind) {
+    case FieldKind::Number:
+        parsed = parseNumberPrefix(value);
+        break;
+    case FieldKind::Duration:
+        parsed = parseDuration(value);
+        break;
+    case FieldKind::Size:
+        parsed = parseSize(value);
+        break;
+    case FieldKind::Text: {
+        QStringList foldedWords;
+        for (const QString &word : options.ignoreWords)
+            foldedWords << foldForSearch(word).trimmed();
+        prepared.text = dropIgnoreWord(foldForSearch(value).trimmed(), foldedWords);
+        return prepared;
+    }
+    }
+    prepared.hasNumber = parsed.has;
+    prepared.number = parsed.value;
+    return prepared;
+}
+
+// T-COMPARE on two prepared values of one field.
+int compareValues(const PreparedValue &a, const PreparedValue &b)
+{
+    if (a.kind != FieldKind::Text)
+        return compareParsed(Parsed { a.hasNumber, a.number }, Parsed { b.hasNumber, b.number });
+    const bool blankA = a.text.isEmpty();
+    const bool blankB = b.text.isEmpty();
     if (blankA || blankB) {
         if (blankA && blankB)
             return 0;
         return blankA ? 1 : -1;
     }
-    return compareText(textA, textB);
+    return compareText(a.text, b.text);
 }
+
+std::atomic<qint64> preparedCount { 0 };
+std::atomic<qint64> comparisonCount { 0 };
 
 }
 
@@ -205,17 +240,30 @@ FieldKind fieldKind(const QString &fieldName)
 int compareFieldValues(
     const QString &fieldName, const QString &a, const QString &b, const SortOptions &options)
 {
-    switch (fieldKind(fieldName)) {
-    case FieldKind::Number:
-        return compareParsed(parseNumberPrefix(a), parseNumberPrefix(b));
-    case FieldKind::Duration:
-        return compareParsed(parseDuration(a), parseDuration(b));
-    case FieldKind::Size:
-        return compareParsed(parseSize(a), parseSize(b));
-    case FieldKind::Text:
-        break;
-    }
-    return compareTextValues(a, b, options);
+    comparisonCount.fetch_add(1, std::memory_order_relaxed);
+    return compareValues(prepareValue(fieldName, a, options), prepareValue(fieldName, b, options));
+}
+
+PreparedValue prepareFieldValue(
+    const QString &fieldName, const QString &value, const SortOptions &options)
+{
+    preparedCount.fetch_add(1, std::memory_order_relaxed);
+    return prepareValue(fieldName, value, options);
+}
+
+int comparePrepared(const PreparedValue &a, const PreparedValue &b)
+{
+    return compareValues(a, b);
+}
+
+qint64 fieldValuesPrepared()
+{
+    return preparedCount.load(std::memory_order_relaxed);
+}
+
+qint64 fieldValueComparisons()
+{
+    return comparisonCount.load(std::memory_order_relaxed);
 }
 
 namespace {
