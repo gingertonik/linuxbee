@@ -149,14 +149,4 @@ ImportedLibrary parseItunesLibrary(const QByteArray &xml)
     return lib;
 }
 
-// Stub. Plan 21 task 4 replaces this body.
-ImportPlan planImport(const ImportedLibrary &imported, const QList<LibraryTrack> &libraryTracks,
-    const PathMapping &mapping)
-{
-    Q_UNUSED(imported);
-    Q_UNUSED(libraryTracks);
-    Q_UNUSED(mapping);
-    return { };
-}
-
 }
