@@ -5,7 +5,9 @@
 #include "mainwindow/mainwindow.h"
 #include "shell/playbackshell.h"
 
+#include <QCoreApplication>
 #include <QSettings>
+#include <QStatusBar>
 
 #include <memory>
 
@@ -19,6 +21,14 @@ struct BackgroundShell::Private {
     QSettings *settings = nullptr;
     std::unique_ptr<FolderMonitor> monitor;
     std::unique_ptr<MprisService> mpris;
+    QString message;
+
+    // BG-MESSAGE: one line in the window's status bar, kept as lastMessage().
+    void showMessage(const QString &text)
+    {
+        message = text;
+        window->statusBar()->showMessage(text);
+    }
 };
 
 BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackShell *playback,
@@ -65,7 +75,13 @@ BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackS
         return track;
     };
     d->mpris = std::make_unique<MprisService>(playback->player(), playback->queue(), mpris);
-    d->mpris->start(bus);
+    // BG-MPRIS: without a bus, or with the name taken, the media keys are off and
+    // everything else works. The service's own reason is what the message says.
+    QString error;
+    if (!d->mpris->start(bus, &error))
+        d->showMessage(QCoreApplication::translate(
+            "linuxbee::ui::BackgroundShell", "Media keys are not available: %1")
+                .arg(error));
 }
 
 BackgroundShell::~BackgroundShell()
@@ -102,7 +118,7 @@ void BackgroundShell::reload()
 
 QString BackgroundShell::lastMessage() const
 {
-    return { };
+    return d->message;
 }
 
 }
