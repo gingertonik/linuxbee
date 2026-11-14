@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHash>
 #include <QHeaderView>
@@ -12,6 +13,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QSet>
+#include <QStyle>
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -80,6 +82,7 @@ struct AlbumTracksView::Private {
     QList<AlbumGroup> groups;
     QHash<qint64, QTreeWidgetItem *> trackRows; // rebuilt with the tree
     QList<qint64> announced; // selectedTrackIds() as the listeners last heard it
+    int fills = 0; // AV-VIEW: the calls of setTracks, each of which built the rows
     // True while the view itself moves the selection, so that the tree's
     // signal is not read back as the user's choice.
     bool quiet = false;
@@ -208,9 +211,11 @@ struct AlbumTracksView::Private {
             heading->setFirstColumnSpanned(true);
             for (QTreeWidgetItem *disc : discRows)
                 disc->setFirstColumnSpanned(true);
-            heading->setExpanded(true);
             first += group.trackIds.size();
         }
+        // AV-VIEW, Speed: every heading is expanded in one step, once the tree
+        // is built, not one by one as each is added.
+        tree->expandAll();
     }
 };
 
@@ -231,9 +236,18 @@ AlbumTracksView::AlbumTracksView(QWidget *parent)
     d->tree->setEditTriggers(QAbstractItemView::NoEditTriggers);
     QHeaderView *header = d->tree->header();
     header->setStretchLastSection(false);
-    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    // AV-VIEW, Speed: no column is sized to its contents, because that measures
+    // every row at every fill. The title stretches; the other two have a width
+    // worked out once, here, from the font: room for a track number and for a
+    // time such as 00:00:00, plus the margin the item delegate puts either side.
+    header->setSectionResizeMode(0, QHeaderView::Fixed);
     header->setSectionResizeMode(1, QHeaderView::Stretch);
-    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Fixed);
+    const QFontMetrics metrics(d->tree->font());
+    const int margin
+        = 2 * (d->tree->style()->pixelMetric(QStyle::PM_FocusFrameHMargin, nullptr, d->tree) + 1);
+    header->resizeSection(0, metrics.horizontalAdvance(QStringLiteral("0000")) + margin);
+    header->resizeSection(2, metrics.horizontalAdvance(QStringLiteral("00:00:00")) + margin);
 
     // AV-BAR: one button for "#" and one for each letter; a click jumps.
     d->bar = new QWidget(this);
@@ -300,6 +314,7 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
     const QList<qint64> keep = d->selectedIds();
     d->quiet = true;
     d->fill(tracksInOrder);
+    ++d->fills;
     d->selectRowsOf(keep);
     d->quiet = false;
     d->announce();
@@ -308,6 +323,11 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
 QList<AlbumGroup> AlbumTracksView::groups() const
 {
     return d->groups;
+}
+
+int AlbumTracksView::fills() const
+{
+    return d->fills;
 }
 
 QList<qint64> AlbumTracksView::selectedTrackIds() const
