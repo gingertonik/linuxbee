@@ -122,11 +122,31 @@ and what was done stays done.
 - A file being replaced is put aside first and dealt with only after the
   new file is in place: sent to the trash (`Replaced::MoveToTrash`, the
   default, as W-O) or deleted (`Replaced::Delete`). If the newcomer cannot
-  be put in place, the old file is put back.
+  be put in place, the old file is put back. O-REPLACED says what becomes
+  of it and what the caller is told.
 - A failure makes that entry `Failed`, with a message, leaves its source
   where it was, and does not stop the run.
 
 `done`, `skipped` and `failed` count the outcomes, O-OTHER files included.
+
+### O-REPLACED
+
+A replaced file must be findable afterwards, and whoever asked must be
+told that a file was replaced.
+
+- The outcome of an entry that replaced a file has `replaced` true.
+- Sent to the trash, the old file is there under its own name (the name
+  it had at the target; the trash adds a number if that name is taken
+  there), and its trash record names the target path as the place it came
+  from, so that restoring it puts it back where it was. No name the
+  organiser used while putting it aside shows in either. `replacedNow` is
+  its path in the trash.
+- Deleted, `replacedNow` is empty.
+- Nothing the organiser made while putting the file aside is left in the
+  target's folder: no file and no folder.
+- If the old file could be neither trashed nor deleted, the entry is still
+  `Done`; `replacedNow` is where the old file was left and `message` says
+  so.
 
 ### O-OTHER
 
@@ -150,8 +170,23 @@ planned entries. Files in folders below it are not touched.
 Only for `Mode::Move` with `removeEmptyFolders` true. After the moves, each
 folder a track was moved out of is removed if it is now completely empty,
 then its parent if that is now empty, and so on upward. It stops at the
-first folder that still holds anything. `removedFolders` lists them in the
-order they were removed.
+first folder that still holds anything, and it stops at a floor.
+`removedFolders` lists them in the order they were removed.
+
+**Floors.** A folder is removed only if it lies strictly below a floor. A
+floor itself, and everything above it, is never removed, however empty.
+
+- With `sourceRoots` given, those folders are the floors: the folders the
+  user named. A track that was moved out of a place below none of them
+  leaves its folder standing.
+- With `sourceRoots` empty, there is one floor: the deepest folder that
+  holds every planned track that was moved. (One album: the album's
+  folder stays, empty. Several albums of one artist: the album folders
+  go, the artist's folder stays.)
+
+So a run can never remove the folder it was pointed at, nor climb out of
+it: organising the last files out of an inbox leaves the inbox, and the
+music folder above it, where they are.
 
 ## 4. Command line
 
@@ -165,6 +200,9 @@ linuxbeectl organise [--to DIR] [--template T | --keep-names] [--copy]
 ```
 
 - A folder argument stands for `findMusicFiles(folder, true)`.
+- The source roots (O-EMPTY) are every folder argument and, for every file
+  argument, the folder that file is in. So nothing named on the command
+  line is ever removed.
 - `--to` sets `targetRoot`. `--template` replaces the default template.
   `--keep-names` sets `useTemplate` false and needs `--to`.
 - `--allow-missing` turns `skipWhenTagsMissing` off. The other options set
@@ -176,6 +214,11 @@ linuxbeectl organise [--to DIR] [--template T | --keep-names] [--copy]
   `moved: SOURCE -> TARGET` or `copied: SOURCE -> TARGET` and
   `skip: SOURCE: REASON` on standard output, `failed: SOURCE: MESSAGE` on
   standard error; then one `removed folder: PATH` line per removed folder.
+- After the `moved:` or `copied:` line of an entry that replaced a file
+  (O-REPLACED), on standard output: `replaced: TARGET (the old file is in
+  the trash: PATH)`, or `replaced: TARGET (the old file was deleted)`, or,
+  when it could be neither, `replaced: TARGET (the old file is still at
+  PATH)`.
 - Exit 0 when nothing failed (skips are not failures), 3 when anything did.
 - Usage mistakes exit 2 and do nothing: no input; `--template` with
   `--keep-names`; `--keep-names` without `--to`; an unknown option; a
@@ -196,7 +239,7 @@ linuxbeectl organise [--to DIR] [--template T | --keep-names] [--copy]
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| O-EMPTY | Does MusicBee remove a folder that organising left empty? Users report it does not. linuxBee: yes by default, with an option. |
+| O-EMPTY | Does MusicBee remove a folder that organising left empty? Users report it does not. linuxBee: yes by default, with an option, and never the folder it was pointed at or anything above it. |
 | O-OTHER | When a folder's tracks go to two different folders, where do its cover and cue files go? linuxBee: they stay. |
 | O-OTHER | Does an other file replace one of the same name at the target? linuxBee: never. |
 | O-CONFLICT | With "allow existing files to be replaced" and two new files of the same name, which wins? linuxBee: the first replaces, the second is numbered. |

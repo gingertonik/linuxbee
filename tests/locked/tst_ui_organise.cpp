@@ -479,7 +479,10 @@ void OrganiseDialogTest::realFile()
     QVERIFY(d.run());
     QVERIFY(QFile::exists(target));
     QVERIFY(!QFile::exists(source));
-    QVERIFY(!QDir(dir.path() + s(u"/in")).exists()); // left empty, so removed
+    // The folder the track was in is the only place a track left, so it is
+    // the floor (organise.md, O-EMPTY): empty now, and still there.
+    QVERIFY(QDir(dir.path() + s(u"/in")).exists());
+    QVERIFY(QDir(dir.path() + s(u"/in")).isEmpty());
     QCOMPARE(d.result(), int(QDialog::Accepted));
 }
 

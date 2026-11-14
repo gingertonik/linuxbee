@@ -38,6 +38,10 @@ struct OrganiseOptions {
     bool moveOtherFiles = false;
     // O-EMPTY: Move only. Remove folders the move left empty.
     bool removeEmptyFolders = true;
+    // O-EMPTY: the folders the user named. Nothing at or above one of them is
+    // ever removed. Empty: the deepest folder holding every moved track
+    // stands in for them.
+    QStringList sourceRoots;
 };
 
 struct PlannedMove {
@@ -68,6 +72,11 @@ struct MoveOutcome {
     QString target;
     QString message; // Failed: why. Skipped: the plan's status in words.
     bool otherFile = false; // an O-OTHER file, not one of the planned tracks
+    // O-REPLACED: a file that was at `target` made way for this one, and
+    // where that file is now: its path in the trash, or empty when it was
+    // deleted.
+    bool replaced = false;
+    QString replacedNow;
 };
 
 struct OrganiseReport {
