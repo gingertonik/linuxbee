@@ -86,7 +86,7 @@ adds a page factory to the tools shell (tools-shell.md, TS-PREFERENCES).
 Each page it makes is over those settings, has that `chooseFolder`, and
 has a `stored` hook that calls the background shell's `reload()`
 (BG-RELOAD). So applying the page changes what is watched at once, with
-the dialog still open.
+the dialog still open, and a folder that was added is scanned at once.
 
 ## LP-MAIN
 
@@ -101,9 +101,6 @@ the dialog still open.
 ## Not in this version
 
 - The settle time on the page (it stays a key in `linuxbee.ini`).
-- Scanning a folder at the moment it is added. It is watched from then
-  on; what is already in it is taken in by the next change there or by
-  "check on start-up".
 - The library's own music folders, and everything else on MusicBee's
   Library page.
 
@@ -111,4 +108,4 @@ the dialog still open.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| LP-ADD | Whether adding a monitored folder scans it at once. |
+| LP-ADD | Settled 2026-11-14 (Dillon, from memory): it does, once the page is applied (BG-RELOAD). |

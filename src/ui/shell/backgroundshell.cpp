@@ -153,9 +153,21 @@ void BackgroundShell::setMonitoredFolders(const QStringList &folders)
 
 void BackgroundShell::reload()
 {
-    // BG-RELOAD: the stored folders are given to the monitor again. Nothing is scanned,
-    // nothing is said, and checkOnStartup is not acted on here.
+    // BG-RELOAD: the stored folders are given to the monitor again. Nothing is scanned
+    // here, and checkOnStartup is not acted on here. When a folder the monitor did not
+    // have before the call is now monitored, every folder is checked once the event loop
+    // runs, as BG-STARTUP does it; a reload that adds no folder checks nothing.
+    const QStringList before = d->monitor->folders();
     d->monitor->setFolders(d->settings->value(QStringLiteral("library/monitored")).toStringList());
+    bool added = false;
+    for (const QString &folder : d->monitor->folders()) {
+        if (!before.contains(folder)) {
+            added = true;
+            break;
+        }
+    }
+    if (added)
+        QTimer::singleShot(0, this, [this] { d->monitor->checkNow(); });
 }
 
 QString BackgroundShell::lastMessage() const

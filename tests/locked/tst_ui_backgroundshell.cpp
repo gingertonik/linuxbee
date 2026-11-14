@@ -376,20 +376,39 @@ void BackgroundShellTest::reload()
     const QString waiting = r.put("basic.mp3", "inbox/waiting.mp3");
     r.start();
     NEED_PARTS(r);
+    int scans = 0;
+    QObject::connect(r.background->monitor(), &linuxbee::FolderMonitor::scanned, r.background.get(), [&scans] { ++scans; });
     r.settings.setValue(s(u"library/monitored"), r.inbox);
     r.settings.setValue(s(u"library/monitoredCategory"), s(u"Music"));
-    r.settings.setValue(s(u"library/checkOnStartup"), s(u"true"));
     QCOMPARE(r.background->monitoredFolders(), QStringList()); // not until told
     r.background->reload();
     QCOMPARE(r.background->monitoredFolders(), QStringList({ r.inbox }));
     QCOMPARE(r.background->monitor()->watched(), QStringList({ r.inbox }));
+    QCOMPARE(r.library->count(), 1); // not inside reload(): the dialog that asked comes back first
+    QCOMPARE(scans, 0);
+    // A folder that was not monitored before is checked at once: what is in it comes in.
+    QTRY_COMPARE_WITH_TIMEOUT(r.library->count(), 2, r.patience());
+    QCOMPARE(r.library->trackByPath(waiting)->category, s(u"Music")); // the section as it is now
+    QCOMPARE(r.background->lastMessage(), s(u"Music: 1 new file"));
+    QCOMPARE(scans, 1);
+    // Reloading with no new folder checks nothing.
+    r.background->reload();
     QTest::qWait(r.patience() == 60 ? 10 : 4 * kSettle);
-    QCOMPARE(r.library->count(), 1); // reloading scans nothing, and this is not a start-up
-    QCOMPARE(r.background->lastMessage(), QString());
-    const QString one = r.put("basic.m4a", "inbox/one.m4a");
-    QTRY_COMPARE_WITH_TIMEOUT(r.library->count(), 3, r.patience()); // the scan takes what was waiting too
-    QCOMPARE(r.library->trackByPath(one)->category, s(u"Music")); // the section as it is now
-    QCOMPARE(r.library->trackByPath(waiting)->category, s(u"Music"));
+    QCOMPARE(scans, 1);
+    // A second folder is added: checked, and its file comes in.
+    const QString other = r.made(s(u"other"));
+    const QString two = r.put("basic.m4a", "other/two.m4a");
+    r.settings.setValue(s(u"library/monitored"), QStringList({ r.inbox, other }));
+    r.background->reload();
+    QTRY_COMPARE_WITH_TIMEOUT(r.library->count(), 3, r.patience());
+    QCOMPARE(r.library->trackByPath(two)->category, s(u"Music"));
+    QCOMPARE(scans, 2);
+    // Taking a folder away checks nothing.
+    r.settings.setValue(s(u"library/monitored"), other);
+    r.background->reload();
+    QCOMPARE(r.background->monitor()->watched(), QStringList({ other }));
+    QTest::qWait(r.patience() == 60 ? 10 : 4 * kSettle);
+    QCOMPARE(scans, 2);
     r.settings.setValue(s(u"library/monitored"), QStringList());
     r.background->reload();
     QCOMPARE(r.background->monitor()->watched(), QStringList());
