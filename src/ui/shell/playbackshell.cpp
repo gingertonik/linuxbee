@@ -6,6 +6,7 @@
 
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
+#include "navigator/navigatorpanel.h"
 #include "playerbar/playerbar.h"
 #include "shell/libraryshell.h"
 
@@ -48,6 +49,24 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     // PS-PLAY: the library shell asks for a list played from a row.
     connect(libraryShell, &LibraryShell::playRequested, this,
         [this](const QStringList &paths, int index) { d->queue->playNow(paths, index); });
+
+    // PS-NODE: a playlist the navigator reports activated is chosen first if it is
+    // not on show, then played whole, from its first track, in its own order. Any
+    // other node, or a playlist with no track the library knows, plays nothing.
+    connect(d->libraryShell->navigator(), &NavigatorPanel::nodeActivated, this,
+        [this](const QString &nodeId) {
+            const QString prefix = QStringLiteral("playlist:");
+            if (!nodeId.startsWith(prefix) || nodeId.size() <= prefix.size())
+                return;
+            NavigatorPanel *navigator = d->libraryShell->navigator();
+            if (navigator->currentNode() != nodeId && !navigator->selectNode(nodeId))
+                return;
+            QStringList paths;
+            for (const LibraryTrack &track : d->libraryShell->nodeTracks())
+                paths.append(track.path);
+            if (!paths.isEmpty())
+                d->queue->playNow(paths, 0);
+        });
 
     // PS-COMMANDS: on the library shell's selection, in the order shown; an
     // empty selection does nothing.
