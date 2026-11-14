@@ -81,20 +81,46 @@ int Library::count() const
     return d->store.count();
 }
 
+// L-COUNT: one counting query, every section present, 0 for an empty one.
+// Reads no track, so it counts nothing in tracksRead().
+QMap<QString, int> Library::categoryCounts() const
+{
+    QMap<QString, int> counts = d->store.categoryCounts();
+    for (const QString &name : categories()) {
+        if (!counts.contains(name))
+            counts.insert(name, 0);
+    }
+    return counts;
+}
+
+// L-COUNT: every track this object has handed out since it was opened.
+qint64 Library::tracksRead() const
+{
+    return d->tracksHandedOut;
+}
+
 QList<LibraryTrack> Library::tracks(const QString &category) const
 {
-    return d->store.all(category);
+    QList<LibraryTrack> list = d->store.all(category);
+    d->tracksHandedOut += static_cast<qint64>(list.size());
+    return list;
 }
 
 std::optional<LibraryTrack> Library::track(qint64 id) const
 {
-    return d->store.byId(id);
+    std::optional<LibraryTrack> found = d->store.byId(id);
+    if (found)
+        ++d->tracksHandedOut;
+    return found;
 }
 
 // L-STORE: paths are stored clean, so a lookup is cleaned the same way.
 std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 {
-    return d->store.byPath(libraryPath(path));
+    std::optional<LibraryTrack> found = d->store.byPath(libraryPath(path));
+    if (found)
+        ++d->tracksHandedOut;
+    return found;
 }
 
 // L-EDIT remove: forgets the tracks. No music file is touched.

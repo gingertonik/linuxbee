@@ -1,5 +1,6 @@
 #pragma once
 #include <QList>
+#include <QMap>
 #include <QString>
 
 #include <memory>
@@ -31,6 +32,10 @@ public:
 
     // L-STORE: how many tracks are stored, the missing ones included.
     int count() const;
+
+    // L-COUNT: how many tracks each category holds, the missing ones included,
+    // from one counting query. Reads no track. Empty when the store is closed.
+    QMap<QString, int> categoryCounts() const;
 
     std::optional<LibraryTrack> byId(qint64 id) const;
 

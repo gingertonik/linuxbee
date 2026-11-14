@@ -333,11 +333,9 @@ QList<LibraryTrack> LibraryShell::playingTracks() const
 
 void LibraryShell::refreshCounts()
 {
-    // SH-COUNTS: every section, how many tracks it holds.
-    QMap<QString, int> counts;
-    for (const QString &section : Library::categories())
-        counts.insert(section, d->library->tracks(section).size());
-    d->navigator->setLibraryCounts(counts);
+    // SH-COUNTS: every section, how many tracks it holds. The library counts
+    // them (L-COUNT); no track is read here.
+    d->navigator->setLibraryCounts(d->library->categoryCounts());
 }
 
 QStringList LibraryShell::playlistIds() const

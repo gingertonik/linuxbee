@@ -327,6 +327,19 @@ int Store::count() const
     return query.value(0).toInt();
 }
 
+QMap<QString, int> Store::categoryCounts() const
+{
+    QMap<QString, int> counts;
+    if (!d->opened)
+        return counts;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    if (!query.exec(QStringLiteral("SELECT category, count(*) FROM tracks GROUP BY category")))
+        return counts;
+    while (query.next())
+        counts.insert(query.value(0).toString(), query.value(1).toInt());
+    return counts;
+}
+
 std::optional<LibraryTrack> Store::byId(qint64 id) const
 {
     if (!d->opened)

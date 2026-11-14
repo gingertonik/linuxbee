@@ -136,6 +136,20 @@ scan that finds the file, or by `setPath` / `relinkPaths` to where the file
 now is. `setPath` and `relinkPaths` set `missing` by whether a file exists
 at the new path.
 
+### L-COUNT
+
+`categoryCounts()` answers, for every name of `categories()`, how many
+tracks the library holds in it (missing ones included); a section with
+none is there with 0. The numbers add up to `count()`. It asks the store
+to count and reads no track.
+
+`tracksRead()` is how many tracks this library object has handed out
+since it was opened: each track in an answer of `tracks()`, and each
+answer of `track()` and `trackByPath()` that found one, counts one,
+whoever asked. Counting (`count()`, `categoryCounts()`) adds nothing.
+It exists so that a test, or a person timing the program, can see how
+much a part reads; nothing in the program decides anything by it.
+
 ## 3. Changing what is known
 
 ### L-EDIT

@@ -1,4 +1,5 @@
 #pragma once
+#include <QMap>
 #include <QDateTime>
 #include <QList>
 #include <QObject>
@@ -78,6 +79,10 @@ public:
     qint64 addFile(const QString &path, const QString &category, const QDateTime &now);
 
     int count() const;
+    // L-COUNT: every section and how many tracks it holds; reads no track.
+    QMap<QString, int> categoryCounts() const;
+    // L-COUNT: how many tracks this object has handed out since it was opened.
+    qint64 tracksRead() const;
     // In ascending order of path. An empty category means all.
     QList<LibraryTrack> tracks(const QString &category = { }) const;
     std::optional<LibraryTrack> track(qint64 id) const;

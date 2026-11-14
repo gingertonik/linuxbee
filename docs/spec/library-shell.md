@@ -68,6 +68,11 @@ The navigator shows, for every section of `Library::categories()`, how
 many tracks it holds. The counts are brought up to date whenever the
 library reports tracks added, updated or removed.
 
+They come from `Library::categoryCounts()` (library.md, L-COUNT): the
+shell reads no track to count. So a change of the library costs the
+reading of the tracks it names, not of every section (with the kept
+tracks of SH-EXTEND: at most a few readings for each id named).
+
 ## SH-LIVE
 
 Whoever changes the library or the playlists, what is on show follows:
