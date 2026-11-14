@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<root>
+	<!-- Plain Grey: an invented skin for linuxBee's tests -->
+<variables>
+		MainBG="250,250,250"	
+		MainFG = "20,20,20"
+		accent= "30,120,200"
+	broken = "300,1,1"
+	not a line
+</variables>
+<colours id="Default">
+
+	<element id="ApplicationBackColour" bg="200,200,200" /> 
+	<element id="WindowBackColour" bg="230,230,230" /> 
+	<element id="MenuBar.Default" bg="210,210,210" fg="10,10,10" /> 
+	<element id="Menu.DropDown.Default" bg="245,245,245" fg="MainFG" bdr="150,150,150" />
+	<element id="Menu.DropDown.Highlight" bg="accent" bdr="accent" />
+	<element id="Panel.Body.Default" bg="MainBG" fg="MainFG" bdr="180,180,180" />
+	<element id="Panel.Body.Highlight" bg="accent" fg="255,255,255" bdr="accent"/>
+	<element id="Panel.Body.Lowlight" bg="MainBG" fg="120,120,120" />
+	<element id="Panel.ChildHeader.Default" bg="220,220,220" bg2="205,205,205" fg="40,40,40" bdr="170,170,170" />
+	<element id="Panel.StatusBar.Default" bg="215,215,215" fg="60,60,60" />
+	<element id="Controls.Button.Default" bg="225,225,225" fg="0,0,0" bdr="140,140,140" />
+	<element id="Controls.InputControl.Default" bg="255,255,255" fg="0,0,0" bdr="160,160,160" />
+	<element id="Controls.TabHeader.Default" bg="215,215,215" fg="50,50,50" />
+	<element id="Controls.TabHeader.Highlight" bg="MainBG" fg="accent" />
+	<element id="Controls.ScrollBar.Default" bg="235,235,235" />
+	<element id="Panel.ScrollBarThumb.Default" bg="165,165,165" fg="1,2,3" />
+	<element id="PlayerFlat.Background" bg="60,60,60" fg="240,240,240" />
+	<element id="Content[TrackDetail].ListAlternating.Default" bg="243,243,243" />
+	<element id="Player.Wavebar" fg="accent" fg2="25,25,25,128" />
+	<element id="Odd.One" bg="nosuchname" fg="1,2" bdr="" />
+	<element id="Panel.Body.Default" fg="21,21,21" />
+</colours>
+
+<settings>
+	<element id="FullNodeSelect">true</element>
+	<element id="MainPanelMargin.Left"> 5 </element>
+</settings>
+
+<images id="Default">
+  <element id="WaitIndicator">
+        R0lGODlhAQABAAAAACw=
+  </element>
+</images>
+</root>

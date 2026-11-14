@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root dependsOn="Plain Grey.xml">
+<variables>
+theme = "160,40,40"
+font_1 = "255,250,250"
+</variables>
+<element id="Panel.Body.Highlight" bg="theme" fg="font_1" />
+<element id="Menu.DropDown.Highlight" bg="theme" />
+<element id="Menu.DropDown.HighlightText" fg="font_1" />
+<element id="Controls.TabHeader.Highlight" fg="theme" />
+</root>
