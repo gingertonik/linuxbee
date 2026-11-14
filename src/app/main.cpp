@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QDBusConnection>
 #include <QDateTime>
 #include <QDir>
 #include <QFileDialog>
@@ -14,11 +15,13 @@
 
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
+#include "desktop/mprisservice.h"
 #include "library/library.h"
 #include "mainwindow/mainwindow.h"
 #include "playlists/playliststore.h"
 #include "audio/devicesink.h"
 #include "playback/audioengine.h"
+#include "shell/backgroundshell.h"
 #include "shell/libraryshell.h"
 #include "shell/playbackshell.h"
 #include "shell/toolsshell.h"
@@ -39,10 +42,11 @@
 // not touched and no window is shown.
 int main(int argc, char *argv[])
 {
-    const QString usage
-        = QStringLiteral("usage: linuxbee [--version] [--commands] [--screenshot FILE] [FILE...]");
+    const QString usage = QStringLiteral(
+        "usage: linuxbee [--version] [--commands] [--services] [--screenshot FILE] [FILE...]");
     bool wantVersion = false;
     bool wantCommands = false;
+    bool wantServices = false;
     QString shotFile;
     bool wantShot = false;
     for (int i = 1; i < argc; ++i) {
@@ -51,6 +55,8 @@ int main(int argc, char *argv[])
             wantVersion = true;
         } else if (word == QStringLiteral("--commands")) {
             wantCommands = true;
+        } else if (word == QStringLiteral("--services")) {
+            wantServices = true;
         } else if (word == QStringLiteral("--screenshot")) {
             // A mistake: given twice, the last word, or followed by an option.
             QString problem;
@@ -155,6 +161,26 @@ int main(int argc, char *argv[])
         out.flush();
         return 0;
     }
+    // BG-MAIN: the background shell on the session bus. Closing it from the desktop
+    // closes the window. Its clock is the one the other shells use. It is made after the
+    // --commands answer, so --commands never touches the bus.
+    linuxbee::ui::BackgroundShell::Hooks backgroundHooks;
+    backgroundHooks.now = hooks.now;
+    backgroundHooks.quit = [&window] { window.close(); };
+    auto background = std::make_unique<linuxbee::ui::BackgroundShell>(&window, library.get(),
+        playback.get(), &settings, backgroundHooks, QDBusConnection::sessionBus());
+
+    if (wantServices) {
+        // BG-MAIN: what the shell found, with no window: whether the media keys are on,
+        // and how many folders are monitored. The program ends with status 0.
+        QTextStream out(stdout);
+        out << (background->mpris()->isRunning() ? QStringLiteral("mpris=on")
+                                                 : QStringLiteral("mpris=off"))
+            << '\n';
+        out << QStringLiteral("monitored=%1").arg(background->monitoredFolders().size()) << '\n';
+        out.flush();
+        return 0;
+    }
     window.show();
 
     QObject::connect(&application, &QApplication::aboutToQuit, [&] {
@@ -163,6 +189,8 @@ int main(int argc, char *argv[])
         // must not lose it). SH-MAIN: the shell's state goes first, then the
         // hotkeys, then sync(). PS-MAIN: the playback shell's state goes
         // before all of it, and the playback shell is destroyed (stopping the sound).
+        // BG-MAIN: the background shell goes first, so the bus is left before anything is saved.
+        background.reset();
         playback->saveState();
         playback.reset();
         window.saveLayout();
