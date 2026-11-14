@@ -1,4 +1,4 @@
-#include "convert/convertdialog.h"
+#include "convert/convertdialog_p.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -17,29 +17,6 @@
 #include <algorithm>
 
 namespace linuxbee::ui {
-
-struct ConvertDialog::Private {
-    ConvertDialog *q = nullptr;
-    QStringList files;
-    QSettings *settings = nullptr;
-    ConvertBatch *batch = nullptr;
-
-    QComboBox *presetCombo = nullptr;
-    QLineEdit *folderEdit = nullptr;
-    QPushButton *browseButton = nullptr;
-    QComboBox *ifExistsCombo = nullptr;
-    QSpinBox *parallelSpin = nullptr;
-    QCheckBox *copyTagsCheck = nullptr;
-    QCheckBox *copyPicturesCheck = nullptr;
-    QTreeWidget *jobTable = nullptr;
-    QLabel *summaryLabel = nullptr;
-    QProgressBar *progressBar = nullptr;
-    QPushButton *runButton = nullptr;
-    QPushButton *closeButton = nullptr;
-
-    void loadSettings();
-    void refreshTable();
-};
 
 // CD-OPTIONS: the stored values, or the defaults for anything missing or
 // out of range. Nothing is written here.
@@ -174,13 +151,19 @@ ConvertDialog::ConvertDialog(const QStringList &files, QSettings *settings, QWid
         if (!picked.isEmpty())
             d->folderEdit->setText(picked);
     });
+    connect(d->runButton, &QPushButton::clicked, this, [this] { run(); });
     connect(d->closeButton, &QPushButton::clicked, this, [this] { reject(); });
 
+    d->connectBatch();
     d->refreshTable();
 }
 
 ConvertDialog::~ConvertDialog()
 {
+    // The batch goes first: its destructor waits for any job still working,
+    // so no result reaches a widget after the widgets are freed.
+    delete d->batch;
+    d->batch = nullptr;
     delete d;
 }
 
@@ -215,11 +198,6 @@ QList<ConvertJob> ConvertDialog::plan() const
 ConvertBatch *ConvertDialog::batch() const
 {
     return d->batch;
-}
-
-bool ConvertDialog::run()
-{
-    return false;
 }
 
 void ConvertDialog::reject()
