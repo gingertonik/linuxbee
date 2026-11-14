@@ -1,0 +1,3 @@
+853550df2b3757052b5366b8e153591b407b139903c055ab5ab40c92f89f5f96  tests/locked/tst_ui_backgroundshell.cpp
+311a882376e1d945b69993cc35575dabcee72e44d0bbd29e53fd4498be5a9d72  tests/locked/cli_background.sh
+57eaf9309270fc9f9df029cf62942731278e8b35ad68689977b9be60ac1bee4c  docs/spec/background-shell.md
