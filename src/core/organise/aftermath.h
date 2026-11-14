@@ -14,7 +14,9 @@ void takeAlongOtherFiles(OrganiseReport *report);
 
 // O-EMPTY. Removes each folder a track was moved out of if it is now empty,
 // then its parent, and so on upward, stopping at the first that still holds
-// something. Lists the removed folders in `report->removedFolders`.
-void removeEmptiedFolders(OrganiseReport *report);
+// something. A folder is removed only if it lies strictly below a floor: the
+// non-empty `sourceRoots`, or, with none, the deepest folder holding every
+// moved track. Lists the removed folders in `report->removedFolders`.
+void removeEmptiedFolders(OrganiseReport *report, const QStringList &sourceRoots);
 
 }

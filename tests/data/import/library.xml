@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Major Version</key><integer>1</integer>
+	<key>Minor Version</key><integer>1</integer>
+	<key>Application Version</key><string>12.9.0.167</string>
+	<key>Show Content Ratings</key><true/>
+	<key>Music Folder</key><string>file://localhost/C:/Docs/someone/Music/</string>
+	<key>Tracks</key>
+	<dict>
+		<key>1001</key>
+		<dict>
+			<key>Track ID</key><integer>1001</integer>
+			<key>Name</key><string>Hello</string>
+			<key>Artist</key><string>Adele</string>
+			<key>Album</key><string>25</string>
+			<key>Kind</key><string>MPEG audio file</string>
+			<key>Total Time</key><integer>295000</integer>
+			<key>Date Added</key><date>2019-03-04T07:00:00Z</date>
+			<key>Play Count</key><integer>12</integer>
+			<key>Play Date</key><integer>3849984000</integer>
+			<key>Play Date UTC</key><date>2025-12-31T23:59:59Z</date>
+			<key>Skip Count</key><integer>2</integer>
+			<key>Rating</key><integer>100</integer>
+			<key>Location</key><string>file://localhost/C:/Docs/someone/Music/Adele/25/01%20Hello.mp3</string>
+		</dict>
+		<key>1002</key>
+		<dict>
+			<key>Location</key><string>file:///C:/Docs/someone/Music/Bj%C3%B6rk/J%C3%B3ga.flac</string>
+			<key>Track ID</key><integer>1002</integer>
+			<key>Name</key><string>Jóga</string>
+			<key>Artist</key><string>Björk</string>
+			<key>Album</key><string>Homogenic</string>
+			<key>Date Added</key><date>2020-06-07T08:09:10Z</date>
+			<key>Rating</key><integer>90</integer>
+			<key>Volume Adjustment</key><real>1.5</real>
+		</dict>
+		<key>1003</key>
+		<dict>
+			<key>Track ID</key><integer>1003</integer>
+			<key>Name</key><string>Rock &#38; Roll &lt;live&gt;</string>
+			<key>Artist</key><string>Led Zeppelin</string>
+			<key>Play Count</key><integer>3</integer>
+			<key>Rating</key><integer>60</integer>
+			<key>Rating Computed</key><true/>
+			<key>Date Added</key><date>2021-01-01T00:00:00Z</date>
+			<key>Location</key><string>file://localhost/D:/Other/x%26y%20%2B%20z.m4a</string>
+		</dict>
+		<key>1004</key>
+		<dict>
+			<key>Track ID</key><integer>1004</integer>
+			<key>Name</key><string>No Location</string>
+			<key>Play Count</key><integer>5</integer>
+		</dict>
+		<key>1005</key>
+		<dict>
+			<key>Track ID</key><integer>1005</integer>
+			<key>Name</key><string>A Stream</string>
+			<key>Track Type</key><string>URL</string>
+			<key>Location</key><string>http://example.invalid/stream</string>
+		</dict>
+		<key>1006</key>
+		<dict>
+			<key>Track ID</key><integer>1006</integer>
+			<key>Name</key><string>On The NAS</string>
+			<key>Date Added</key><date>2022-02-02T02:02:02Z</date>
+			<key>Play Date UTC</key><date>2022-03-03T03:03:03Z</date>
+			<key>Play Count</key><integer>1</integer>
+			<key>Location</key><string>file://nas/share/Music/a.ogg</string>
+		</dict>
+		<key>1007</key>
+		<dict>
+			<key>Track ID</key><integer>1007</integer>
+			<key>Name</key><string>On A Mac</string>
+			<key>Rating</key><integer>15</integer>
+			<key>Play Count</key><integer>-5</integer>
+			<key>Skip Count</key><integer>4</integer>
+			<key>Location</key><string>file://localhost/Volumes/Media/b.mp3</string>
+		</dict>
+		<key>1008</key>
+		<dict>
+			<key>Track ID</key><integer>1008</integer>
+			<key>Name</key><string>Hello again</string>
+			<key>Play Count</key><integer>99</integer>
+			<key>Date Added</key><date>2001-01-01T00:00:00Z</date>
+			<key>Location</key><string>file://localhost/C:/docs/SOMEONE/music/Adele/25/01%20hello.MP3</string>
+		</dict>
+	</dict>
+	<key>Playlists</key>
+	<array>
+		<dict>
+			<key>Name</key><string>Library</string>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>Master</key><true/>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1001</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>1002</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>1003</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key><string>Music</string>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>Distinguished Kind</key><integer>4</integer>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1001</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key><string>Smart One</string>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>Smart Info</key>
+			<data>
+			AQEAAwAAAAIAAAAZ
+			</data>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1002</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key><string>A Folder</string>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>Folder</key><true/>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1001</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key><string>Road Trip</string>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>All Items</key><true/>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1002</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>1001</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>1004</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>1001</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key><string>Empty</string>
+			<key>Playlist ID</key><integer>1</integer>
+		</dict>
+		<dict>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1001</integer>
+				</dict>
+			</array>
+		</dict>
+		<dict>
+			<key>Name</key><string>  Dupes &#38; NAS </string>
+			<key>Playlist ID</key><integer>1</integer>
+			<key>Playlist Items</key>
+			<array>
+				<dict>
+					<key>Track ID</key><integer>1008</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>1006</integer>
+				</dict>
+				<dict>
+					<key>Track ID</key><integer>4242</integer>
+				</dict>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

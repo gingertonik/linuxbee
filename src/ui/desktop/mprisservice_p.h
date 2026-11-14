@@ -1,0 +1,160 @@
+#pragma once
+#include <QDBusAbstractAdaptor>
+#include <QDBusConnection>
+#include <QDBusObjectPath>
+#include <QString>
+#include <QStringList>
+#include <QVariantMap>
+
+#include <functional>
+
+#include "desktop/mprisservice.h"
+
+// What the MPRIS service keeps, shared with the adaptors in
+// mprisadaptors.cpp, and the helpers both files need.
+// Contract: docs/spec/desktop-mpris.md (MP-x).
+// Not part of the public API: nothing here is visible outside src/ui/desktop.
+namespace linuxbee::ui {
+
+class PlayerAdaptor;
+
+struct DesktopState {
+    // Neither pointer is owned; both outlive the service (the header's contract).
+    Player *player = nullptr;
+    PlayQueue *queue = nullptr;
+    MprisService::Hooks hooks;
+
+    QDBusConnection bus { QString() }; // MP-START: the connection it was started on
+    bool running = false; // MP-START: registered and owning the name
+
+    QString trackId; // MP-METADATA: the id of the track last started; empty: none
+    QString trackIdPath; // MP-METADATA: the file trackId was issued for
+    qint64 trackSerial = 0; // MP-METADATA: the N of that id, a new one for every play
+
+    PlayerAdaptor *playerAdaptor = nullptr; // MP-SEEK: where the Seeked signal lives
+    qint64 lastReportMs = 0; // MP-SEEK: the last position the player reported
+
+    QVariantMap sent; // MP-CHANGED: what was last announced, to announce what differs
+};
+
+// MP-CHANGED: after anything the player or the queue reports, work the Player
+// interface's properties out again and send the ones that differ, in one
+// signal. A service that is not running keeps up quietly, ready to be started.
+void announceChanges(DesktopState &state);
+
+// MP-METADATA: the id the desktop is given for the track that is playing, and
+// the id a SetPosition has to carry for it to be that track.
+QString currentTrackIdOf(const DesktopState &state);
+
+// MP-METADATA: the map the bus is handed for what is playing. A track that is
+// not known is reported by its id alone. Defined with the service, because
+// only the service has the hook that knows what it is.
+QVariantMap metadataOf(const DesktopState &state);
+
+// The root interface: who linuxBee is, and what the desktop may ask of it.
+// MP-ROOT.
+class RootAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.mpris.MediaPlayer2")
+    Q_PROPERTY(QString Identity READ identity)
+    Q_PROPERTY(QString DesktopEntry READ desktopEntry)
+    Q_PROPERTY(bool CanQuit READ canQuit)
+    Q_PROPERTY(bool CanRaise READ canRaise)
+    Q_PROPERTY(bool HasTrackList READ hasTrackList)
+    Q_PROPERTY(QStringList SupportedUriSchemes READ supportedUriSchemes)
+    Q_PROPERTY(QStringList SupportedMimeTypes READ supportedMimeTypes)
+public:
+    RootAdaptor(MprisService *service, DesktopState &state);
+
+    QString identity() const;
+    QString desktopEntry() const;
+    bool canQuit() const;
+    bool canRaise() const;
+    bool hasTrackList() const;
+    QStringList supportedUriSchemes() const;
+    QStringList supportedMimeTypes() const;
+
+public slots:
+    void Raise();
+    void Quit();
+
+private:
+    DesktopState &m_state;
+};
+
+// The Player interface: the requests a desktop media control makes, and what
+// it is told about the state. MP-METHODS and MP-PROPS.
+// Every property of the MP-PROPS table is declared here from the start,
+// because a panel asks for the whole list at once.
+class PlayerAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.mpris.MediaPlayer2.Player")
+    Q_PROPERTY(QString PlaybackStatus READ playbackStatus)
+    Q_PROPERTY(QString LoopStatus READ loopStatus WRITE setLoopStatus)
+    Q_PROPERTY(double Rate READ rate WRITE setRate)
+    Q_PROPERTY(bool Shuffle READ shuffle WRITE setShuffle)
+    Q_PROPERTY(QVariantMap Metadata READ metadata)
+    Q_PROPERTY(double Volume READ volume WRITE setVolume)
+    Q_PROPERTY(qlonglong Position READ position)
+    Q_PROPERTY(double MinimumRate READ minimumRate)
+    Q_PROPERTY(double MaximumRate READ maximumRate)
+    Q_PROPERTY(bool CanGoNext READ canGoNext)
+    Q_PROPERTY(bool CanGoPrevious READ canGoPrevious)
+    Q_PROPERTY(bool CanPlay READ canPlay)
+    Q_PROPERTY(bool CanPause READ canPause)
+    Q_PROPERTY(bool CanSeek READ canSeek)
+    Q_PROPERTY(bool CanControl READ canControl)
+public:
+    PlayerAdaptor(MprisService *service, DesktopState &state);
+
+    QString playbackStatus() const;
+    QString loopStatus() const;
+    double rate() const;
+    bool shuffle() const;
+    QVariantMap metadata() const;
+    double volume() const;
+    qlonglong position() const;
+    double minimumRate() const;
+    double maximumRate() const;
+    bool canGoNext() const;
+    bool canGoPrevious() const;
+    bool canPlay() const;
+    bool canPause() const;
+    bool canSeek() const;
+    bool canControl() const;
+
+    // MP-CHANGED: every property of this interface that a change can move,
+    // under its MPRIS name. Position is not among them: MP-SEEK's signal
+    // covers moving along, and a panel asks for Position when it wants it.
+    QVariantMap announcedProperties() const;
+
+    // MP-PROPS: the properties a panel may write, reached through
+    // Properties.Set only. Not slots: an adaptor exports every slot as a method.
+    void setLoopStatus(const QString &text);
+    void setShuffle(bool on);
+    void setVolume(double volume);
+    void setRate(double rate);
+
+public slots:
+    // MP-METHODS: the player's own functions, under the names the desktop uses.
+    void Play();
+    void Pause();
+    void PlayPause();
+    void Stop();
+    void Next();
+    void Previous();
+    void OpenUri(const QString &uri);
+
+    // MP-SEEK: both take and give positions in microseconds.
+    void Seek(qlonglong offsetUs);
+    void SetPosition(const QDBusObjectPath &trackId, qlonglong positionUs);
+
+signals:
+    // MP-SEEK: tells listeners that the position jumped.
+    void Seeked(qlonglong positionUs);
+
+private:
+    DesktopState &m_state;
+};
+
+}

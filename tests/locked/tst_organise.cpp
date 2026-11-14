@@ -68,9 +68,11 @@ private slots:
     void move();
     void copy();
     void replace();
+    void replacedIsFindable();
     void changedSincePlanning();
     void otherFiles();
     void emptyFolders();
+    void emptyFoldersStopAtAFloor();
     void progressAndCancel();
     void failure();
 
@@ -380,7 +382,75 @@ void OrganiseTest::replace()
         // O-CONFLICT: nothing else is left beside the new file.
         QCOMPARE(QDir(QFileInfo(target).absolutePath()).entryList(QDir::Files | QDir::Hidden),
             QStringList({ s(u"01-11 Someone like You.mp3") }));
+        // O-REPLACED: no folder either, and the outcome says a file was replaced.
+        QCOMPARE(QDir(QFileInfo(target).absolutePath())
+                     .entryList(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot),
+            QStringList({ s(u"01-11 Someone like You.mp3") }));
+        QVERIFY(at(r.outcomes, 0).replaced);
+        QCOMPARE(at(r.outcomes, 0).replacedNow.isEmpty(), mode == OrganiseOptions::Replaced::Delete);
+        QCOMPARE(at(r.outcomes, 0).message, QString());
     }
+}
+
+void OrganiseTest::replacedIsFindable()
+{
+    // O-REPLACED: the old file is in the trash under its own name, and its
+    // trash record says where it came from. A trash of this test's own.
+    const QString trashHome = m_work + s(u"/xdg-own");
+    qputenv("XDG_DATA_HOME", QFile::encodeName(trashHome));
+    const QString a = put("basic.mp3", s(u"in/a/x.mp3"));
+    const QString target = touch(s(u"out/") + kMp3, "the old one");
+    OrganiseOptions o = options();
+    o.replaceExisting = true;
+    o.replaced = OrganiseOptions::Replaced::MoveToTrash;
+    const OrganiseReport r = linuxbee::executeOrganise(linuxbee::planOrganise({ a }, o), o);
+    QCOMPARE(r.done, 1);
+    const MoveOutcome &outcome = at(r.outcomes, 0);
+    QVERIFY(outcome.status == MoveOutcome::Status::Done);
+    QVERIFY(outcome.replaced);
+    QCOMPARE(bytesOf(target), fixtureBytes("basic.mp3"));
+
+    // Found by name, and whole.
+    QVERIFY2(!outcome.replacedNow.isEmpty(), "the outcome does not say where the old file went");
+    QCOMPARE(QFileInfo(outcome.replacedNow).fileName(), s(u"01-11 Someone like You.mp3"));
+    QCOMPARE(bytesOf(outcome.replacedNow), QByteArray("the old one"));
+    QVERIFY(outcome.replacedNow != target);
+
+    // The trash record (FreeDesktop trash: info/NAME.trashinfo beside files/NAME).
+    const QFileInfo inTrash(outcome.replacedNow);
+    QCOMPARE(inTrash.dir().dirName(), s(u"files"));
+    const QString record = inTrash.dir().absoluteFilePath(s(u"../info/") + inTrash.fileName() + s(u".trashinfo"));
+    QVERIFY2(QFileInfo::exists(record), qPrintable(record));
+    QString cameFrom;
+    for (const QByteArray &line : bytesOf(record).split('\n')) {
+        if (line.startsWith("Path="))
+            cameFrom = QString::fromUtf8(QByteArray::fromPercentEncoding(line.mid(5).trimmed()));
+    }
+    // The home trash records the whole path; a trash on another drive records it from that drive's top.
+    QVERIFY2(cameFrom == target || target.endsWith(QLatin1Char('/') + cameFrom), qPrintable(cameFrom));
+    QVERIFY2(!bytesOf(record).contains("linuxbee"), "a name the organiser used while working shows in the trash record");
+
+    // A second file of the same name, replaced later, is found as well.
+    const QString b = put("basic.mp3", s(u"in/a/x.mp3"));
+    {
+        QFile now(target);
+        QVERIFY(now.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        now.write("the second old one");
+    }
+    const OrganiseReport r2 = linuxbee::executeOrganise(linuxbee::planOrganise({ b }, o), o);
+    QCOMPARE(r2.done, 1);
+    QVERIFY(at(r2.outcomes, 0).replaced);
+    QVERIFY(at(r2.outcomes, 0).replacedNow != outcome.replacedNow);
+    QCOMPARE(bytesOf(at(r2.outcomes, 0).replacedNow), QByteArray("the second old one"));
+    QVERIFY(QFileInfo(at(r2.outcomes, 0).replacedNow).fileName().startsWith(s(u"01-11 Someone like You")));
+    QCOMPARE(bytesOf(outcome.replacedNow), QByteArray("the old one")); // the first is still there
+
+    // An entry that replaced nothing says so.
+    const QString c = put("basic.flac", s(u"in/a/y.flac"));
+    const OrganiseReport r3 = linuxbee::executeOrganise(linuxbee::planOrganise({ c }, o), o);
+    QCOMPARE(r3.done, 1);
+    QVERIFY(!at(r3.outcomes, 0).replaced);
+    QCOMPARE(at(r3.outcomes, 0).replacedNow, QString());
 }
 
 void OrganiseTest::changedSincePlanning()
@@ -467,15 +537,17 @@ void OrganiseTest::emptyFolders()
     QVERIFY(QFileInfo::exists(m_work + s(u"/in/a/b/c")));
     QVERIFY(r.removedFolders.isEmpty());
 
-    // O-EMPTY: upwards while empty; it stops by itself at the first folder that
-    // still holds something (here m_work, which holds out/).
+    // O-EMPTY: upwards while empty, as far as the floor and no further. The
+    // floor is the folder the user named, here in/a.
     const QString b = put("basic.flac", s(u"in/a/b/c/y.flac"));
     o.removeEmptyFolders = true;
+    o.sourceRoots = { m_work + s(u"/in/a") };
     r = linuxbee::executeOrganise(linuxbee::planOrganise({ b }, o), o);
-    QCOMPARE(r.removedFolders, QStringList({ m_work + s(u"/in/a/b/c"), m_work + s(u"/in/a/b"),
-                                   m_work + s(u"/in/a"), m_work + s(u"/in") }));
-    QVERIFY(QFileInfo::exists(m_work));
-    QVERIFY(!QFileInfo::exists(m_work + s(u"/in")));
+    QCOMPARE(r.removedFolders, QStringList({ m_work + s(u"/in/a/b/c"), m_work + s(u"/in/a/b") }));
+    QVERIFY(QFileInfo(m_work + s(u"/in/a")).isDir()); // empty, and still there
+    QVERIFY(QDir(m_work + s(u"/in/a")).isEmpty());
+    QVERIFY(QFileInfo(m_work + s(u"/in")).isDir());
+    o.sourceRoots.clear();
 
     // A rename inside one folder removes nothing.
     const QString d = put("basic.m4a", s(u"solo/z.m4a"));
@@ -485,6 +557,69 @@ void OrganiseTest::emptyFolders()
     QCOMPARE(r.done, 1);
     QVERIFY(QFileInfo::exists(m_work + s(u"/solo/01-03 M4A Title.m4a")));
     QVERIFY(r.removedFolders.isEmpty());
+}
+
+void OrganiseTest::emptyFoldersStopAtAFloor()
+{
+    // O-EMPTY, floors. Whatever is emptied, a floor and everything above it stays.
+    const auto run = [this](const QStringList &files, const QStringList &roots) {
+        OrganiseOptions o = options();
+        o.sourceRoots = roots;
+        return linuxbee::executeOrganise(linuxbee::planOrganise(files, o), o);
+    };
+    const QString in = m_work + s(u"/in");
+
+    // The inbox case: the last files leave the folder that was named. The
+    // folder stays, and so does the music folder above it.
+    QString a = put("basic.mp3", s(u"in/music/inbox/x.mp3"));
+    OrganiseReport r = run({ a }, { in + s(u"/music/inbox") });
+    QCOMPARE(r.done, 1);
+    QCOMPARE(r.removedFolders, QStringList());
+    QVERIFY(QFileInfo(in + s(u"/music/inbox")).isDir());
+    QVERIFY(QFileInfo(in + s(u"/music")).isDir());
+
+    // A root given with a trailing slash, or untidily, is the same root.
+    a = put("basic.mp3", s(u"in/music/inbox/sub/x.mp3"));
+    r = run({ a }, { in + s(u"/music/other/../inbox/") });
+    QCOMPARE(r.removedFolders, QStringList({ in + s(u"/music/inbox/sub") }));
+    QVERIFY(QFileInfo(in + s(u"/music/inbox")).isDir());
+
+    // A folder whose name merely begins like the root's is not below it.
+    a = put("basic.mp3", s(u"in/music/inbox2/x.mp3"));
+    r = run({ a }, { in + s(u"/music/inbox") });
+    QCOMPARE(r.done, 1);
+    QCOMPARE(r.removedFolders, QStringList());
+    QVERIFY(QFileInfo(in + s(u"/music/inbox2")).isDir());
+
+    // Two roots: each is the floor for what lies below it.
+    a = put("basic.mp3", s(u"in/one/p/x.mp3"));
+    const QString b = put("basic.flac", s(u"in/two/q/r/y.flac"));
+    r = run({ a, b }, { in + s(u"/one"), in + s(u"/two") });
+    QCOMPARE(r.done, 2);
+    QCOMPARE(r.removedFolders, QStringList({ in + s(u"/one/p"), in + s(u"/two/q/r"), in + s(u"/two/q") }));
+    QVERIFY(QFileInfo(in + s(u"/one")).isDir());
+    QVERIFY(QFileInfo(in + s(u"/two")).isDir());
+
+    // No roots given: the floor is the deepest folder holding every moved track.
+    // One album: its folder stays.
+    a = put("basic.mp3", s(u"in/artist/album/x.mp3"));
+    r = run({ a }, { });
+    QCOMPARE(r.done, 1);
+    QCOMPARE(r.removedFolders, QStringList());
+    QVERIFY(QFileInfo(in + s(u"/artist/album")).isDir());
+    // Two albums of one artist: the albums go, the artist's folder stays. A
+    // track that was skipped (o.ogg has no album tags) does not count.
+    a = put("basic.mp3", s(u"in/artist/album/x.mp3"));
+    const QString c = put("basic.flac", s(u"in/artist/second/disc/y.flac"));
+    const QString skipped = put("basic.ogg", s(u"in/elsewhere/o.ogg"));
+    r = run({ a, c, skipped }, { });
+    QCOMPARE(r.done, 2);
+    QCOMPARE(r.skipped, 1);
+    QCOMPARE(r.removedFolders,
+        QStringList({ in + s(u"/artist/album"), in + s(u"/artist/second/disc"), in + s(u"/artist/second") }));
+    QVERIFY(QFileInfo(in + s(u"/artist")).isDir());
+    QVERIFY(QDir(in + s(u"/artist")).isEmpty());
+    QVERIFY(QFileInfo(in).isDir());
 }
 
 void OrganiseTest::progressAndCancel()
