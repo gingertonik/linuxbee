@@ -53,7 +53,7 @@ all of it, whatever the search box holds. A playlist with no track the
 library knows plays nothing and leaves the queue alone. Every other node
 (a library section, Playing Tracks) plays nothing when activated.
 
-MusicBee plays a playlist on a double-click (Dillon, from memory,
+MusicBee plays a playlist on a double-click (the owner, from memory,
 2026-11-14).
 
 ## PS-COMMANDS
