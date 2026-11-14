@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QMap>
 #include <QDateTime>
 #include <QList>
@@ -61,6 +62,49 @@ struct ScanReport {
     bool cancelled = false;
 };
 
+// L-PARTS: what a scan needs to know of the library.
+struct ScanKnown {
+    struct Entry {
+        qint64 id = 0;
+        qint64 sizeBytes = 0;
+        QDateTime modified;
+        bool missing = false;
+    };
+    QHash<QString, Entry> byPath; // every track, by its stored path
+};
+
+// L-PARTS: what looking at the files found; nothing is stored yet.
+struct ScanFindings {
+    struct Reread {
+        qint64 id = 0;
+        bool wasMissing = false; // then it is `found`, and not counted as updated
+        LibraryTrack reading; // path, tags, size, time, picture count
+    };
+    QList<LibraryTrack> fresh; // files not known, read: no id, category or date added yet
+    QList<Reread> reread; // known files that differ, read again
+    QList<qint64> found; // marked missing, and the file is there
+    QList<qint64> nowMissing; // not marked missing, inside the folders, and the file has gone
+    int unchanged = 0;
+    QStringList notAudio;
+    int unreadableNames = 0;
+    QStringList unreadableIn;
+    bool cancelled = false;
+};
+
+struct ScanFindOptions {
+    std::function<bool(int done, int total)> progress; // as ScanOptions::progress
+    int partSize = 0; // above 0, with `part` set: hand over every so many files
+    std::function<void(const ScanFindings &part)> part;
+};
+
+// L-PARTS: looks at the files; touches no library; any thread.
+ScanFindings findForScan(
+    const QStringList &folders, const ScanKnown &known, const ScanFindOptions &options = { });
+
+struct ScanReport;
+// L-PARTS: the reports of parts, put together.
+ScanReport addedUp(const ScanReport &a, const ScanReport &b);
+
 class Library : public QObject {
     Q_OBJECT
 public:
@@ -75,6 +119,9 @@ public:
 
     // L-SCAN
     ScanReport scan(const QStringList &folders, const ScanOptions &options);
+    // L-PARTS: the two steps of a scan, apart.
+    ScanKnown scanKnown() const;
+    ScanReport applyScan(const ScanFindings &findings, const ScanOptions &options);
     // L-ADD: one file. Returns its id, or 0 when it is not a readable music file.
     qint64 addFile(const QString &path, const QString &category, const QDateTime &now);
 

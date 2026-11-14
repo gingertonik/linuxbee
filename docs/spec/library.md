@@ -103,6 +103,58 @@ A scan with an invalid `now` or an unknown category does nothing.
 Ids in `added` are in the order added. Ids are positive, grow, and are
 never used again, even after `remove`.
 
+### L-PARTS
+
+A scan is two kinds of work: looking at files, which is slow and needs
+no library, and storing what was found, which is quick and must happen
+on the library's own thread. The three functions below are those two
+kinds apart, so that a window can do the slow kind on another thread.
+
+- `scanKnown()` is what the looking needs to know: for every track of
+  the library, by its stored path, its id, size, modification time and
+  whether it is marked missing. It reads no track (L-COUNT).
+- `findForScan(folders, known, options)` looks at the files as L-SCAN
+  says, and at the names as L-NAMES says, against `known`. It touches no
+  library and may be called on any thread. It answers `ScanFindings`:
+  the files not known, read (`fresh`); the known files that differ, read
+  again (`reread`, each with the id and whether the track was marked
+  missing); the ids marked missing whose file is there (`found`); the
+  ids not missing, inside the folders, whose file has gone
+  (`nowMissing`); the count `unchanged`; `notAudio`; the unreadable
+  names; and `cancelled`. `options.progress` is called and obeyed as in
+  L-SCAN.
+- `applyScan(findings, options)` stores them and answers the report:
+  each `fresh` file is added with `options.category` and `options.now`
+  (one whose path the library holds by now is left alone); each `reread`
+  replaces the reading and counts as `updated` unless the track was
+  marked missing; `found` and `nowMissing` set the mark. It refuses what
+  `scan` refuses (an invalid `now`, an unknown category) by doing
+  nothing, and it signals as L-SIGNALS says: at most one signal of each
+  kind for one call.
+
+`scan(folders, options)` is, in its report, in what the library holds
+afterwards and in its signals, exactly `applyScan` of what `findForScan`
+finds for the folders against `scanKnown()`, with `options.progress` as
+its progress function. One thing differs: a scan that would be refused
+(an invalid `now`, an unknown category) is refused before any file is
+looked at, and its progress function is never called.
+
+The order of ids. In the findings and in the report, `nowMissing` is in
+ascending order of path, and `fresh`, `reread` and `found` are in the
+order the files were looked at. `tracksAdded` names the ids of the
+report's `added`; `tracksUpdated` names `found`, then `updated`, then
+`nowMissing`.
+
+**In parts.** With `options.partSize` above 0 and `options.part` set,
+`findForScan` hands `part` what it found each time it has looked at
+`partSize` more files, and starts afresh; it answers what is left: the
+findings since the last part, and with them `nowMissing`, the unreadable
+names and `cancelled`, which no earlier part carries. Applying the parts
+in order and then the answer stores what one `applyScan` of the whole
+would; the reports add up to its report (`addedUp(a, b)`: the lists of
+`a` then of `b`, the counts added, `cancelled` if either). Without a
+`part` function, or with a size of 0, nothing is handed over early.
+
 ### L-NAMES
 
 A file or folder whose name is not valid UTF-8 cannot be opened by
@@ -140,7 +192,9 @@ at the new path.
 
 `categoryCounts()` answers, for every name of `categories()`, how many
 tracks the library holds in it (missing ones included); a section with
-none is there with 0. The numbers add up to `count()`. It asks the store
+none is there with 0, and a category the store holds that is not one of
+those names is there too, with its count. So the numbers add up to
+`count()`. It asks the store
 to count and reads no track.
 
 `tracksRead()` is how many tracks this library object has handed out
