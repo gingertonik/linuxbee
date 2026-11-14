@@ -78,20 +78,52 @@ loudness is read as -120 dBFS.
 
 ## N-MEASURE
 
-`measureLoudness(files, ffmpegProgram)` measures one file, or several as
-one programme: the files played one after another, which is how an album
-level is defined (RG2). It runs ffmpeg as a child process with the
-`ebur128` filter and `peak=true`, reading the first audio stream of each
-file; several files are first brought to one sample rate and channel
-layout and joined. It waits for ffmpeg to end and parses what it printed.
+`measureLoudness(files, ffmpegProgram)` runs ffmpeg as a child process
+with the `ebur128` filter and `peak=true` on the first audio stream of
+each file, waits for it and parses what it printed.
+
+**One file** is measured as it is: its sample rate and its channels are
+not changed on the way to the filter. A one-channel file is measured as
+one channel and a six-channel file as six. (Mixing to two channels first,
+as an earlier version of this document allowed, put a mono file's peak
+3 dB too low and made a 5.1 file up to 3 dB too loud.)
+
+**Several files** are an album, measured as one programme: the files
+played one after another (RG2).
+
+- The album's peak is the largest of the files' own true peaks, each
+  measured as it is. It is never the peak of a converted signal.
+- The album's loudness is that of the join. Files that all have the same
+  sample rate and channel layout are joined as they are. Otherwise each
+  file that differs is first brought to the highest sample rate among
+  them and to the channel layout of the file with the most channels
+  (among several such layouts, the one whose ffmpeg name sorts first).
+  Going up to more channels keeps a file's loudness; mixing down would
+  not.
+- The order of the files does not change the result beyond rounding.
+
+A one-channel file is not counted twice ("dual mono"): the tags say what
+the file holds, whatever it is later played on.
 
 It is not ok, with a reason, for an empty list, a path that is not a file,
 a file ffmpeg cannot decode, or an ffmpeg that cannot be started. A file
 name is only ever a file name: one that begins with `-` or contains `:`
 must not be taken for an option or a protocol.
 
-The order of the files in an album does not change the result beyond
-rounding. ffmpeg prints one decimal, so results are exact to 0.1 dB.
+ffmpeg prints one decimal, so results are exact to 0.1 dB.
+
+## N-FINITE
+
+Every loudness, gain and peak is a finite number, at every door:
+
+- `parseLoudnessSummary` is not ok when the loudness, or the peak, is
+  `nan`, `inf` or any other text that is not a finite decimal number. The
+  two exceptions stay as N-PARSE has them: a loudness of `-inf` is "too
+  quiet", and a peak of `-inf` is -120 dBFS.
+- `gainTagChanges` treats a measurement whose loudness or peak is not
+  finite as not ok, whatever its `ok` says: it contributes nothing.
+- `gainFromTags` gives no value for `nan`, `inf`, `infinity` (any case,
+  any sign, with or without `dB`) or a number too large to hold.
 
 ## N-WRITE
 
@@ -146,3 +178,4 @@ linuxbeectl gain remove  FILE...
 |---|---|
 | N-REFERENCE | Which reference level does Analyze Volume use (89 dB SPL of ReplayGain 1, or -18 LUFS)? |
 | N-APPLY | Player preferences for replay gain: the modes offered, the pre-amp, and what happens to untagged tracks. |
+| N-MEASURE | Does Analyze Volume count a one-channel file as two channels ("dual mono")? linuxBee does not. Analyse a mono file and compare its track gain with `linuxbeectl gain measure`. |
