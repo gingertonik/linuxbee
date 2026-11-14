@@ -7,8 +7,9 @@
 
 namespace linuxbee {
 
-FolderMonitor::Private::Private(FolderMonitor::Scanner scanner)
-    : scanner(std::move(scanner))
+FolderMonitor::Private::Private(FolderMonitor *owner, FolderMonitor::Scanner scanner)
+    : owner(owner)
+    , scanner(std::move(scanner))
 {
 }
 
@@ -41,10 +42,57 @@ void FolderMonitor::Private::reconcile(QStringList *arrived, QStringList *depart
         *departed = gone;
 }
 
+void FolderMonitor::Private::onDirectoryChanged(const QString &path)
+{
+    // A folder that appeared is watched from now on, so that what is put
+    // into it is seen too; it counts as changed.
+    QStringList arrived;
+    QStringList departed;
+    reconcile(&arrived, &departed);
+
+    changed.insert(cleanFolderPath(path));
+    for (const QString &folder : std::as_const(arrived))
+        changed.insert(folder);
+    for (const QString &folder : std::as_const(departed))
+        changed.insert(folder);
+
+    pending = true;
+    timer.start(settleMs); // a further change starts the wait again
+}
+
+void FolderMonitor::Private::onSettled()
+{
+    if (!pending)
+        return;
+    QStringList changedFolders(changed.cbegin(), changed.cend());
+    std::sort(changedFolders.begin(), changedFolders.end());
+    scanNow(rootsFor(changedFolders, folders));
+}
+
+void FolderMonitor::Private::scanNow(const QStringList &roots)
+{
+    if (!scanner || scanning)
+        return;
+
+    scanning = true;
+    const ScanReport report = scanner(roots);
+    scanning = false;
+
+    timer.stop();
+    changed.clear();
+    pending = false;
+    reconcile(); // after every scan the list is made afresh
+    emit owner->scanned(report, roots);
+}
+
 FolderMonitor::FolderMonitor(Scanner scanner, QObject *parent)
     : QObject(parent)
-    , d(new Private(std::move(scanner)))
+    , d(new Private(this, std::move(scanner)))
 {
+    d->timer.setSingleShot(true);
+    connect(&d->watcher, &QFileSystemWatcher::directoryChanged, this,
+        [this](const QString &path) { d->onDirectoryChanged(path); });
+    connect(&d->timer, &QTimer::timeout, this, [this] { d->onSettled(); });
 }
 
 FolderMonitor::~FolderMonitor()
@@ -104,7 +152,7 @@ bool FolderMonitor::limited() const
 
 bool FolderMonitor::isPending() const
 {
-    return false;
+    return d->pending;
 }
 
 void FolderMonitor::checkNow()

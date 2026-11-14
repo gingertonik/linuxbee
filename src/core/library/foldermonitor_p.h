@@ -4,7 +4,9 @@
 
 #include <QDir>
 #include <QFileSystemWatcher>
+#include <QSet>
 #include <QStringList>
+#include <QTimer>
 
 namespace linuxbee {
 
@@ -17,8 +19,9 @@ inline QString cleanFolderPath(const QString &path)
 // The state behind FolderMonitor. Shared by foldermonitor.cpp and
 // foldermonitor_watch.cpp; not part of the public API.
 struct FolderMonitor::Private {
-    explicit Private(FolderMonitor::Scanner scanner);
+    Private(FolderMonitor *owner, FolderMonitor::Scanner scanner);
 
+    FolderMonitor *owner;
     FolderMonitor::Scanner scanner;
     int settleMs = 2000; // FM-SETTLE
     int directoryLimit = 4096; // FM-DIRS
@@ -27,9 +30,21 @@ struct FolderMonitor::Private {
     bool limited = false;
     QFileSystemWatcher watcher;
 
+    QTimer timer; // the one single-shot wait (FM-SETTLE)
+    QSet<QString> changed; // folders where something changed since the last scan
+    bool pending = false; // a change was seen and its scan has not happened yet
+    bool scanning = false; // the scanner is running: it is never asked again meanwhile
+
     // Makes `watched` match `folders` and the limit, and the watcher match
     // `watched`. Reports the folders that came and the ones that went.
     void reconcile(QStringList *arrived = nullptr, QStringList *departed = nullptr);
+
+    // FM-WATCH and FM-SETTLE: a watched folder changed.
+    void onDirectoryChanged(const QString &path);
+    // The wait is over: scan the roots of the changed folders (FM-ROOTS).
+    void onSettled();
+    // Calls the scanner with `roots`, then forgets the changes and emits scanned.
+    void scanNow(const QStringList &roots);
 };
 
 }
