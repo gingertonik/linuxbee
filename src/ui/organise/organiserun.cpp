@@ -1,6 +1,10 @@
 #include "organise/organisedialog_p.h"
 
+#include <QCheckBox>
+#include <QCloseEvent>
 #include <QCoreApplication>
+#include <QEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
@@ -8,9 +12,51 @@
 #include <QSettings>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
-#include <QCheckBox>
 
 namespace linuxbee::ui {
+
+namespace {
+
+// OD-RUN: while a run is under way, Escape and the window's own close ask the
+// run to stop, and the dialog stays open. Installed for the length of the
+// executor call only; with no run under way the events pass through.
+class RunGuard : public QObject {
+public:
+    RunGuard(QWidget *dialog, const bool *running, bool *stopRequested)
+        : dialog_(dialog)
+        , running_(running)
+        , stopRequested_(stopRequested)
+    {
+        dialog_->installEventFilter(this);
+    }
+    ~RunGuard() override { dialog_->removeEventFilter(this); }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (!*running_)
+            return QObject::eventFilter(watched, event);
+        if (event->type() == QEvent::KeyPress
+            && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            event->accept();
+            *stopRequested_ = true;
+            return true;
+        }
+        if (event->type() == QEvent::Close) {
+            event->ignore(); // close() then reports false, as the dialog stays open
+            *stopRequested_ = true;
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QWidget *dialog_;
+    const bool *running_;
+    bool *stopRequested_;
+};
+
+}
 
 // OD-RUN: hand the plan shown to the executor, follow its progress, then
 // report what happened to each file.
@@ -49,25 +95,32 @@ bool OrganiseDialog::run()
         QCoreApplication::processEvents();
         return !d->stopRequested;
     };
-    const OrganiseReport report = d->executor(plan, opts, progress);
+    OrganiseReport report;
+    {
+        RunGuard guard(this, &d->running, &d->stopRequested);
+        report = d->executor(plan, opts, progress);
+    }
 
     d->running = false;
     d->progressBar->setVisible(false);
 
     // The planned moves come first in the report; the table shows those rows.
-    for (qsizetype i = 0; i < plan.size() && i < report.outcomes.size(); ++i) {
-        const MoveOutcome &outcome = report.outcomes.at(i);
-        QString word;
-        switch (outcome.status) {
-        case MoveOutcome::Status::Done:
-            word = tr("Done");
-            break;
-        case MoveOutcome::Status::Failed:
-            word = tr("Failed: %1").arg(outcome.message);
-            break;
-        case MoveOutcome::Status::Skipped:
-            word = tr("Skipped: %1").arg(outcome.message);
-            break;
+    // A row the run never came to, because it was stopped first, shows Not reached.
+    for (qsizetype i = 0; i < plan.size(); ++i) {
+        QString word = tr("Not reached");
+        if (i < report.outcomes.size()) {
+            const MoveOutcome &outcome = report.outcomes.at(i);
+            switch (outcome.status) {
+            case MoveOutcome::Status::Done:
+                word = tr("Done");
+                break;
+            case MoveOutcome::Status::Failed:
+                word = tr("Failed: %1").arg(outcome.message);
+                break;
+            case MoveOutcome::Status::Skipped:
+                word = tr("Skipped: %1").arg(outcome.message);
+                break;
+            }
         }
         if (QTreeWidgetItem *row = d->previewTable->topLevelItem(static_cast<int>(i)))
             row->setText(2, word);
