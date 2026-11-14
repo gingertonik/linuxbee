@@ -79,6 +79,13 @@ int runSettings(const QStringList &arguments)
     int written = 0;
     if (apply) {
         const QString ini = parser.value(toOption);
+        // SI-CLI-SELF: the file being imported is never the one written, under
+        // any spelling or through a link.
+        const QString source = QFileInfo(path).canonicalFilePath();
+        const QFileInfo targetInfo(ini);
+        const QString targetPath = targetInfo.exists() ? targetInfo.canonicalFilePath() : QString();
+        if (!targetPath.isEmpty() && targetPath == source)
+            return failed(ini, QStringLiteral("this is the file being imported"));
         QDir().mkpath(QFileInfo(ini).absolutePath());
         QSettings target(ini, QSettings::IniFormat);
         written = linuxbee::applySettingsImport(plan, target);

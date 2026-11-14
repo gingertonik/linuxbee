@@ -7,7 +7,6 @@
 #include <utility>
 #include <vector>
 
-// Stub. Plan 22 replaces every body in this file.
 namespace linuxbee {
 
 namespace {
@@ -19,6 +18,11 @@ struct XmlNode {
     QString text;
     std::vector<XmlNode> children;
 };
+
+// SI-READ: nothing the reader keeps sits deeper than a rule's parts (root,
+// list, rule, part), so elements below that depth are not kept. A tree kept
+// at any depth is freed recursively, and a deep enough file overflows the stack.
+constexpr std::size_t keptDepth = 4;
 
 // SI-READ: a byte below U+0020 other than tab, CR and LF is read as a space.
 // UTF-8 never uses a byte below 0x20 inside a character, so no character is split.
@@ -38,17 +42,26 @@ bool readRoot(const QByteArray &bytes, XmlNode &root, QString &error)
     QXmlStreamReader xml(bytes);
     xml.setNamespaceProcessing(false);
     std::vector<XmlNode> open; // elements not yet closed, innermost last
+    std::size_t skipped = 0; // open elements below keptDepth, not kept
     bool started = false;
     bool closed = false;
     while (!xml.atEnd()) {
         xml.readNext();
         if (xml.isStartElement()) {
             started = true;
+            if (open.size() >= keptDepth) {
+                ++skipped;
+                if (skipped == 1)
+                    open.back().children.push_back(XmlNode { }); // not text only
+                continue;
+            }
             XmlNode node;
             node.name = xml.name().toString();
             open.push_back(std::move(node));
-        } else if (xml.isCharacters() && !open.empty()) {
+        } else if (xml.isCharacters() && !open.empty() && skipped == 0) {
             open.back().text.append(xml.text().toString());
+        } else if (xml.isEndElement() && skipped > 0) {
+            --skipped;
         } else if (xml.isEndElement() && !open.empty()) {
             XmlNode done = std::move(open.back());
             open.pop_back();
