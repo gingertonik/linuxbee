@@ -6,8 +6,8 @@ plays it, the bar controls it, and plays and skips reach the library.
 
 This document is the contract for `src/ui/shell/playbackshell.h` and for
 what `src/app/main.cpp` does with it. The locked tests
-`tests/locked/tst_ui_playbackshell.cpp` and `tests/locked/cli_playback.sh`
-check it.
+`tests/locked/tst_ui_playbackshell.cpp`, `tst_ui_playbackshell_nodes.cpp`
+and `tests/locked/cli_playback.sh` check it.
 
 The shell owns no rule. What Next does, when a play counts and what the
 bar shows are decided in play-queue.md, player.md and player-bar.md.
@@ -35,6 +35,26 @@ outlive it; its signals then go nowhere.
 When the library shell emits `playRequested(paths, index)`, the queue
 plays those paths now, starting at `index` (`PlayQueue::playNow`). The
 player follows the queue by itself.
+
+## PS-NODE
+
+When the navigator reports a node activated (a double-click or Return on
+it; navigator.md) and the node is a playlist (`playlist:` and an id):
+
+1. if it is not the node on show, it is chosen first
+   (`NavigatorPanel::selectNode`); a node the navigator does not have
+   ends it here;
+2. the queue plays the node's tracks now, from the first
+   (`PlayQueue::playNow` with the paths of `LibraryShell::nodeTracks()`,
+   in that order, and index 0).
+
+That is the playlist's own order, whatever the list is sorted by, and
+all of it, whatever the search box holds. A playlist with no track the
+library knows plays nothing and leaves the queue alone. Every other node
+(a library section, Playing Tracks) plays nothing when activated.
+
+MusicBee plays a playlist on a double-click (Dillon, from memory,
+2026-11-14).
 
 ## PS-COMMANDS
 
