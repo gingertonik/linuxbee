@@ -1,5 +1,10 @@
 #include "shell/playlistediting.h"
 
+#include <QAction>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMessageBox>
 #include <QStatusBar>
 
 #include <utility>
@@ -41,6 +46,46 @@ QString quoted(const QString &text)
     out.append(text);
     out.append(QLatin1Char('"'));
     return out;
+}
+
+// The hooks that are used when the caller gives none: the window's own dialogs.
+PlaylistEditing::Hooks defaultHooks(MainWindow *window)
+{
+    PlaylistEditing::Hooks hooks;
+    hooks.askName
+        = [window](const QString &title, const QString &initial) -> std::optional<QString> {
+        bool ok = false;
+        const QString name = QInputDialog::getText(
+            window, title, QStringLiteral("Name:"), QLineEdit::Normal, initial, &ok);
+        if (!ok)
+            return std::nullopt;
+        return name;
+    };
+    hooks.chooseFolder = [window](const QStringList &folders) -> std::optional<QString> {
+        QStringList items;
+        items.append(QString()); // the top
+        items.append(folders);
+        bool ok = false;
+        const QString folder = QInputDialog::getItem(window, QStringLiteral("Move to Folder"),
+            QStringLiteral("Folder (blank for the top):"), items, 0, true, &ok);
+        if (!ok)
+            return std::nullopt;
+        return folder;
+    };
+    hooks.confirm = [window](const QString &question) {
+        return QMessageBox::question(window, QStringLiteral("Delete Playlist"), question,
+                   QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+            == QMessageBox::Yes;
+    };
+    hooks.showMenu
+        = [](const QStringList &commands, const QStringList &labels, const QPoint &globalPos) {
+              QMenu menu;
+              for (qsizetype i = 0; i < commands.size() && i < labels.size(); ++i)
+                  menu.addAction(labels.at(i))->setData(commands.at(i));
+              const QAction *picked = menu.exec(globalPos);
+              return picked ? picked->data().toString() : QString();
+          };
+    return hooks;
 }
 
 }
@@ -174,11 +219,37 @@ PlaylistEditing::PlaylistEditing(MainWindow *window, ActionRegistry *actions, Li
     : QObject(parent)
     , d(new Private)
 {
-    Q_UNUSED(actions); // the File menu entry is wired in a later task of this plan
     d->window = window;
     d->shell = shell;
     d->playlists = playlists;
     d->hooks = std::move(hooks);
+    const Hooks fallback = defaultHooks(window);
+    if (!d->hooks.askName)
+        d->hooks.askName = fallback.askName;
+    if (!d->hooks.chooseFolder)
+        d->hooks.chooseFolder = fallback.chooseFolder;
+    if (!d->hooks.confirm)
+        d->hooks.confirm = fallback.confirm;
+    if (!d->hooks.showMenu)
+        d->hooks.showMenu = fallback.showMenu;
+
+    // PE-WIRING: File > Playlists > New Playlist. Destroying this object frees the command.
+    actions->implement(QStringLiteral("file.playlists.new"), this,
+        [this] { run(QStringLiteral("new"), QStringLiteral("playlists")); });
+
+    // PE-WIRING: a right click on a navigator row offers the commands that row has.
+    connect(shell->navigator(), &NavigatorPanel::menuRequested, this,
+        [this](const QString &rowId, const QPoint &globalPos) {
+            const QStringList commands = commandsFor(rowId);
+            if (commands.isEmpty())
+                return;
+            QStringList labels;
+            for (const QString &command : commands)
+                labels.append(label(command));
+            const QString picked = d->hooks.showMenu(commands, labels, globalPos);
+            if (!picked.isEmpty())
+                run(picked, rowId);
+        });
 }
 
 PlaylistEditing::~PlaylistEditing()
