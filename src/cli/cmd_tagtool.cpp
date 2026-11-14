@@ -1,5 +1,6 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QDir>
 #include <QTextStream>
 
 #include <functional>
@@ -113,6 +114,14 @@ bool wholeNumber(const QString &text, int *number)
         return false;
     *number = value;
     return true;
+}
+
+// G-CLI, infer: where the file is. A relative FILE is made absolute from the
+// working directory, and `.` and `..` are worked out as text. Links are not
+// followed, so a link is matched by its own name and folder.
+QString wherePath(const QString &file)
+{
+    return QDir::cleanPath(QDir::current().absoluteFilePath(file));
 }
 
 // G-CLI: the changes of one file, fields in code-point order of their names,
@@ -244,11 +253,15 @@ int runTagtool(const QStringList &arguments)
             return usageError(
                 QStringLiteral("linuxbeectl: --start needs a whole number of 0 or more.\n%1")
                     .arg(QLatin1String(kUsage)));
-        if (parser.isSet(QStringLiteral("digits"))
-            && !wholeNumber(parser.value(QStringLiteral("digits")), &options.digits))
-            return usageError(
-                QStringLiteral("linuxbeectl: --digits needs a whole number of 0 or more.\n%1")
-                    .arg(QLatin1String(kUsage)));
+        if (parser.isSet(QStringLiteral("digits"))) {
+            if (!wholeNumber(parser.value(QStringLiteral("digits")), &options.digits))
+                return usageError(
+                    QStringLiteral("linuxbeectl: --digits needs a whole number of 0 or more.\n%1")
+                        .arg(QLatin1String(kUsage)));
+            if (options.digits > 9)
+                return usageError(QStringLiteral("linuxbeectl: --digits takes nine at most.\n%1")
+                        .arg(QLatin1String(kUsage)));
+        }
         options.writeTotal = parser.isSet(QStringLiteral("total"));
         planner = [options](const QStringList &, const QList<TrackTags> &tags) {
             return linuxbee::renumberTracks(tags, options);
@@ -263,7 +276,7 @@ int runTagtool(const QStringList &arguments)
             return usageError(QStringLiteral("linuxbeectl: %1").arg(problem));
         const bool overwrite = parser.isSet(QStringLiteral("overwrite"));
         planner = perFile([pattern, overwrite](const QString &path, const TrackTags &tags) {
-            return linuxbee::inferTags(tags, path, pattern, !overwrite);
+            return linuxbee::inferTags(tags, wherePath(path), pattern, !overwrite);
         });
     } else {
         if (!parser.isSet(QStringLiteral("from")) || !parser.isSet(QStringLiteral("to")))
