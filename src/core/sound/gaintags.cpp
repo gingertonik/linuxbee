@@ -30,7 +30,10 @@ std::optional<double> parseGainDb(const QString &text)
         return std::nullopt;
     bool ok = false;
     const double value = m.captured(1).toDouble(&ok);
-    return ok ? std::optional<double>(value) : std::nullopt;
+    // N-FINITE: a number too large to hold is no value.
+    if (!ok || !std::isfinite(value))
+        return std::nullopt;
+    return value;
 }
 
 // N-TAGS: a decimal number above zero, with no unit.
@@ -43,7 +46,7 @@ std::optional<double> parsePeak(const QString &text)
         return std::nullopt;
     bool ok = false;
     const double value = m.captured(1).toDouble(&ok);
-    if (!ok || value <= 0.0)
+    if (!ok || !std::isfinite(value) || value <= 0.0)
         return std::nullopt;
     return value;
 }
@@ -98,6 +101,14 @@ QString formatPeak(double peak)
     return QString::number(peak, 'f', 6);
 }
 
+// N-FINITE: a measurement is usable only when it is ok and its loudness, gain,
+// peak and linear peak are all finite numbers.
+bool usable(const std::optional<Loudness> &m)
+{
+    return m && m->ok && std::isfinite(m->integratedLufs) && std::isfinite(m->truePeakDbfs)
+        && std::isfinite(m->gainDb()) && std::isfinite(m->peak());
+}
+
 // The keys that hold gain: every REPLAYGAIN_* key, and the two R128 keys.
 bool isGainKey(const QString &key)
 {
@@ -125,12 +136,12 @@ TagChanges gainTagChanges(
     const std::optional<Loudness> &track, const std::optional<Loudness> &album)
 {
     TagChanges c;
-    // A measurement that is absent or not ok contributes nothing.
-    if (track && track->ok) {
+    // A measurement that is absent, not ok or not finite contributes nothing.
+    if (usable(track)) {
         c.other.insert(QStringLiteral("REPLAYGAIN_TRACK_GAIN"), { formatGainDb(track->gainDb()) });
         c.other.insert(QStringLiteral("REPLAYGAIN_TRACK_PEAK"), { formatPeak(track->peak()) });
     }
-    if (album && album->ok) {
+    if (usable(album)) {
         c.other.insert(QStringLiteral("REPLAYGAIN_ALBUM_GAIN"), { formatGainDb(album->gainDb()) });
         c.other.insert(QStringLiteral("REPLAYGAIN_ALBUM_PEAK"), { formatPeak(album->peak()) });
     }
