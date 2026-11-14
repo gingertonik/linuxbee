@@ -95,6 +95,7 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     else
         d->node = d->navigator->currentNode();
     connect(d->navigator, &NavigatorPanel::nodeSelected, this, &LibraryShell::onNodeSelected);
+    d->switchOrder(); // SH-NODE: the node the shell starts on
     showNode();
 
     // SH-LIVE: whoever changes the library or the playlists, what is on show
@@ -185,12 +186,20 @@ QList<LibraryTrack> LibraryShell::nodeTracks() const
     return d->kept; // SH-EXTEND: as last read; the library is not touched
 }
 
+void LibraryShell::Private::switchOrder()
+{
+    // SH-NODE: the model's given order is switched here and nowhere else: on
+    // for a playlist and `playing`, off for every other node. Callers are a
+    // node being chosen, the shell starting on a node, and view.refresh, each
+    // before the tracks are handed over.
+    model->setGivenOrder(shownInOwnOrder(node));
+}
+
 void LibraryShell::Private::showKept()
 {
-    // SH-NODE: the order is switched before the tracks are handed over. Every
-    // path that shows the kept tracks (a node change, a narrowing, a source's
-    // answer, the library or a playlist changing) ends here.
-    model->setGivenOrder(shownInOwnOrder(node));
+    // SH-NODE: shows the kept tracks and leaves the order alone, so a sort the
+    // user clicked holds through a narrowing, a source's answer, the library,
+    // a playlist or the queue changing.
     if (!narrowing) {
         model->setTracks(kept);
         return;
@@ -254,6 +263,7 @@ void LibraryShell::onNodeSelected(const QString &nodeId)
 {
     d->page->setSearchText(QString()); // SH-NODE: a new node starts with an empty search
     d->node = nodeId;
+    d->switchOrder(); // SH-NODE: a node is chosen
     showNode();
 }
 
@@ -411,10 +421,8 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
                           [&gone](const LibraryTrack &t) { return gone.contains(t.id); }),
             d->kept.end());
     }
-    // SH-NODE: the order is set before tracks are handed over here too. On a
-    // section it is already off from the last showKept(), so this changes
-    // nothing and the selection is left alone.
-    d->model->setGivenOrder(shownInOwnOrder(d->node));
+    // SH-NODE: the order is not switched here; a track that arrives falls into
+    // the sort on show.
     if (!intoView.isEmpty())
         d->model->upsertTracks(intoView);
     if (!outOfView.isEmpty())

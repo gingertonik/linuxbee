@@ -125,6 +125,7 @@ void LibraryShell::refreshAll()
     // tracks again. The search text is the user's; it stays.
     refreshCounts();
     d->navigator->setPlaylists(playlistIds());
+    d->switchOrder(); // SH-NODE: view.refresh shows the node's own order again
     showNode();
 }
 
