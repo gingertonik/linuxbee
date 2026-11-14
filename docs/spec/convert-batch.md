@@ -83,6 +83,12 @@ does nothing.
 
 Destroying the batch cancels a run and waits until no job is working.
 
+## B-PART
+
+The file ffmpeg writes to while a job runs is named as convert.md,
+C-CLEAN says (`.lbpart-XXXXXX-NAME`), so it can never be one of the
+sources or destinations of the batch, whatever they are called.
+
 ## Not in this version
 
 - Naming results by a template, and keeping the folder structure under
