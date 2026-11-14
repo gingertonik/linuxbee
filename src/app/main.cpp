@@ -26,6 +26,7 @@
 #include "shell/librarypreferences.h"
 #include "shell/libraryshell.h"
 #include "shell/playbackshell.h"
+#include "shell/playlistediting.h"
 #include "shell/toolsshell.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
@@ -153,6 +154,10 @@ int main(int argc, char *argv[])
     // AB-MAIN: the artist browser beside the track list, over the library shell;
     // it is destroyed before the shell.
     linuxbee::ui::ArtistBrowsing artistBrowsing(&shell, &settings);
+
+    // PE-MAIN: the playlist commands of the navigator's right click and File > Playlists > New
+    // Playlist, with the window's own dialogs; declared after the shell, it goes before the shell.
+    linuxbee::ui::PlaylistEditing playlistEditing(&window, &registry, &shell, &playlists);
 
     // TS-MAIN: the tools shell, with the default presenter (the dialogs run modally).
     linuxbee::ui::ToolsShell tools(&window, &registry, library.get(), &shell, &settings);

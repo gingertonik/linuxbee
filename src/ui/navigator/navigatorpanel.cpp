@@ -1,6 +1,7 @@
 #include "navigator/navigatorpanel.h"
 
 #include <QAbstractItemView>
+#include <QMouseEvent>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QTreeWidgetItemIterator>
@@ -75,6 +76,48 @@ QTreeWidgetItem *findNode(QTreeWidget *tree, const QString &nodeId)
     return nullptr;
 }
 
+// V-MENU: the row id of one tree item, or empty for a row that has none (the Library heading).
+// The Playlists heading is "playlists"; a folder under it is "folder:" and its path.
+QString rowIdOf(const QTreeWidgetItem *item, const QTreeWidgetItem *playlistsRoot)
+{
+    if (!item)
+        return QString();
+    const QString nodeId = item->data(0, kNodeRole).toString();
+    if (!nodeId.isEmpty())
+        return nodeId;
+    if (item == playlistsRoot)
+        return QStringLiteral("playlists");
+    // The cleaned names from the folder down to this row, joined with '/'.
+    QStringList parts;
+    const QTreeWidgetItem *up = item;
+    while (up && up != playlistsRoot) {
+        parts.prepend(up->text(0));
+        up = up->parent();
+    }
+    if (!up)
+        return QString(); // not under Playlists
+    return QStringLiteral("folder:") + parts.join(QLatin1Char('/'));
+}
+
+// V-MENU: a right press on the tree does not choose a row. Qt would choose the row under the
+// pointer on that press, so the press is swallowed before the tree sees it.
+class RightPressGuard : public QObject {
+public:
+    using QObject::QObject;
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        // A right double-click arrives as a press, then a double-click event. Swallowing only the
+        // press lets QAbstractItemView::mouseDoubleClickEvent make a press of its own and choose
+        // the row, so the double-click is swallowed too.
+        const QEvent::Type type = event->type();
+        if ((type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick)
+            && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)
+            return true;
+        return QObject::eventFilter(watched, event);
+    }
+};
+
 } // namespace
 
 struct NavigatorPanel::Private {
@@ -95,6 +138,16 @@ NavigatorPanel::NavigatorPanel(QWidget *parent)
     d->tree->setHeaderHidden(true);
     d->tree->setSelectionMode(QAbstractItemView::SingleSelection);
     d->tree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    // V-MENU: a context menu asked for on a row is reported; the panel shows no menu itself.
+    d->tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(d->tree, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
+        const QString rowId = rowAt(pos);
+        if (!rowId.isEmpty())
+            emit menuRequested(rowId, d->tree->viewport()->mapToGlobal(pos));
+    });
+    // The guard is owned by the viewport, so it goes when the viewport does.
+    d->tree->viewport()->installEventFilter(new RightPressGuard(d->tree->viewport()));
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -213,6 +266,22 @@ bool NavigatorPanel::selectNode(const QString &nodeId)
     // nothing.
     d->tree->setCurrentItem(item);
     return true;
+}
+
+QString NavigatorPanel::rowAt(const QPoint &viewportPos) const
+{
+    return rowIdOf(d->tree->itemAt(viewportPos), d->playlistsRoot);
+}
+
+QStringList NavigatorPanel::rows() const
+{
+    QStringList out;
+    for (QTreeWidgetItemIterator it(d->tree); *it; ++it) {
+        const QString rowId = rowIdOf(*it, d->playlistsRoot);
+        if (!rowId.isEmpty())
+            out.append(rowId);
+    }
+    return out;
 }
 
 QStringList NavigatorPanel::nodes() const

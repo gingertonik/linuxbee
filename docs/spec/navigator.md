@@ -89,11 +89,31 @@ selected, and clicking them chooses nothing.
 - `nodeActivated(id)` is emitted for a double-click or Return on a row
   that can be chosen.
 
+## V-MENU
+
+Asking for a context menu on a row (the right mouse button, or the menu
+key with the row current) emits `menuRequested(rowId, globalPos)`. The
+panel shows no menu itself; whoever listens decides what is in it.
+
+A row's id for this purpose:
+
+| Row | Row id |
+|---|---|
+| a row that can be chosen | its node id (V-NODES) |
+| a playlist folder | `folder:` and the folder's path, `folder:Rock/Live` |
+| the `Playlists` heading | `playlists` |
+| `Library`, and anywhere that is not a row | none: nothing is emitted |
+
+A right click does not change what is chosen. `rowAt(point)` gives the
+row id for a point in the tree; `rows()` lists every row id from top to
+bottom.
+
 ## Not in this version
 
 - Auto-playlists as their own kind of row, and icons.
-- Creating, renaming, moving and deleting playlists from the tree; drag
-  and drop of tracks onto a playlist.
+- Drag and drop of tracks onto a playlist, and of playlists into folders.
+  (Creating, renaming, moving and deleting playlists from the tree:
+  playlist-editing.md.)
 - Collapsing a group and remembering it.
 - Browsing by artist, album or genre in the sidebar; services, devices
   and the computer's folders.
