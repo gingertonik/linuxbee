@@ -2,6 +2,7 @@
 
 #include <QPointer>
 #include <QRandomGenerator>
+#include <QStatusBar>
 
 #include <optional>
 #include <utility>
@@ -17,6 +18,15 @@
 // shell shows. The rules are asked again each time one is shown.
 namespace linuxbee::ui {
 
+namespace {
+
+QString quoted(const QString &name)
+{
+    return QLatin1Char('"') + name + QLatin1Char('"');
+}
+
+}
+
 struct AutoPlaylistNodes::Private {
     MainWindow *window = nullptr;
     LibraryShell *shell = nullptr;
@@ -31,8 +41,13 @@ struct AutoPlaylistNodes::Private {
     {
         tracks->clear();
         AutoPlaylist playlist;
-        if (!store->load(name, &playlist, nullptr))
+        QString why;
+        if (!store->load(name, &playlist, &why)) {
+            // AN-SHOW: the status bar says why it cannot be shown, with the store's reason.
+            window->statusBar()->showMessage(QStringLiteral("Cannot show the auto-playlist ")
+                + quoted(name) + QStringLiteral(": ") + why);
             return true;
+        }
         RuleContext context;
         context.now = hooks.now ? hooks.now() : QDateTime::currentDateTimeUtc();
         const QList<qint64> ids = evaluateAutoPlaylist(playlist, library->tracks(), context, seed);
