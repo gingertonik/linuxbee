@@ -1,26 +1,60 @@
 #include "browser/artistbrowser.h"
 
+#include <QComboBox>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
 #include "library/artistindex.h"
+#include "search/search.h"
 
 // Contract: docs/spec/artist-browser.md (AB-LIST, AB-CHOICE, AB-FILTER, AB-BYFIELD).
 namespace linuxbee::ui {
 
 namespace {
 
-// AB-LIST: the first row, and one row per artist.
-QString allRow(int artistCount)
+// AB-BYFIELD: the words the list uses for its first row and for the row of
+// tracks with no value of the tag.
+QString allRowFormat(const QString &field)
 {
-    return ArtistBrowser::tr("All Artists (%1)").arg(artistCount);
+    if (field == QStringLiteral("Album"))
+        return ArtistBrowser::tr("All Albums (%1)");
+    if (field == QStringLiteral("Composer"))
+        return ArtistBrowser::tr("All Composers (%1)");
+    if (field == QStringLiteral("Genre"))
+        return ArtistBrowser::tr("All Genres (%1)");
+    if (field == QStringLiteral("Grouping"))
+        return ArtistBrowser::tr("All Groupings (%1)");
+    if (field == QStringLiteral("Year"))
+        return ArtistBrowser::tr("All Years (%1)");
+    return ArtistBrowser::tr("All Artists (%1)");
 }
 
-QString artistRow(const ArtistEntry &entry)
+QString noneName(const QString &field)
 {
-    const QString name = entry.name.isEmpty() ? ArtistBrowser::tr("[Unknown Artist]") : entry.name;
+    if (field == QStringLiteral("Album"))
+        return ArtistBrowser::tr("[Unknown Album]");
+    if (field == QStringLiteral("Composer"))
+        return ArtistBrowser::tr("[Unknown Composer]");
+    if (field == QStringLiteral("Genre"))
+        return ArtistBrowser::tr("[Unknown Genre]");
+    if (field == QStringLiteral("Grouping"))
+        return ArtistBrowser::tr("[Unknown Grouping]");
+    if (field == QStringLiteral("Year"))
+        return ArtistBrowser::tr("[Unknown Year]");
+    return ArtistBrowser::tr("[Unknown Artist]");
+}
+
+// AB-LIST: the first row, and one row per artist (NAME (T)).
+QString allRow(const QString &field, int count)
+{
+    return allRowFormat(field).arg(count);
+}
+
+QString artistRow(const QString &field, const ArtistEntry &entry)
+{
+    const QString name = entry.name.isEmpty() ? noneName(field) : entry.name;
     return QStringLiteral("%1 (%2)").arg(name, QString::number(entry.tracks));
 }
 
@@ -28,6 +62,7 @@ QString artistRow(const ArtistEntry &entry)
 
 struct ArtistBrowser::Private {
     ArtistBrowser *owner = nullptr;
+    QComboBox *fieldCombo = nullptr; // browseFieldCombo
     QLineEdit *filter = nullptr; // artistFilterEdit
     QListWidget *list = nullptr; // artistList
     QString field = QStringLiteral("Album Artist");
@@ -39,6 +74,9 @@ struct ArtistBrowser::Private {
     // Rebuilds the rows for `tracks`. A choice whose artist is still held stays;
     // one whose artist is gone ends, and that is a change of choice.
     void fill();
+    // AB-FILTER: hides the rows whose artist does not hold the filter text. The
+    // first row and the chosen artist's row stay shown.
+    void applyFilter();
     // The row the user (or the program, through chooseArtist) made current.
     void rowChosen(int row);
     // Makes `name` the choice, or all artists. choiceChanged is emitted only
@@ -54,9 +92,9 @@ void ArtistBrowser::Private::fill()
     {
         QSignalBlocker quiet(list); // filling the list is not the user choosing
         list->clear();
-        list->addItem(allRow(int(entries.size())));
+        list->addItem(allRow(field, int(entries.size())));
         for (const ArtistEntry &entry : entries)
-            list->addItem(artistRow(entry));
+            list->addItem(artistRow(field, entry));
         if (hasChoice) {
             for (int i = 0; i < entries.size(); ++i) {
                 if (sameArtist(entries.at(i).name, chosen)) {
@@ -73,8 +111,24 @@ void ArtistBrowser::Private::fill()
         }
         list->setCurrentRow(row);
     }
+    applyFilter();
     if (choiceEnded)
         emit owner->choiceChanged();
+}
+
+void ArtistBrowser::Private::applyFilter()
+{
+    const QString wanted = foldForSearch(filter->text());
+    QSignalBlocker quiet(list); // hiding a row is not a change of the current row
+    for (int row = 0; row < list->count(); ++row) {
+        bool shown = true;
+        if (row > 0) {
+            const ArtistEntry &entry = entries.at(row - 1);
+            shown = foldForSearch(entry.name).contains(wanted)
+                || (hasChoice && sameArtist(entry.name, chosen));
+        }
+        list->item(row)->setHidden(!shown);
+    }
 }
 
 void ArtistBrowser::Private::rowChosen(int row)
@@ -100,6 +154,10 @@ ArtistBrowser::ArtistBrowser(QWidget *parent)
 {
     d->owner = this;
     auto *layout = new QVBoxLayout(this);
+    d->fieldCombo = new QComboBox(this);
+    d->fieldCombo->setObjectName(QStringLiteral("browseFieldCombo"));
+    d->fieldCombo->addItems(browseFields());
+    layout->addWidget(d->fieldCombo);
     d->filter = new QLineEdit(this);
     d->filter->setObjectName(QStringLiteral("artistFilterEdit"));
     d->filter->setClearButtonEnabled(true);
@@ -109,6 +167,9 @@ ArtistBrowser::ArtistBrowser(QWidget *parent)
     d->list->setObjectName(QStringLiteral("artistList"));
     layout->addWidget(d->list);
     connect(d->list, &QListWidget::currentRowChanged, this, [this](int row) { d->rowChosen(row); });
+    connect(d->filter, &QLineEdit::textChanged, this, [this] { d->applyFilter(); });
+    connect(d->fieldCombo, &QComboBox::currentTextChanged, this,
+        [this](const QString &text) { setField(text); });
     d->fill();
 }
 
@@ -125,11 +186,24 @@ void ArtistBrowser::setTracks(const QList<LibraryTrack> &tracks)
 
 QString ArtistBrowser::field() const
 {
-    return { };
+    return d->field;
 }
+
 void ArtistBrowser::setField(const QString &field)
 {
-    Q_UNUSED(field);
+    const QString next = browseFields().contains(field) ? field : QStringLiteral("Album Artist");
+    if (next == d->field)
+        return;
+    d->field = next;
+    d->setChoice(false, QString()); // the choice ends; choiceChanged says so
+    {
+        QSignalBlocker blockCombo(d->fieldCombo); // the combo box already shows it
+        d->fieldCombo->setCurrentIndex(d->fieldCombo->findText(next));
+        QSignalBlocker blockFilter(d->filter);
+        d->filter->clear();
+    }
+    d->fill();
+    emit fieldChanged();
 }
 
 QStringList ArtistBrowser::artists() const
@@ -160,6 +234,7 @@ void ArtistBrowser::chooseArtist(const QString &name)
         }
     }
     d->rowChosen(row);
+    d->applyFilter(); // the chosen artist's row is shown, whatever the filter says
     QSignalBlocker quiet(d->list);
     d->list->setCurrentRow(row);
 }
@@ -167,6 +242,7 @@ void ArtistBrowser::chooseArtist(const QString &name)
 void ArtistBrowser::chooseAll()
 {
     d->rowChosen(0);
+    d->applyFilter();
     QSignalBlocker quiet(d->list);
     d->list->setCurrentRow(0);
 }
