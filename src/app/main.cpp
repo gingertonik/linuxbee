@@ -1,6 +1,9 @@
 #include <QApplication>
+#include <QDateTime>
 #include <QDir>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QSettings>
 #include <QStandardPaths>
@@ -9,7 +12,10 @@
 
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
+#include "library/library.h"
 #include "mainwindow/mainwindow.h"
+#include "playlists/playliststore.h"
+#include "shell/libraryshell.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
@@ -17,6 +23,13 @@
 // --screenshot FILE pictures the window for a person (and the gate) to judge.
 // W-MAIN "Options": the whole command line is read before anything is done,
 // and a mistake ends the program with a usage message and status 2.
+// SH-MAIN (docs/spec/library-shell.md): the library (library.db in the data
+// folder, playlists beside it) is opened, the shell is built over the window,
+// the file choosers and the clock come in through the hooks, and saveState,
+// the hotkeys and sync() go on the way out. A library that cannot be opened
+// ends with a line on standard error containing `library cannot be opened`,
+// the same in a message box (unless --screenshot), and status 4; the file is
+// not touched and no window is shown.
 int main(int argc, char *argv[])
 {
     const QString usage
@@ -65,16 +78,60 @@ int main(int argc, char *argv[])
     QDir().mkpath(QFileInfo(iniPath).absolutePath());
     QSettings settings(iniPath, QSettings::IniFormat);
 
+    // SH-MAIN: library.db in the data folder, the playlists in the folder
+    // `playlists` beside it; missing folders are created.
+    const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dataDir);
+    const QString dbPath = dataDir + QStringLiteral("/library.db");
+    QString libraryError;
+    auto library = linuxbee::Library::open(dbPath, &libraryError);
+    if (!library) {
+        const QString reason
+            = QCoreApplication::translate("main", "linuxbee: library cannot be opened: %1")
+                  .arg(libraryError);
+        QTextStream(stderr) << reason << '\n';
+        if (!wantShot) // a screenshot run has no person to answer a dialog
+            QMessageBox::critical(nullptr, linuxbee::ui::applicationDisplayName(), reason);
+        return 4; // the file is not touched and no window is shown
+    }
+    QDir().mkpath(dataDir + QStringLiteral("/playlists"));
+    linuxbee::PlaylistStore playlists(dataDir + QStringLiteral("/playlists"));
+
     linuxbee::ui::ActionRegistry registry;
     registry.load(settings);
 
     linuxbee::ui::MainWindow window(&registry, &settings);
+
+    // SH-MAIN: the choosers start in the user's music folder; `now` is UTC.
+    const QString startDir = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+    linuxbee::ui::ShellHooks hooks;
+    hooks.chooseFolders = [startDir] {
+        // One folder, as a list: the shell scans every folder it is given,
+        // and an empty answer means the user cancelled (SH-COMMANDS).
+        const QString folder = QFileDialog::getExistingDirectory(
+            nullptr, QCoreApplication::translate("main", "Choose folders to scan"), startDir);
+        return folder.isEmpty() ? QStringList() : QStringList({ folder });
+    };
+    hooks.chooseFiles = [startDir] {
+        return QFileDialog::getOpenFileNames(
+            nullptr, QCoreApplication::translate("main", "Choose files to add"), startDir);
+    };
+    hooks.now = [] { return QDateTime::currentDateTimeUtc(); };
+
+    // The shell is handed the window, the registry, the library, the
+    // playlists, the settings and the hooks; it is destroyed before the
+    // window, whose panels it fills.
+    linuxbee::ui::LibraryShell shell(
+        &window, &registry, library.get(), &playlists, &settings, hooks);
     window.show();
 
-    QObject::connect(&application, &QApplication::aboutToQuit, [&registry, &settings, &window] {
+    QObject::connect(&application, &QApplication::aboutToQuit, [&] {
         // W-MAIN: on exit the hotkeys are saved, and the layout with them
-        // (closing the window already saved it; a quit that skipped closing must not lose it).
+        // (closing the window already saved it; a quit that skipped closing
+        // must not lose it). SH-MAIN: the shell's state goes first, then the
+        // hotkeys, then sync().
         window.saveLayout();
+        shell.saveState();
         registry.save(settings);
         settings.sync();
     });
