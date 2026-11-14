@@ -88,6 +88,15 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     connect(d->playlists, &PlaylistStore::listChanged, this, &LibraryShell::onPlaylistsChanged);
     connect(
         d->playlists, &PlaylistStore::tracksChanged, this, &LibraryShell::onPlaylistTracksChanged);
+
+    // SH-PLAY: an activated track that is in the list asks for the list,
+    // as shown now, from its row. A track not in the list emits nothing.
+    connect(d->page, &TrackListPage::trackActivated, this, [this](qint64 trackId) {
+        const int row = d->model->rowOf(trackId);
+        if (row < 0)
+            return;
+        emit playRequested(shownPaths(), row);
+    });
 }
 
 LibraryShell::~LibraryShell()
