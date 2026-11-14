@@ -3,6 +3,7 @@
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
 #include "shell/libraryshell.h"
+#include "convert/convertdialog.h"
 #include "organise/organisedialog.h"
 #include "tageditor/tageditordialog.h"
 
@@ -111,11 +112,28 @@ struct ToolsShell::Private {
                 .arg(report.failed));
     }
 
+    // TS-CONVERT: the converter is given the selected paths and the settings.
     void convert()
     {
         if (selectedIds().isEmpty())
             return;
-        // TS-CONVERT: the converter is opened here in task 5.
+        ConvertDialog dialog(libraryShell->selectedPaths(), settings, window);
+        QObject::connect(&dialog, &ConvertDialog::converted, owner,
+            [this](const QStringList &paths) { convertedFiles(paths); });
+        presenter(&dialog);
+    }
+
+    // TS-CONVERT: the results are not added to the library. A run that reports no
+    // results gives no message; the spec is silent on that case.
+    void convertedFiles(const QStringList &paths)
+    {
+        if (paths.isEmpty())
+            return;
+        const QString text = paths.size() == 1
+            ? QCoreApplication::translate("linuxbee::ui::ToolsShell", "Converted 1 file")
+            : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Converted %1 files")
+                  .arg(paths.size());
+        showMessage(text);
     }
 
     void preferences()
