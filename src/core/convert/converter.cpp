@@ -12,23 +12,56 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRandomGenerator>
 #include <QStringList>
 
 namespace linuxbee {
 
 namespace {
 
-// C-CLEAN: the part file is the destination's name with ".part" before its
-// extension ("song.part.mp3"; "song.part" when there is no extension).
+// C-CLEAN: the part file is ".lbpart-" + six characters chosen at random from
+// a-z and 0-9 + "-" + the destination's own file name, in the destination's
+// folder (".lbpart-k3x9qa-song.mp3"). A name that exists is passed over, so a
+// user's file is never the part file.
 QString partPathFor(const QString &destination)
 {
+    static constexpr char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
     const int slash = destination.lastIndexOf(QLatin1Char('/'));
     const QString folder = destination.left(slash + 1);
     const QString name = destination.mid(slash + 1);
-    const int dot = name.lastIndexOf(QLatin1Char('.'));
-    if (dot > 0)
-        return folder + name.left(dot) + QStringLiteral(".part") + name.mid(dot);
-    return folder + name + QStringLiteral(".part");
+    for (;;) {
+        QString chosen;
+        for (int i = 0; i < 6; ++i)
+            chosen += QLatin1Char(
+                alphabet[QRandomGenerator::global()->bounded(int(sizeof alphabet) - 1)]);
+        const QString path = folder + QStringLiteral(".lbpart-") + chosen + QLatin1Char('-') + name;
+        const QFileInfo info(path);
+        if (!info.exists() && !info.isSymLink())
+            return path;
+    }
+}
+
+// C-CLEAN: removes what an earlier conversion of this destination left when it
+// was killed: files in the folder named exactly like a part file above. Nothing
+// else is removed. The names are compared by hand: a music file's name carries
+// [ ] * ? , which a name filter takes for wildcards.
+void clearLeftovers(const QString &folder, const QString &fileName)
+{
+    const QString head = QStringLiteral(".lbpart-");
+    const QString tail = QLatin1Char('-') + fileName;
+    const QStringList names = QDir(folder).entryList(QDir::Files | QDir::Hidden, QDir::Name);
+    for (const QString &name : names) {
+        if (name.size() != head.size() + 6 + tail.size() || !name.startsWith(head)
+            || !name.endsWith(tail))
+            continue;
+        const QString chosen = name.mid(head.size(), 6);
+        if (!std::all_of(chosen.cbegin(), chosen.cend(), [](QChar c) {
+                return (c.unicode() >= u'a' && c.unicode() <= u'z')
+                    || (c.unicode() >= u'0' && c.unicode() <= u'9');
+            }))
+            continue;
+        QFile::remove(folder + name);
+    }
 }
 
 // C-ENCODER: the last non-empty line ffmpeg wrote to standard error, trimmed.
@@ -172,9 +205,10 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
         return withStatus(
             ConvertResult::Status::Failed, QStringLiteral("could not create the folder"));
 
-    // Step 7: ffmpeg writes the part file. An old part file of that name goes first.
+    // Step 7: ffmpeg writes the part file, under a name no file has. Only the
+    // leftovers of a killed run of this destination are removed first.
     const QString partPath = partPathFor(destination);
-    QFile::remove(partPath);
+    clearLeftovers(folder, QFileInfo(destination).fileName());
 
     QProcess ffmpeg;
     ffmpeg.setProgram(job.ffmpegPath);
