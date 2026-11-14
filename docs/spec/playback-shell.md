@@ -1,0 +1,114 @@
+# Playback in the window
+
+The second assembly: the play queue, the player and the player bar are
+created and connected to the library shell, so that activating a track
+plays it, the bar controls it, and plays and skips reach the library.
+
+This document is the contract for `src/ui/shell/playbackshell.h` and for
+what `src/app/main.cpp` does with it. The locked tests
+`tests/locked/tst_ui_playbackshell.cpp` and `tests/locked/cli_playback.sh`
+check it.
+
+The shell owns no rule. What Next does, when a play counts and what the
+bar shows are decided in play-queue.md, player.md and player-bar.md.
+
+## Sources
+
+| Tag | Source |
+|---|---|
+| W-PC | MusicBee wiki, "Player Controls", "Playing Tracks" and "Now Playing": see player.md and play-queue.md |
+| PS-… | A linuxBee decision. |
+
+## PS-BUILD
+
+Constructing the shell creates a `PlayQueue`, a `Player` over that queue
+and the backend it was given, and a `PlayerBar`, which goes into the
+window's player bar panel. The bar's stored state is restored at once
+(player-bar.md, PB-STORE). Nothing is played.
+
+Destroying the shell stops the player, removes the bar from the window
+(the panel is empty again) and frees the commands. The library shell may
+outlive it; its signals then go nowhere.
+
+## PS-PLAY
+
+When the library shell emits `playRequested(paths, index)`, the queue
+plays those paths now, starting at `index` (`PlayQueue::playNow`). The
+player follows the queue by itself.
+
+## PS-COMMANDS
+
+Each works on the library shell's selected paths, in the order shown, and
+does nothing when nothing is selected.
+
+| Command | Does |
+|---|---|
+| `track.playNow` | `PlayQueue::playNow(selection, 0)`: the selection replaces the queue |
+| `track.queueNext` | `PlayQueue::queueNext(selection)` |
+| `track.queueLast` | `PlayQueue::queueLast(selection)` |
+
+Queueing never starts or disturbs playback.
+
+## PS-PLAYING
+
+Whenever the queue's entries change, the library shell is told their
+paths, in queue order (`LibraryShell::setPlayingPaths`), so the Playing
+Tracks node shows the queue.
+
+## PS-TITLE
+
+`titleFor(path)`: for a track the library knows that has a Title, its
+artists (all of them, joined as the tag reader joins them) followed by
+` - ` and the title; the title alone when it has no artist. Empty for a
+track with no Title and for a path the library does not know.
+
+When the player changes track and `titleFor` is not empty, the bar is
+given it (`PlayerBar::setTrackText`). Otherwise the bar keeps its own
+fallback, the file's name.
+
+## PS-COUNT
+
+`Player::playCounted(path)`: `Library::recordPlay` for that track with the
+time from `now`. `Player::skipCounted(path)`: `Library::recordSkip`. A
+path the library does not know is ignored.
+
+## PS-ERROR
+
+`Player::playbackError(path, message)`: the status bar shows
+`Cannot play ` + the file's name + `: ` + the message, kept as
+`lastMessage()`. Nothing is counted. What the player does next is the
+player's rule (player.md, X-ERROR).
+
+## PS-STORE
+
+`saveState()` saves the bar's state (PB-STORE). The queue is not saved.
+
+## PS-MAIN
+
+`src/app/main.cpp` additionally:
+
+- creates a `DeviceSink` and an `FfmpegAudioBackend` over it, and a
+  `PlaybackShell` over that backend, with the same `now` as the library
+  shell;
+- on the way out, before anything else is saved or destroyed: the
+  playback shell's `saveState()`, then the playback shell is destroyed
+  (which stops the sound) while the backend and the sink still exist.
+
+The program starts and leaves cleanly on a machine with no sound device.
+
+## Not in this version
+
+- Volume levelling from ReplayGain tags (the player has the hook; the
+  sound plan supplies the factor).
+- Remembering the queue and the position between sessions.
+- Reordering and removing entries in the Playing Tracks list by hand, and
+  marking the track that is playing.
+- A now-playing panel with artwork and lyrics; a mini player.
+- Media keys and desktop integration.
+
+## Open parity questions
+
+| Rule | Question for someone with MusicBee |
+|---|---|
+| PS-PLAY | What a double-click on a track does by default (play now and replace the queue, or queue it). |
+| PS-TITLE | The default text of the now-playing line. |

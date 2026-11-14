@@ -10,12 +10,17 @@
 #include <QTextStream>
 #include <QTimer>
 
+#include <memory>
+
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
 #include "library/library.h"
 #include "mainwindow/mainwindow.h"
 #include "playlists/playliststore.h"
+#include "audio/devicesink.h"
+#include "playback/audioengine.h"
 #include "shell/libraryshell.h"
+#include "shell/playbackshell.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
@@ -123,13 +128,24 @@ int main(int argc, char *argv[])
     // window, whose panels it fills.
     linuxbee::ui::LibraryShell shell(
         &window, &registry, library.get(), &playlists, &settings, hooks);
+
+    // PS-MAIN: the real sound: the device sink, the ffmpeg engine over it, and
+    // the playback shell over the engine. On the way out the playback shell
+    // goes first, while the engine and the sink still exist.
+    linuxbee::ui::DeviceSink sink;
+    linuxbee::FfmpegAudioBackend backend(&sink);
+    auto playback = std::make_unique<linuxbee::ui::PlaybackShell>(
+        &window, &registry, library.get(), &shell, &backend, &settings, hooks.now);
     window.show();
 
     QObject::connect(&application, &QApplication::aboutToQuit, [&] {
         // W-MAIN: on exit the hotkeys are saved, and the layout with them
         // (closing the window already saved it; a quit that skipped closing
         // must not lose it). SH-MAIN: the shell's state goes first, then the
-        // hotkeys, then sync().
+        // hotkeys, then sync(). PS-MAIN: the playback shell's state goes
+        // before all of it, and the playback shell is destroyed (stopping the sound).
+        playback->saveState();
+        playback.reset();
         window.saveLayout();
         shell.saveState();
         registry.save(settings);
