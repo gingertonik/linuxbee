@@ -4,6 +4,7 @@
 
 #include <QDir>
 #include <QFileSystemWatcher>
+#include <QHash>
 #include <QSet>
 #include <QStringList>
 #include <QTimer>
@@ -32,6 +33,8 @@ struct FolderMonitor::Private {
 
     QTimer timer; // the one single-shot wait (FM-SETTLE)
     QSet<QString> changed; // folders where something changed since the last scan
+    // What each changed folder held at its last change or last look (FM-SETTLE).
+    QHash<QString, QStringList> snapshots;
     bool pending = false; // a change was seen and its scan has not happened yet
     bool scanning = false; // the scanner is running: it is never asked again meanwhile
 
@@ -39,9 +42,12 @@ struct FolderMonitor::Private {
     // `watched`. Reports the folders that came and the ones that went.
     void reconcile(QStringList *arrived = nullptr, QStringList *departed = nullptr);
 
+    // Records a folder as changed, and what it holds now.
+    void markChanged(const QString &folder);
     // FM-WATCH and FM-SETTLE: a watched folder changed.
     void onDirectoryChanged(const QString &path);
-    // The wait is over: scan the roots of the changed folders (FM-ROOTS).
+    // The wait is over, unless the changed folders still differ from their
+    // last look: then wait again. Otherwise scan the roots of the changed folders.
     void onSettled();
     // Calls the scanner with `roots`, then forgets the changes and emits scanned.
     void scanNow(const QStringList &roots);
