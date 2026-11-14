@@ -21,6 +21,8 @@ public:
     // V-PLAYLISTS: playlist names as the playlist store lists them, folders
     // separated by '/', e.g. "Rock/Best of". Replaces the whole list.
     void setPlaylists(const QStringList &names);
+    // V-AUTO: the auto-playlists, shown under Playlists before the others.
+    void setAutoPlaylists(const QStringList &names);
 
     // V-NODES: "library:Music", "playlist:Rock/Best of", "playing"; empty when nothing is chosen.
     QString currentNode() const;

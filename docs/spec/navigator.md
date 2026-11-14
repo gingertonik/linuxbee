@@ -89,6 +89,23 @@ selected, and clicking them chooses nothing.
 - `nodeActivated(id)` is emitted for a double-click or Return on a row
   that can be chosen.
 
+## V-AUTO
+
+`setAutoPlaylists(names)` replaces the auto-playlist rows. They stand
+directly under `Playlists`, before every playlist and folder, in the
+order given, and read as their names. A name is trimmed; an empty one,
+and one that repeats an earlier one exactly, is dropped. Auto-playlists
+have no folders: a `/` is part of the name.
+
+The id of such a row is `auto:` and its name (`auto:Recently Added`); it
+can be chosen like any other node, and is listed by `nodes()` and
+`rows()` in its place. `setPlaylists` leaves these rows alone, and
+`setAutoPlaylists` leaves the playlists alone.
+
+Replacing the list keeps the choice when the chosen node still exists,
+and then announces nothing. When the chosen auto-playlist is gone,
+`Music` becomes the choice and `nodeSelected` says so.
+
 ## V-MENU
 
 Asking for a context menu on a row (the right mouse button, or the menu
@@ -99,7 +116,7 @@ A row's id for this purpose:
 
 | Row | Row id |
 |---|---|
-| a row that can be chosen | its node id (V-NODES) |
+| a row that can be chosen | its node id (V-NODES, V-AUTO) |
 | a playlist folder | `folder:` and the folder's path, `folder:Rock/Live` |
 | the `Playlists` heading | `playlists` |
 | `Library`, and anywhere that is not a row | none: nothing is emitted |
@@ -110,7 +127,7 @@ bottom.
 
 ## Not in this version
 
-- Auto-playlists as their own kind of row, and icons.
+- Icons, and a different look for auto-playlists.
 - Drag and drop of tracks onto a playlist, and of playlists into folders.
   (Creating, renaming, moving and deleting playlists from the tree:
   playlist-editing.md.)
