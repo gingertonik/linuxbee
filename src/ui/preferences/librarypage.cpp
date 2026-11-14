@@ -176,6 +176,20 @@ void LibraryPage::load()
 
 QString LibraryPage::apply()
 {
+    // LP-APPLY: never refuses; nothing to store means nothing happens.
+    if (!isModified())
+        return { };
+    const QString section = d->sectionCombo->currentText();
+    const bool checked = d->checkOnStartupBox->isChecked();
+    d->settings->setValue(QStringLiteral("library/monitored"), folders());
+    d->settings->setValue(QStringLiteral("library/monitoredCategory"), section);
+    d->settings->setValue(QStringLiteral("library/checkOnStartup"), checked);
+    d->shownFolders = folders();
+    d->shownSection = section;
+    d->shownCheckOnStartup = checked;
+    d->noticeChange();
+    if (d->hooks.stored)
+        d->hooks.stored();
     return { };
 }
 
