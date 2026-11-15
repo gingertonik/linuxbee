@@ -26,7 +26,9 @@ ignored); when none is, the first picture; -1 when there are none.
 nothing.
 
 - Only files directly in the folder count: not folders, not what lies
-  in a folder below, not a file whose name begins with a dot.
+  in a folder below, not a file whose name begins with a dot, not a name
+  that leads (through a symbolic link) to anything but a regular file,
+  such as a device or a FIFO.
 - A picture file is one whose extension is `jpg`, `jpeg` or `png`, case
   ignored.
 - The names looked for, case ignored, in this order (`coverNames()`):
@@ -83,6 +85,9 @@ bytes to OUT and prints `wrote N bytes to OUT`. It exits 3, writing
 nothing, with a line on standard error beginning `failed: `, when there
 is no cover (`no cover`), when OUT exists already (`exists`), or when
 OUT cannot be written.
+A symbolic link at OUT exists, even one that leads nowhere. OUT is
+created by the command or not at all, and when writing fails part-way
+the command removes what it made.
 
 A missing subcommand, an unknown one, an unknown option or the wrong
 number of files is a usage mistake: exit 2, nothing on standard output.
