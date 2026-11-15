@@ -24,6 +24,9 @@ QList<PictureFile> pictureFilesIn(const QString &folder)
     QList<PictureFile> found;
     const QFileInfoList entries = QDir(folder).entryInfoList(QDir::Files);
     for (const QFileInfo &info : entries) {
+        // CV-FILE: a link leads through to what it names; only a regular file counts.
+        if (!info.isFile())
+            continue;
         const int rank = int(kPictureExtensions.indexOf(info.suffix().toLower()));
         if (rank >= 0)
             found.append({ info.fileName(), info.completeBaseName().toLower(), rank });
@@ -119,6 +122,8 @@ Cover fileCover(const QString &musicFile, bool wantData)
         return { };
 
     const QFileInfo info(picturePath);
+    if (!info.isFile())
+        return { }; // the folder changed since it was listed
     Cover cover;
     cover.source = Cover::Source::File;
     cover.file = picturePath;

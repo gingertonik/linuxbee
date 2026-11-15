@@ -64,17 +64,25 @@ int extractCover(const QString &file, const QString &target, bool fileFirst)
     const Cover cover = linuxbee::findCover(file, optionsFor(fileFirst, true));
     if (cover.source == Cover::Source::None)
         return reportFailure(QStringLiteral("no cover for %1").arg(file));
-    if (QFileInfo::exists(target))
+    // A link at OUT counts as existing, even one that leads nowhere: QFileInfo::exists follows it.
+    if (QFileInfo::exists(target) || QFileInfo(target).isSymLink())
         return reportFailure(QStringLiteral("%1 exists").arg(target));
 
+    // NewOnly: the open fails rather than follow or truncate a file that appeared since the check.
     QFile output(target);
-    if (!output.open(QIODevice::WriteOnly))
+    if (!output.open(QIODevice::WriteOnly | QIODevice::NewOnly))
         return reportFailure(
             QStringLiteral("cannot write %1: %2").arg(target, output.errorString()));
-    if (output.write(cover.data) != cover.data.size())
-        return reportFailure(
-            QStringLiteral("cannot write %1: %2").arg(target, output.errorString()));
+    // Success is the whole write, the flush and a clean close. Otherwise this run made OUT, so it
+    // removes it again: nothing is left behind.
+    const bool written = output.write(cover.data) == cover.data.size() && output.flush();
+    const QString writeError = output.errorString();
     output.close();
+    if (!written || output.error() != QFile::NoError) {
+        QFile::remove(target);
+        return reportFailure(QStringLiteral("cannot write %1: %2")
+                .arg(target, written ? output.errorString() : writeError));
+    }
 
     QTextStream out(stdout);
     out << QStringLiteral("wrote %1 bytes to %2").arg(cover.data.size()).arg(target) << '\n';
