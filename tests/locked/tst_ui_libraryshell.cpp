@@ -22,6 +22,7 @@
 #include "mainwindow/mainwindow.h"
 #include "navigator/navigatorpanel.h"
 #include "shell/libraryshell.h"
+#include "shell/scanrunner.h"
 #include "tracklist/tracklistmodel.h"
 #include "tracklist/tracklistpage.h"
 
@@ -224,11 +225,15 @@ void LibraryShellTest::scan()
     r.start();
     NEED_PARTS(r);
     r.run(u"file.scanFolders"); // the user cancels the chooser
+    QVERIFY2(r.shell->scanner(), "the shell has no scan runner");
+    QTRY_VERIFY(!r.shell->scanner()->isRunning());
     QCOMPARE(r.asked, 1);
     QCOMPARE(r.library->count(), 0);
     QCOMPARE(r.shell->lastMessage(), QString());
     r.folders = { r.dir.path() + s(u"/music") };
     r.run(u"file.scanFolders");
+    QVERIFY2(r.shell->scanner(), "the shell has no scan runner");
+    QTRY_VERIFY(!r.shell->scanner()->isRunning());
     QCOMPARE(r.asked, 2);
     QCOMPARE(r.library->count(), 3);
     QCOMPARE(r.shown(), sorted({ r.a, r.b, r.c }));
@@ -242,6 +247,8 @@ void LibraryShellTest::scan()
     // Again, after a file has gone.
     QVERIFY(QFile::remove(r.c));
     r.run(u"file.scanFolders");
+    QVERIFY2(r.shell->scanner(), "the shell has no scan runner");
+    QTRY_VERIFY(!r.shell->scanner()->isRunning());
     QCOMPARE(r.shell->lastMessage(), s(u"Scan: 0 added, 0 updated, 1 missing, 1 not audio"));
     QCOMPARE(r.library->count(), 3); // a missing file stays known
 }
@@ -255,6 +262,8 @@ void LibraryShellTest::scanIntoTheChosenSection()
     QVERIFY(r.shell->navigator()->selectNode(s(u"library:Inbox")));
     r.folders = { r.dir.path() + s(u"/inbox") };
     r.run(u"file.scanFolders");
+    QVERIFY2(r.shell->scanner(), "the shell has no scan runner");
+    QTRY_VERIFY(!r.shell->scanner()->isRunning());
     QCOMPARE(r.shown(), QStringList({ r.d }));
     QCOMPARE(r.library->trackByPath(r.d)->category, s(u"Inbox"));
     QVERIFY(r.shell->navigator()->selectNode(s(u"playing")));

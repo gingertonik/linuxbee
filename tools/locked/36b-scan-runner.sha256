@@ -1,0 +1,3 @@
+86b04b991f69968d673948fff4615be48c7ac304000bb7bfc0c1f368c8537adb  docs/spec/scan-runner.md
+34d8671db3fa9580e89d723593c221c7f0f13583a97f28243b76ae74969d3b3c  src/ui/shell/scanrunner.h
+3a04ef6efaddcb7c5edafc122c5b4ee0744ae9ba04a80b21f26b24fda4dadf04  tests/locked/tst_ui_scanrunner.cpp

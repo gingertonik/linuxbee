@@ -32,6 +32,8 @@ struct ShellHooks {
     std::function<QDateTime()> now; // UTC
 };
 
+class ScanRunner;
+
 class LibraryShell : public QObject {
     Q_OBJECT
 public:
@@ -49,6 +51,7 @@ public:
     QStringList selectedPaths() const;
     QStringList shownPaths() const; // every row of the list, in the order shown
     QString lastMessage() const; // SH-MESSAGE: what the status bar was last told
+    ScanRunner *scanner() const; // SR-SHELL: the runner "Scan Folders" goes through
 
     // SH-NODE: what the "Playing Tracks" node shows. The player assembly calls
     // this whenever the play queue changes.
