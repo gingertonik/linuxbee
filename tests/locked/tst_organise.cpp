@@ -429,7 +429,9 @@ void OrganiseTest::replacedIsFindable()
     }
     // The home trash records the whole path; a trash on another drive records it from that drive's top.
     QVERIFY2(cameFrom == target || target.endsWith(QLatin1Char('/') + cameFrom), qPrintable(cameFrom));
-    QVERIFY2(!bytesOf(record).contains("linuxbee"), "a name the organiser used while working shows in the trash record");
+    // Only the file's own name is looked at: the folders above it are the test's and may hold any word.
+    QVERIFY2(!QFileInfo(cameFrom).fileName().contains(s(u"linuxbee"), Qt::CaseInsensitive),
+        "a name the organiser used while working shows in the trash record");
 
     // A second file of the same name, replaced later, is found as well.
     const QString b = put("basic.mp3", s(u"in/a/x.mp3"));
