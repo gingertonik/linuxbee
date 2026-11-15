@@ -4,6 +4,7 @@
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
 #include "navigator/navigatorpanel.h"
+#include "shell/scanrunner.h"
 #include "tracklist/tracklistmodel.h"
 #include "tracklist/tracklistpage.h"
 
@@ -107,6 +108,23 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     connect(
         d->playlists, &PlaylistStore::tracksChanged, this, &LibraryShell::onPlaylistTracksChanged);
 
+    // SR-SHELL: the one runner. The shell connects to it here, before anyone
+    // else can, so it hears every signal first.
+    d->scanner = new ScanRunner(d->library, { }, this);
+    connect(d->scanner, &ScanRunner::progress, this, [this](int done, int total) {
+        showMessage(tr("Scanning: %1 of %2 files").arg(done).arg(total));
+    });
+    connect(d->scanner, &ScanRunner::finished, this, [this](const ScanReport &report) {
+        QString text = tr("Scan: %1 added, %2 updated, %3 missing, %4 not audio")
+                           .arg(report.added.size())
+                           .arg(report.updated.size())
+                           .arg(report.nowMissing.size())
+                           .arg(report.notAudio.size());
+        if (report.cancelled)
+            text += tr(" (stopped)");
+        showMessage(text);
+    });
+
     // SH-PLAY: an activated track that is in the list asks for the list,
     // as shown now, from its row. A track not in the list emits nothing.
     connect(d->page, &TrackListPage::trackActivated, this, [this](qint64 trackId) {
@@ -119,7 +137,15 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
 
 LibraryShell::~LibraryShell()
 {
+    // SR-SHELL: the runner waits for its looking thread before the rest goes.
+    delete d->scanner;
+    d->scanner = nullptr;
     delete d;
+}
+
+ScanRunner *LibraryShell::scanner() const
+{
+    return d->scanner;
 }
 
 NavigatorPanel *LibraryShell::navigator() const

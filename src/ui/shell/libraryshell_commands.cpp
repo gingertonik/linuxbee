@@ -4,6 +4,7 @@
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
 #include "navigator/navigatorpanel.h"
+#include "shell/scanrunner.h"
 #include "tracklist/tracklistmodel.h"
 #include "tracklist/tracklistpage.h"
 
@@ -71,12 +72,9 @@ void LibraryShell::scanFolders()
     ScanOptions options;
     options.category = targetSection();
     options.now = d->hooks.now();
-    const ScanReport report = d->library->scan(folders, options);
-    showMessage(tr("Scan: %1 added, %2 updated, %3 missing, %4 not audio")
-            .arg(report.added.size())
-            .arg(report.updated.size())
-            .arg(report.nowMissing.size())
-            .arg(report.notAudio.size()));
+    // SR-SHELL: the command comes back at once; the runner's signals say the rest.
+    d->scanner->scan(folders, options);
+    showMessage(tr("Scan started"));
 }
 
 void LibraryShell::addFiles()

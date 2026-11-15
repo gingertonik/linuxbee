@@ -58,6 +58,8 @@ struct LibraryShell::Private {
     std::function<bool(const LibraryTrack &)> narrowing; // SH-EXTEND
     std::vector<NodeSource> nodeSources; // SH-EXTEND: asked first, in order
     QString message; // SH-MESSAGE: what the status bar was last told
+    ScanRunner *scanner
+        = nullptr; // SR-SHELL: the runner "Scan Folders" goes through; the shell is its parent
 };
 
 }
