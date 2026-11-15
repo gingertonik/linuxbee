@@ -44,6 +44,12 @@ public:
     // tags, and no track is built.
     ScanKnown scanKnown() const;
 
+    // L-PARTS: what a scan compares (path, size, modification time and the
+    // missing mark) for these ids only, by id. One light query per few
+    // hundred ids: no tags, no track is built, and the rest of the library is
+    // not read. An id the store does not hold has no entry.
+    QHash<qint64, ScanFindings::Judged> heldById(const QList<qint64> &ids) const;
+
     // The track stored at this exact path, if there is one.
     std::optional<LibraryTrack> byPath(const QString &path) const;
 

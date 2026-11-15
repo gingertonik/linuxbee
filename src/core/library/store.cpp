@@ -372,6 +372,36 @@ ScanKnown Store::scanKnown() const
     return known;
 }
 
+QHash<qint64, ScanFindings::Judged> Store::heldById(const QList<qint64> &ids) const
+{
+    QHash<qint64, ScanFindings::Judged> held;
+    if (!d->opened)
+        return held;
+    // SQLite refuses an expression tree deeper than 1000, and the ids are an
+    // OR chain, so a long list is asked for in pieces.
+    constexpr qsizetype kPiece = 400;
+    for (qsizetype from = 0; from < ids.size(); from += kPiece) {
+        const QList<qint64> piece = ids.mid(from, kPiece);
+        const IdPlaceholders placeholders = idPlaceholders(piece);
+        QSqlQuery query(QSqlDatabase::database(d->connection));
+        query.prepare(QStringLiteral("SELECT id, path, size_bytes, modified_secs, missing "
+                                     "FROM tracks WHERE (%1)")
+                .arg(placeholders.condition));
+        bindIds(&query, placeholders.names, piece);
+        if (!query.exec())
+            continue;
+        while (query.next()) {
+            ScanFindings::Judged entry;
+            entry.path = query.value(1).toString();
+            entry.sizeBytes = query.value(2).toLongLong();
+            entry.modified = toDateTime(query.value(3).toLongLong());
+            entry.missing = query.value(4).toBool();
+            held.insert(query.value(0).toLongLong(), entry);
+        }
+    }
+    return held;
+}
+
 std::optional<LibraryTrack> Store::byPath(const QString &path) const
 {
     if (!d->opened)
