@@ -19,6 +19,7 @@ Code: `src/core/covers/cover.h`. Command: `linuxbeectl cover`.
 `chooseEmbedded(pictures)` answers which of a file's pictures is its
 cover, by position: the first whose type is `Front Cover` (case
 ignored); when none is, the first picture; -1 when there are none.
+A picture of no bytes is passed over as if it were not there.
 
 ## CV-FILE
 
@@ -31,6 +32,13 @@ nothing.
   such as a device or a FIFO.
 - A picture file is one whose extension is `jpg`, `jpeg` or `png`, case
   ignored.
+- A file of no bytes, a file of more than 32 MiB (33,554,432 bytes) and
+  a file this user cannot read are not picture files: not by name, and
+  not as the lone picture. So the bytes of a cover file can always be
+  asked for, and a cover is the same whether or not they are.
+- A symbolic link to a regular file is followed, wherever that file
+  lies; the cover is named by the link's path in the folder, and the
+  limits above are those of the file it leads to.
 - The names looked for, case ignored, in this order (`coverNames()`):
   `cover`, `folder`, `front`, `album`, `albumart`. The first of these
   names that a picture file has wins; when one name has several
@@ -107,4 +115,5 @@ number of files is a usage mistake: exit 2, nothing on standard output.
 |---|---|
 | CV-FIND | In which order MusicBee tries its picture sources on a new install, and which are ticked. linuxBee: embedded, then the folder's file. |
 | CV-FILE | Which file names MusicBee accepts beside `folder.jpg` and its own `Cover.jpg`. linuxBee: cover, folder, front, album, albumart. |
+| CV-FILE | Whether MusicBee has a largest size for a picture file. linuxBee: 32 MiB, its own number. |
 | CV-FILE | Whether MusicBee uses a lone picture with another name. linuxBee: yes, when it is the only one. |
