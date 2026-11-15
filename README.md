@@ -22,11 +22,16 @@ command-line tool, or both.
 ### Library and browsing
 
 - Add files to the library, and scan folders for new files (File menu).
-  `linuxbeectl library` scans folders into a library file, and counts or
-  lists it.
+  The scan looks at the files on a thread of its own, so the window stays
+  usable while it runs. `linuxbeectl library` scans folders into a library
+  file, and counts or lists it.
 - The navigator shows the library sections (Music, Inbox, Audiobooks,
   Podcasts, Videos), the playlists and Playing Tracks.
 - The track list sorts by column and narrows by a search box.
+- The main panel has a Tracks view and an Album and Tracks view, chosen from a
+  drop-down in the main panel. Album and Tracks shows the tracks under a heading
+  for each album, in album order, with a jump bar of letters. Activating a track
+  plays from there; activating an album's heading plays that album.
 - The artist browser sits beside the track list. It browses by Album Artist,
   Artist, Album, Composer, Genre, Grouping or Year.
 - Send To (right-click menu) sends tracks to the Inbox, Music Library or
@@ -68,6 +73,8 @@ command-line tool, or both.
   copy and swap.
 - `linuxbeectl gain` measures, writes and removes volume levelling
   (ReplayGain) tags.
+- `linuxbeectl cover` shows which picture stands for a track's cover, and
+  extracts it to a file.
 
 ### Organise and convert
 
@@ -87,6 +94,9 @@ command-line tool, or both.
 - The window remembers which sidebars and the status bar were shown.
 - `linuxbeectl settings import` carries the hotkeys and the organiser's
   naming template over from a MusicBee settings file.
+- A MusicBee skin's colours are applied to the window when `appearance/skin`
+  in `linuxbee.ini` is set by hand to the path of a plain `.xml` skin file.
+  `linuxbeectl skin show` lists the colours it takes.
 
 ### Desktop integration
 
@@ -97,9 +107,11 @@ command-line tool, or both.
 
 The gaps a MusicBee user will notice first:
 
-- **Album view.** The track list shows tracks, not albums with their tracks.
-- **Cover art.** Pictures are read from files, but no part of the window
-  shows them.
+- **Album covers, and the other main panel views.** The Album and Tracks view
+  has no cover at each heading. The Album Covers, Artists and Jukebox views are
+  not built.
+- **Cover art in the window.** `linuxbeectl cover` reads the pictures, but no
+  part of the window shows them, and pictures are not downloaded.
 - **Making or editing an auto-playlist in the window.** An auto-playlist is
   shown, but it can only be made by putting a file in its folder, and a
   double-click on one does not play it yet.
@@ -108,16 +120,19 @@ The gaps a MusicBee user will notice first:
 - **Gapless playback, crossfade and an equaliser.**
 - **ReplayGain in playback.** `linuxbeectl gain` writes the tags, but the
   player does not apply them yet.
-- **Background scanning.** A scan blocks the window until it finishes.
+- **Scan progress and stop.** A scan runs off the window's thread and reports
+  its progress as a message in the status bar, but there is no progress bar
+  and no way to stop a scan from the window. The folder monitor's checks still
+  run on the window's thread.
 - **Importing a MusicBee library.** Only the settings file can be imported.
   The import code is in the core, with no command or window that runs it.
 - **Undo, and Delete Files.** Organise, tag edits and tag tools cannot be
   undone, and files cannot be deleted from the window.
 - **Tagging tools in the window, and auto-tagging.** The tagging tools are on
   the command line only. Auto-tagging from online services is not built.
-- **Skins in the window, and plugins.** `linuxbeectl skin show` reads the
-  colours from a MusicBee skin file, but the window does not apply skins yet.
-  Plugins are not built.
+- **Choosing a skin in the window, and plugins.** A skin is chosen by editing
+  `linuxbee.ini`. Compiled skins (`.xmlc`), and a skin's pictures and layout,
+  are not used. Plugins are not built.
 
 ## Try it
 
@@ -133,6 +148,7 @@ usage: linuxbeectl <command> [arguments]
 
 commands:
   convert    Convert music files to another format.
+  cover      Show or extract a track's cover picture.
   gain       Measure, write or remove volume levelling (ReplayGain) tags.
   library    Scan and list a music library.
   organise   Move or copy music files to where a naming template says.
