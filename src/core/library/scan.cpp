@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QSet>
 #include <QString>
 #include <QStringConverter>
 #include <QStringList>
@@ -143,6 +144,18 @@ void walkForUnreadable(const QString &folder, UnreadableWalk *walk)
         walk->folders.append(folder);
 }
 
+// L-PARTS: what the library was known to hold of a track when it was looked
+// at, put into `judged` under the track's id. `path` is the path as stored.
+void judge(ScanFindings *found, const QString &path, const ScanKnown::Entry &entry)
+{
+    ScanFindings::Judged was;
+    was.path = path;
+    was.sizeBytes = entry.sizeBytes;
+    was.modified = entry.modified;
+    was.missing = entry.missing;
+    found->judged.insert(entry.id, was);
+}
+
 // L-PARTS: what looking at one file finds, put into `found`. A file the
 // library does not know is read and is `fresh`; a known file that is marked
 // missing and is there is `found`, and is read again when it differs; a known
@@ -166,6 +179,7 @@ void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found
         // and is read again when it differs. It is not also counted as
         // unchanged or updated.
         found->found.append(entry->id);
+        judge(found, entry.key(), *entry);
         if (!asStored) {
             ScanFindings::Reread again;
             again.id = entry->id;
@@ -189,12 +203,14 @@ void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found
         return;
     }
     found->reread.append(again);
+    judge(found, entry.key(), *entry);
 }
 
 // L-SCAN, L-PARTS: every known track that is not missing, lies inside one of
 // the scanned folders, and has no file left; in ascending order of path, the
 // order the store keeps (its bytes, not UTF-16 code units).
-QList<qint64> goneFromFolders(const ScanKnown &known, const QStringList &folders)
+QList<qint64> goneFromFolders(
+    const ScanKnown &known, const QStringList &folders, ScanFindings *found)
 {
     QList<std::pair<QByteArray, qint64>> gone;
     for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
@@ -203,6 +219,7 @@ QList<qint64> goneFromFolders(const ScanKnown &known, const QStringList &folders
         if (QFileInfo::exists(entry.key()))
             continue;
         gone.append({ entry.key().toUtf8(), entry->id });
+        judge(found, entry.key(), *entry);
     }
     std::sort(gone.begin(), gone.end());
     QList<qint64> ids;
@@ -255,7 +272,7 @@ ScanFindings findForScan(
     // L-SCAN, L-NAMES: a cancelled scan leaves out what has gone and claims
     // nothing about names.
     if (!found.cancelled) {
-        found.nowMissing = goneFromFolders(known, folders);
+        found.nowMissing = goneFromFolders(known, folders, &found);
         findUnreadableNames(folders, &found);
     }
     return found;
@@ -272,6 +289,7 @@ ScanReport addedUp(const ScanReport &a, const ScanReport &b)
     sum.notAudio += b.notAudio;
     sum.unreadableNames += b.unreadableNames;
     sum.unreadableIn += b.unreadableIn;
+    sum.passedOver += b.passedOver;
     sum.cancelled = a.cancelled || b.cancelled;
     return sum;
 }
@@ -288,11 +306,42 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     if (!options.now.isValid() || !categories().contains(options.category))
         return report;
 
+    // L-PARTS: a finding is acted on only while the library still holds the
+    // track as it was when it was looked at. The four values are asked for by
+    // id, once, for the ids in `judged` that a finding names: one light query
+    // that reads no track and not the rest of the library.
+    QSet<qint64> named;
+    for (const qint64 id : findings.found)
+        named.insert(id);
+    for (const ScanFindings::Reread &again : findings.reread)
+        named.insert(again.id);
+    for (const qint64 id : findings.nowMissing)
+        named.insert(id);
+    QList<qint64> toAsk;
+    for (const qint64 id : std::as_const(named)) {
+        if (findings.judged.contains(id))
+            toAsk.append(id);
+    }
+    const QHash<qint64, ScanFindings::Judged> held = d->store.heldById(toAsk);
+    QSet<qint64> passed;
+    auto stillFits = [&findings, &held, &passed](qint64 id) {
+        const auto was = findings.judged.constFind(id);
+        if (was == findings.judged.cend())
+            return true; // no entry: acted on as before
+        const auto now = held.constFind(id);
+        const bool fits = now != held.cend() && now->path == was->path
+            && now->sizeBytes == was->sizeBytes && now->modified == was->modified
+            && now->missing == was->missing;
+        if (!fits)
+            passed.insert(id);
+        return fits;
+    };
+
     d->store.beginBatch();
     // L-SCAN: a track that was marked missing and whose file is there is
     // found. L-MISSING keeps its tags, its statistics and its id.
     for (const qint64 id : findings.found) {
-        if (d->store.setMissing(id, false))
+        if (stillFits(id) && d->store.setMissing(id, false))
             report.found.append(id);
     }
     // L-PARTS: a file the library holds by now is left alone.
@@ -310,11 +359,12 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // added and statistics stay, which is what updateReading leaves. One that
     // was marked missing is found, and is not also updated.
     for (const ScanFindings::Reread &again : findings.reread) {
-        if (d->store.updateReading(again.id, again.reading) && !again.wasMissing)
+        if (stillFits(again.id) && d->store.updateReading(again.id, again.reading)
+            && !again.wasMissing)
             report.updated.append(again.id);
     }
     for (const qint64 id : findings.nowMissing) {
-        if (d->store.setMissing(id, true))
+        if (stillFits(id) && d->store.setMissing(id, true))
             report.nowMissing.append(id);
     }
     report.unchanged = findings.unchanged;
@@ -322,6 +372,7 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     report.unreadableNames = findings.unreadableNames;
     report.unreadableIn = findings.unreadableIn;
     report.cancelled = findings.cancelled;
+    report.passedOver = int(passed.size());
     d->store.commitBatch();
 
     // L-SIGNALS: at most one signal of each kind, after the changes are
