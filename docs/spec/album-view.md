@@ -111,7 +111,11 @@ Widgets, by object name:
 `groups()` is what the tree was filled from. `setTracks` keeps the
 selection (AV-SELECT) for the tracks that are still there.
 
-Speed. No column is sized to its contents, because that measures every
+Speed. The headings and disc lines are made to span the columns in one
+pass after the last heading is in the tree, never album by album while
+the tree is still being built: done one by one, that costs more with
+every album there already is (measured: 1.8 s of a 2.1 s fill at 17,000
+tracks, against 0.25 s for the whole fill when done after). No column is sized to its contents, because that measures every
 row at every fill: the title column stretches and the other two have a
 width worked out once from the font. The headings are expanded in one
 step, not one by one. `fills()` is the number of times `setTracks` has
@@ -183,6 +187,13 @@ the library, which reaches this object as several signals, costs one
 fill, and so does a run of changes made in one turn. A change of mode
 fills (or empties) at once. In mode `tracks` the view is emptied once
 and nothing makes it stale.
+
+The same tracks fill nothing. When a stale view is to be filled and the
+list holds the same track ids in the same order as when the view was
+last filled, and `LibraryShell::nodeTracksChanged` has not been emitted
+since, the view is left as it is and is no longer stale. So a letter
+added to a search that finds the same tracks costs no fill; a track
+that changed in the library, or the node chosen again, does.
 
 While in mode `albums`:
 
