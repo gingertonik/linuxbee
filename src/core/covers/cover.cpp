@@ -12,6 +12,10 @@ namespace {
 const QStringList kPictureExtensions
     = { QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("png") };
 
+// CV-FILE: the largest picture file that counts, 32 MiB in bytes; a file of exactly this size
+// counts.
+const qint64 kLargestPictureBytes = 32LL * 1024 * 1024;
+
 // A picture file lying directly in a folder. Hidden files are never listed.
 struct PictureFile {
     QString fileName; // as on disk
@@ -28,7 +32,10 @@ QList<PictureFile> pictureFilesIn(const QString &folder)
         if (!info.isFile())
             continue;
         const int rank = int(kPictureExtensions.indexOf(info.suffix().toLower()));
-        if (rank >= 0)
+        // CV-FILE: a file of no bytes, a file over the largest size, or one this user cannot read
+        // is not a picture file.
+        if (rank >= 0 && info.size() > 0 && info.size() <= kLargestPictureBytes
+            && info.isReadable())
             found.append({ info.fileName(), info.completeBaseName().toLower(), rank });
     }
     return found;
@@ -41,11 +48,18 @@ int chooseEmbedded(const QList<Picture> &pictures)
 {
     if (pictures.isEmpty())
         return -1;
+    // A picture of no bytes is passed over, as if it were not there, for the front cover and for
+    // the first picture alike.
     for (qsizetype i = 0; i < pictures.size(); ++i) {
-        if (pictures.at(i).type.compare(QStringLiteral("Front Cover"), Qt::CaseInsensitive) == 0)
+        if (pictures.at(i).byteCount > 0
+            && pictures.at(i).type.compare(QStringLiteral("Front Cover"), Qt::CaseInsensitive) == 0)
             return int(i);
     }
-    return 0;
+    for (qsizetype i = 0; i < pictures.size(); ++i) {
+        if (pictures.at(i).byteCount > 0)
+            return int(i);
+    }
+    return -1;
 }
 
 // CV-FILE
