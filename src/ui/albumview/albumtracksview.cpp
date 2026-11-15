@@ -216,6 +216,9 @@ struct AlbumTracksView::Private {
         for (QTreeWidgetItem *item : spanned)
             item->setFirstColumnSpanned(true);
         tree->expandAll();
+        // AV-VIEW: the spans were set while the headings were collapsed, which
+        // capped the vertical scroll value; a fill goes back to the top.
+        tree->scrollToTop();
     }
 };
 
