@@ -110,6 +110,10 @@ Widgets, by object name:
 
 `groups()` is what the tree was filled from. `setTracks` keeps the
 selection (AV-SELECT) for the tracks that are still there.
+After a fill the view shows its top: the first heading is the first
+row shown, wherever the view was scrolled to before. (A view that is
+not filled, because the same tracks fill nothing (AV-FILL), keeps its
+place.)
 
 Speed. The headings and disc lines are made to span the columns in one
 pass after the last heading is in the tree, never album by album while
