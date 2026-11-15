@@ -94,7 +94,7 @@ Whoever changes the library or the playlists, what is on show follows:
 
 | Command | Does |
 |---|---|
-| `file.scanFolders` | asks `chooseFolders`; with an answer, `Library::scan` of those folders, new files going to the section on show (or `Music` when the node is not a library section), `now` from the hook |
+| `file.scanFolders` | asks `chooseFolders`; with an answer, a scan of those folders through the shell's scan runner (scan-runner.md, SR-SHELL: the command returns at once and the message follows the scan), new files going to the section on show (or `Music` when the node is not a library section), `now` from the hook |
 | `file.addFiles` | asks `chooseFiles`; with an answer, `Library::addFile` for each, same section rule |
 | `file.remove` | `Library::remove` of the selected tracks. No file is deleted |
 | `track.sendToInbox`, `track.sendToMusic`, `track.sendToAudiobooks` | `Library::setCategory` of the selected tracks |
@@ -208,8 +208,8 @@ chosen node as `shell/node`.
 
 ## Not in this version
 
-- Scanning in the background with a progress bar: a scan blocks the
-  window until it is done.
+- A progress bar for a scan, and a way to stop one from the window
+  (scan-runner.md).
 - Reordering a playlist or Playing Tracks by hand. Showing an
   auto-playlist in the order it was selected in.
 - The tag editor, the organiser, the converter and the player: each is
