@@ -55,6 +55,11 @@ struct AlbumViewing::Private {
     // view is asked for, makes the view current.
     bool stale = false;
     bool queued = false; // the call that fills a stale view is already on its way
+    // AV-FILL: the track ids the list held, in order, at the last fill, and
+    // whether `nodeTracksChanged` has come since. A stale view that is to be
+    // filled and differs in neither is left as it is.
+    QList<qint64> filledIds;
+    bool nodeChanged = false;
     // True while the selection is carried from one side to the other, so that
     // the signal of the side that was written to is not read back as a choice.
     bool syncing = false;
@@ -68,8 +73,11 @@ struct AlbumViewing::Private {
     // AV-FILL: a change of the model or of the node's tracks: the view is
     // marked, and one fill is asked for at the next turn of the event loop.
     void markStale();
-    // AV-FILL: fills the view if it is stale, and does nothing if it is not.
+    // AV-FILL: fills the view if it is stale, and does nothing if it is not;
+    // a stale view whose list holds the same ids is only marked up to date.
     void bringUpToDate();
+    // The track ids of the list's rows, in order.
+    QList<qint64> listIds() const;
     // AV-SHELL, the list's selection to the view's: the view is brought up to
     // date, and selects what the list has selected unless it already has it.
     void followList();
@@ -101,11 +109,14 @@ void AlbumViewing::Private::refill()
     if (view.isNull())
         return;
     stale = false; // however it comes about, the view is not behind after this
+    nodeChanged = false;
     if (!inAlbums()) {
+        filledIds.clear();
         if (!view->groups().isEmpty())
             view->setTracks({ });
         return;
     }
+    filledIds = listIds();
     // The rows of the list say which tracks and how many; the shell's kept
     // tracks say what they are.
     const QList<LibraryTrack> node = shell->nodeTracks();
@@ -143,10 +154,27 @@ void AlbumViewing::Private::markStale()
         Qt::QueuedConnection);
 }
 
+QList<qint64> AlbumViewing::Private::listIds() const
+{
+    const TrackListModel *model = shell->model();
+    QList<qint64> ids;
+    ids.reserve(model->rowCount());
+    for (int row = 0; row < model->rowCount(); ++row)
+        ids.append(model->trackId(row));
+    return ids;
+}
+
 void AlbumViewing::Private::bringUpToDate()
 {
-    if (stale)
-        refill();
+    if (!stale)
+        return;
+    // AV-FILL, the same tracks fill nothing: neither the ids nor the node's
+    // tracks differ from the last fill, so the view is left as it is.
+    if (inAlbums() && !view.isNull() && !nodeChanged && listIds() == filledIds) {
+        stale = false;
+        return;
+    }
+    refill();
 }
 
 void AlbumViewing::Private::followList()
@@ -251,7 +279,10 @@ AlbumViewing::AlbumViewing(LibraryShell *shell, QSettings *settings, QObject *pa
     connect(model, &QAbstractItemModel::rowsMoved, this, follow);
     connect(model, &QAbstractItemModel::layoutChanged, this, follow);
     connect(model, &QAbstractItemModel::dataChanged, this, follow);
-    connect(shell, &LibraryShell::nodeTracksChanged, this, follow);
+    connect(shell, &LibraryShell::nodeTracksChanged, this, [this] {
+        d->nodeChanged = true; // the tracks themselves may differ: fill again
+        d->markStale();
+    });
 
     // The mode is read as text, as an earlier run stored it.
     d->mode = modeOf(settings->value(QStringLiteral("view/mainPanel")).toString());
