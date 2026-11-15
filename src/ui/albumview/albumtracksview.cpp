@@ -178,6 +178,7 @@ struct AlbumTracksView::Private {
         QFont headingFont = tree->font();
         headingFont.setBold(true);
         qsizetype first = 0; // where the group's first track stands in `tracks`
+        QList<QTreeWidgetItem *> spanned; // the headings and disc rows
         for (int g = 0; g < groups.size(); ++g) {
             const AlbumGroup &group = groups.at(g);
             auto *heading = new QTreeWidgetItem(tree);
@@ -187,7 +188,7 @@ struct AlbumTracksView::Private {
 
             // The rows of the album are made apart and handed over in one call.
             QList<QTreeWidgetItem *> children;
-            QList<QTreeWidgetItem *> discRows;
+            spanned.append(heading);
             int nextDisc = 0;
             for (int i = 0; i < group.trackIds.size(); ++i) {
                 const LibraryTrack &track = tracks.at(first + i);
@@ -198,7 +199,7 @@ struct AlbumTracksView::Private {
                             firstValue(track, QStringLiteral("Disc#"))));
                     disc->setFlags(Qt::ItemIsEnabled); // it cannot be selected
                     children.append(disc);
-                    discRows.append(disc);
+                    spanned.append(disc);
                     ++nextDisc;
                 }
                 QTreeWidgetItem *row = trackRow(track);
@@ -206,15 +207,14 @@ struct AlbumTracksView::Private {
                 children.append(row);
             }
             heading->addChildren(children);
-
-            // Spanning works only for items that are in the tree.
-            heading->setFirstColumnSpanned(true);
-            for (QTreeWidgetItem *disc : discRows)
-                disc->setFirstColumnSpanned(true);
             first += group.trackIds.size();
         }
-        // AV-VIEW, Speed: every heading is expanded in one step, once the tree
-        // is built, not one by one as each is added.
+        // AV-VIEW, Speed: every heading and disc row is made to span the
+        // columns in one pass, once the tree is built (spanning works only for
+        // items that are in the tree), and then every heading is expanded in
+        // one step, not one by one as each is added.
+        for (QTreeWidgetItem *item : spanned)
+            item->setFirstColumnSpanned(true);
         tree->expandAll();
     }
 };
