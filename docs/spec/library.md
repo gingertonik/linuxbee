@@ -145,6 +145,24 @@ order the files were looked at. `tracksAdded` names the ids of the
 report's `added`; `tracksUpdated` names `found`, then `updated`, then
 `nowMissing`.
 
+**A library that changed meanwhile.** The looking takes time, and the
+library can change before what was found is stored. So the findings
+carry, in `judged`, for each id they name in `reread`, `found` and
+`nowMissing`, what `known` held of that track: its path, size,
+modification time and missing mark. `applyScan` acts on such a finding
+only while the library still holds a track of that id with those four
+values; otherwise the finding is passed over: nothing is stored for it,
+its id is in no list of the report and in no signal, and the report's
+`passedOver` counts it once. The track is left for the next scan. A
+finding whose id has no entry in `judged` is acted on as before. The
+library is asked for the four values by id, without reading the
+track. In parts, each part carries the entries its own findings need.
+`addedUp` adds `passedOver` up.
+
+This is what keeps a track that `setPath` moved during a scan from
+being marked missing, and a reading made before `refresh` from
+replacing the later one.
+
 **In parts.** With `options.partSize` above 0 and `options.part` set,
 `findForScan` hands `part` what it found each time it has looked at
 `partSize` more files, and starts afresh; it answers what is left: the

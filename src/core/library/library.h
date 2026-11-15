@@ -60,6 +60,8 @@ struct ScanReport {
     int unreadableNames = 0; // L-NAMES: entries whose name is not valid UTF-8
     QStringList unreadableIn; // the folders holding them, each once, ascending
     bool cancelled = false;
+    // L-PARTS: findings about a track the library had changed since it was looked at.
+    int passedOver = 0;
 };
 
 // L-PARTS: what a scan needs to know of the library.
@@ -80,6 +82,15 @@ struct ScanFindings {
         bool wasMissing = false; // then it is `found`, and not counted as updated
         LibraryTrack reading; // path, tags, size, time, picture count
     };
+    // What the library was known to hold of a track when its file was looked at.
+    struct Judged {
+        QString path;
+        qint64 sizeBytes = 0;
+        QDateTime modified;
+        bool missing = false;
+    };
+    // L-PARTS: one entry for each id named in `reread`, `found` and `nowMissing`.
+    QHash<qint64, Judged> judged;
     QList<LibraryTrack> fresh; // files not known, read: no id, category or date added yet
     QList<Reread> reread; // known files that differ, read again
     QList<qint64> found; // marked missing, and the file is there
