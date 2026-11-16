@@ -104,6 +104,7 @@ private:
     void scanFolders(); // SH-COMMANDS
     void addFiles(); // SH-COMMANDS
     void removeSelected(); // SH-COMMANDS
+    void deleteSelected(); // SH-DELETE: the selected files go to the trash, after a question
     void sendToSection(const QString &section); // SH-COMMANDS
     QString targetSection() const; // the library section on show, else Music
     void refreshAll(); // view.refresh: counts, playlists, the node

@@ -2,6 +2,7 @@
 #include "shell/libraryshell_p.h"
 
 #include "actions/actionregistry.h"
+#include "files/trash.h"
 #include "mainwindow/mainwindow.h"
 #include "navigator/navigatorpanel.h"
 #include "shell/scanrunner.h"
@@ -9,7 +10,11 @@
 #include "tracklist/tracklistpage.h"
 
 #include <QAction>
+#include <QDir>
+#include <QFileInfo>
+#include <QHash>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QStatusBar>
 
 // Plan 30: SH-COMMANDS registers every command in task 2; each behaviour
@@ -23,6 +28,7 @@ void LibraryShell::registerShellCommands()
     d->actions->implement(QStringLiteral("file.scanFolders"), this, [this] { scanFolders(); });
     d->actions->implement(QStringLiteral("file.addFiles"), this, [this] { addFiles(); });
     d->actions->implement(QStringLiteral("file.remove"), this, [this] { removeSelected(); });
+    d->actions->implement(QStringLiteral("file.delete"), this, [this] { deleteSelected(); });
     d->actions->implement(QStringLiteral("track.sendToInbox"), this,
         [this] { sendToSection(QStringLiteral("Inbox")); });
     d->actions->implement(QStringLiteral("track.sendToMusic"), this,
@@ -105,6 +111,79 @@ void LibraryShell::removeSelected()
         return;
     const int removed = d->library->remove(ids);
     showMessage(tr("Removed %1 from the library").arg(removed));
+}
+
+void LibraryShell::deleteSelected()
+{
+    // SH-DELETE: Delete Files. Nothing is selected: nothing is asked and nothing is said.
+    const QList<qint64> ids = d->page->selectedTrackIds();
+    if (ids.isEmpty())
+        return;
+    // The tracks' paths, in the order shown. Nothing on disk or in the library is touched until
+    // the question is answered.
+    QStringList paths;
+    QHash<QString, qint64> idOfPath; // clean absolute path, as moveFilesToTrash gives it back
+    for (const qint64 id : ids) {
+        const std::optional<LibraryTrack> track = d->library->track(id);
+        if (!track)
+            continue;
+        paths.append(track->path);
+        idOfPath.insert(QDir::cleanPath(QFileInfo(track->path).absoluteFilePath()), id);
+    }
+    if (paths.isEmpty())
+        return;
+
+    // Step 1: the question. No is the default of the dialog, and ends the command: no file,
+    // no track, no message, and the selection stays as it was.
+    const QString question = paths.size() == 1
+        ? tr("Move 1 file to the trash?")
+        : tr("Move %1 files to the trash?").arg(paths.size());
+    const bool yes = d->hooks.confirm
+        ? d->hooks.confirm(question)
+        : QMessageBox::question(d->window, tr("Delete Files"), question,
+              QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+            == QMessageBox::Yes;
+    if (!yes)
+        return;
+
+    // Steps 2 and 3: to the trash, or the file stays. Only the tracks whose files went leave the
+    // library, in one call. No file is removed in any other way.
+    int notThere = 0;
+    int couldNot = 0; // refused and failed together
+    QList<qint64> gone;
+    for (const TrashOutcome &outcome : moveFilesToTrash(paths)) {
+        switch (outcome.status) {
+        case TrashOutcome::Status::Trashed:
+            if (idOfPath.contains(outcome.path))
+                gone.append(idOfPath.value(outcome.path));
+            break;
+        case TrashOutcome::Status::NotThere:
+            ++notThere;
+            break;
+        case TrashOutcome::Status::Refused:
+        case TrashOutcome::Status::Failed:
+            ++couldNot;
+            break;
+        }
+    }
+    if (!gone.isEmpty())
+        d->library->remove(gone);
+
+    // Step 4: the message.
+    QString text;
+    if (gone.isEmpty())
+        text = tr("No file was moved to the trash");
+    else if (gone.size() == 1)
+        text = tr("Moved 1 file to the trash");
+    else
+        text = tr("Moved %1 files to the trash").arg(gone.size());
+    if (notThere == 1)
+        text += tr("; 1 was not there");
+    else if (notThere > 1)
+        text += tr("; %1 were not there").arg(notThere);
+    if (couldNot > 0)
+        text += tr("; %1 could not be moved").arg(couldNot);
+    showMessage(text);
 }
 
 void LibraryShell::sendToSection(const QString &section)
