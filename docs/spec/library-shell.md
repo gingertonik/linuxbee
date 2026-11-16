@@ -181,6 +181,23 @@ file it has open and plays the track to its end. It stays in the queue until
 then; the other files that went leave the queue (playback-shell.md,
 PS-TRASHED).
 
+## SH-PATHS: the paths of the list
+
+`shownPaths()` is the path of every row of the list, in the order
+shown; `selectedPaths()` the paths of the selected rows, in the order
+shown. A row whose track the shell does not hold gives an empty
+text.
+
+Speed: neither reads a track. The shell holds the tracks of the view
+on show (SH-EXTEND), and the paths come from there: `tracksRead()`
+does not rise for either call, nor when a track is activated
+(`playRequested` carries `shownPaths()`). The paths are those the
+library has now: the held tracks follow the library's changes.
+
+(Before this rule each call read every row's track one by one:
+measured in a Release build at 17,000 rows, about 370 ms before a
+double-clicked track could start.)
+
 ## SH-MESSAGE
 
 After a command has done something, one line is shown in the window's
