@@ -71,6 +71,62 @@ in the list is not tried; an empty list finds nothing.
   there are.
 - When nothing is found: `source` `None` and everything else empty or 0.
 
+## CC-ASK: the cover cache
+
+`CoverCache(edge, hooks)` in `src/ui/covers/covercache.h` gives the
+window covers that are small and ready to draw. It finds no cover
+itself: that is CV-FIND, with the default options. `edge` is 64 unless
+given; below 1 counts as 1.
+
+`cover(musicFile, stamp)` answers from what is kept and never reads a
+file. `stamp` is the caller's word for the state of the file (a library
+track's modification time will do); 0 unless given, and 0 is a stamp
+like any other.
+
+- Kept under that stamp: the picture, or a null image when the file has
+  no cover. That is a use (CC-KEEP).
+- Not kept, or kept under another stamp: a null image, and a load is
+  asked for, unless one for that file and stamp is under way or waiting
+  already. What is kept under another stamp is not handed out.
+- `has(musicFile, stamp)` says whether it is kept under that stamp, with
+  or without a picture. It is a look, not a use.
+
+When a load has ended the answer is kept, in place of anything kept for
+that file before, and `loaded(musicFile)` is emitted: also when the file
+has no cover, or what was found is not a picture Qt can read. Both are
+kept as "no cover" and are not looked for again under that stamp.
+
+At most `waitingLimit()` requests wait (64 unless set; below 1 counts as
+1). One more drops the request that has waited longest: it is forgotten,
+nothing is emitted for it, and asking again asks anew. So a view that is
+scrolled fast through thousands of albums loads the ones it stopped at.
+
+`loads()` counts the loads begun since the cache was made, for tests and
+for a person timing the program; nothing decides anything by it.
+`waiting()` is the number of requests that have not begun.
+
+## CC-KEEP
+
+A picture is kept scaled down, smoothly and with its shape kept, to fit
+a square of `edge` pixels; one that fits already is kept as it is.
+
+At most `limit()` entries are kept (512 unless set; below 1 counts as
+1), counting those without a picture. When there is one too many, the
+one used longest ago goes; being kept at the end of its load is its
+first use. `setLimit` lets go at once of what is over. `size()` is the
+number kept.
+
+## CC-THREAD
+
+The cache lives on the thread it was made on. Files are looked at on
+one other thread, the cache's own, one load at a time, in the order
+asked: no call of the cache reads a file. `hooks.loading(musicFile)`,
+when set, is called on that thread before the file is looked at; it is
+there for tests. `loaded` is emitted on the cache's thread.
+
+Destroying the cache drops the requests that wait, waits for the load
+under way to end, and emits nothing more.
+
 ## CV-CLI
 
 `linuxbeectl cover show FILE [--file-first]` prints what `findCover`
