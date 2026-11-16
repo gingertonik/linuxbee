@@ -79,6 +79,8 @@ signals:
     // The user activated a track: `paths` is the list as shown, `index` the row.
     void playRequested(const QStringList &paths, int index);
     void nodeTracksChanged(); // SH-EXTEND: nodeTracks() may answer differently now
+    // SH-DELETE: these files went to the trash and their tracks left the library.
+    void filesTrashed(const QStringList &paths);
 
 private:
     struct Private;

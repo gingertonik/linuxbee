@@ -33,6 +33,7 @@ public:
     void queueNext(const QStringList &paths);
     void queueLast(const QStringList &paths);
     int removeAt(const QList<int> &positions); // returns how many were removed
+    int removePaths(const QStringList &paths); // every entry with one of them, but the current one
     bool move(int from, int to);
     void clear();
     bool setCurrent(int index);

@@ -98,6 +98,13 @@ void PlayQueue::queueLast(const QStringList &paths)
 // The current entry keeps its place in the music; if it goes, the remembered
 // place becomes the entry that followed it. Removed entries leave the round
 // and the way back.
+// Stub from the seed: the builder replaces it.
+int PlayQueue::removePaths(const QStringList &paths)
+{
+    (void)paths;
+    return 0;
+}
+
 int PlayQueue::removeAt(const QList<int> &positions)
 {
     QList<bool> gone(count(), false);

@@ -128,12 +128,18 @@ do nothing, without a message, when nothing is selected.
    there are any: `; M were not there` (`1 was not there`), then
    `; K could not be moved` for the refused and the failed together.
 
+5. When any file went, `filesTrashed(paths)` is emitted once, after
+   the library was told: the paths of those tracks as the library
+   held them, in the order shown.
+
 There is no permanent delete: nothing in the window removes a file in
 any other way than to the trash. "Remove from Library" (`file.remove`)
 is still the command that takes a track away and leaves its file.
 
 A file that is playing is moved like any other: the player keeps the
-file it has open and plays the track to its end.
+file it has open and plays the track to its end. It stays in the queue until
+then; the other files that went leave the queue (playback-shell.md,
+PS-TRASHED).
 
 ## SH-MESSAGE
 

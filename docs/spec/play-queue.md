@@ -41,6 +41,11 @@ moves. The same path can be in the list more than once.
   that do not exist are ignored. `move(from, to)` moves one entry so that
   it ends up at `to`. In both, the current entry stays current wherever it
   lands.
+- `removePaths(paths)` removes every entry whose path is one of them,
+  except the current entry, which stays even when its path is among
+  them. It returns how many went. A path is compared as it is written.
+  It is one change (`entriesChanged` once); when nothing goes, nothing
+  is emitted. Speed: one pass over the list, however many paths.
 - `clear()` empties the list. `setCurrent(index)` makes an entry current.
 
 **No current entry.** After the current entry is removed, nothing is
