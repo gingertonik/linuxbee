@@ -264,10 +264,11 @@ fills (or empties) at once. In mode `tracks` the view is emptied once
 and nothing makes it stale.
 
 The same tracks fill nothing. When a stale view is to be filled and the
-list holds the same track ids in the same order as when the view was
-last filled, and `LibraryShell::nodeTracksChanged` has not been emitted
+list holds the same track ids as when the view was
+last filled, in whatever order the list has them (the view's order is
+its own, AV-ORDER, so sorting the list changes nothing it shows), and `LibraryShell::nodeTracksChanged` has not been emitted
 since, the view is left as it is and is no longer stale. So a letter
-added to a search that finds the same tracks costs no fill; a track
+added to a search that finds the same tracks costs no fill, and a click on a header of the list costs no fill either; a track
 that changed in the library, or the node chosen again, does.
 
 While in mode `albums`:
