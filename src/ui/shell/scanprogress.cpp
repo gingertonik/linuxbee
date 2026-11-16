@@ -205,6 +205,13 @@ ScanProgress::ScanProgress(
     d->bar->setRange(0, 0);
     d->text = new QLabel(d->row);
     d->text->setObjectName(QStringLiteral("scanProgressText"));
+    // Room for six digits either side, so the text is never cut and the row keeps one width.
+    {
+        const QMargins m = d->text->contentsMargins();
+        d->text->setMinimumWidth(
+            d->text->fontMetrics().horizontalAdvance(QStringLiteral("000,000 of 000,000 files"))
+            + m.left() + m.right() + 2 * d->text->frameWidth() + 2 * d->text->margin() + 4);
+    }
     d->button = new QToolButton(d->row);
     d->button->setObjectName(QStringLiteral("scanStopButton"));
     d->button->setText(QStringLiteral("\u2715"));
@@ -213,7 +220,7 @@ ScanProgress::ScanProgress(
     rowLayout->addWidget(d->text);
     rowLayout->addWidget(d->button);
     layout->addWidget(d->row);
-    window->statusBar()->addWidget(d->holder);
+    window->statusBar()->addPermanentWidget(d->holder); // never put away by a message
     d->row->hide();
 
     connect(d->button, &QToolButton::clicked, this, [this] { stop(); });
