@@ -6,6 +6,7 @@
 #include <QSet>
 #include <QStandardPaths>
 
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -22,11 +23,46 @@ static QString usableFolder(const QString &path)
     return folder;
 }
 
+// The checks and the two removals of takeBackSecondName, on handles already opened.
+static void removeSecondName(int filesFd, int infoFd, const QString &real,
+    const struct stat &source, const QString &placeNamed, const QString &name)
+{
+    // The folder of the place named is that very `files` folder (same device and file number).
+    struct stat files;
+    struct stat placeFolder;
+    if (::fstat(filesFd, &files) != 0
+        || ::stat(QFile::encodeName(QFileInfo(placeNamed).absolutePath()).constData(), &placeFolder)
+            != 0
+        || placeFolder.st_dev != files.st_dev || placeFolder.st_ino != files.st_ino) {
+        return;
+    }
+    // Never the source's own name: a file sent from inside `files` is its own place.
+    struct stat sourceFolder;
+    if (::stat(QFile::encodeName(QFileInfo(real).absolutePath()).constData(), &sourceFolder) == 0
+        && sourceFolder.st_dev == files.st_dev && sourceFolder.st_ino == files.st_ino
+        && name == QFileInfo(real).fileName()) {
+        return;
+    }
+    // Not a link, and the very same file as the source: same device, same file number.
+    const QByteArray bare = QFile::encodeName(name);
+    struct stat other;
+    if (::fstatat(filesFd, bare.constData(), &other, AT_SYMLINK_NOFOLLOW) != 0
+        || S_ISLNK(other.st_mode) || other.st_dev != source.st_dev
+        || other.st_ino != source.st_ino) {
+        return;
+    }
+    if (::unlinkat(filesFd, bare.constData(), 0) != 0)
+        return;
+    const QByteArray record = QFile::encodeName(name + QStringLiteral(".trashinfo"));
+    ::unlinkat(infoFd, record.constData(), 0);
+}
+
 // FD-STAYED: the library said "moved" and the file is still at `path`. If the place it named is a
-// second name for this very file inside this trash's files folder, that name and its record are
-// taken away. Every condition must hold, or nothing is removed. The two unlinks below are the only
-// ones in this file: each is given a name built from the trash's own folders (never `path`), and
-// the source's own name is refused outright.
+// second name for this very file inside this trash's own files folder, that name and its record
+// are taken away. Every condition must hold, or nothing is removed. Both removals go through
+// handles on the trash's own `files` and `info` folders, opened so that a link is refused, with a
+// bare name: the two unlinkat calls below are the only removals in this file, and neither can
+// lead out of the trash. The source's own name is refused outright.
 static void takeBackSecondName(
     const QString &trash, const QString &real, const struct stat &source, const QString &placeNamed)
 {
@@ -35,30 +71,20 @@ static void takeBackSecondName(
     const QString name = QFileInfo(placeNamed).fileName();
     if (name.isEmpty() || name == QLatin1String(".") || name == QLatin1String(".."))
         return;
-    // The folder of the place, with every ".." and link resolved, is this trash's files folder.
-    const QString files = QFileInfo(trash + QStringLiteral("/files")).canonicalFilePath();
-    const QString info = QFileInfo(trash + QStringLiteral("/info")).canonicalFilePath();
-    if (files.isEmpty() || info.isEmpty())
+    // The trash folder itself, or a folder above it, may be a link: that is still this trash.
+    const int trashFd = ::open(QFile::encodeName(trash).constData(), O_RDONLY | O_DIRECTORY);
+    if (trashFd < 0)
         return;
-    if (QFileInfo(QFileInfo(placeNamed).absolutePath()).canonicalFilePath() != files)
-        return;
-    // The info folder must be this trash's own, not a link to somewhere else.
-    if (info != QFileInfo(trash).canonicalFilePath() + QStringLiteral("/info"))
-        return;
-    const QString second = files + QLatin1Char('/') + name;
-    // Never the source's own name (a file sent from inside the trash is its own place).
-    if (second == real)
-        return;
-    // Not a link, and the very same file: same device, same file number.
-    struct stat other;
-    if (::lstat(QFile::encodeName(second).constData(), &other) != 0 || S_ISLNK(other.st_mode))
-        return;
-    if (other.st_dev != source.st_dev || other.st_ino != source.st_ino)
-        return;
-    if (::unlink(QFile::encodeName(second).constData()) != 0)
-        return;
-    ::unlink(QFile::encodeName(info + QLatin1Char('/') + name + QStringLiteral(".trashinfo"))
-            .constData());
+    // `files` and `info` are entries of the trash and must be real folders, not links.
+    const int filesFd = ::openat(trashFd, "files", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    const int infoFd = ::openat(trashFd, "info", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    ::close(trashFd);
+    if (filesFd >= 0 && infoFd >= 0)
+        removeSecondName(filesFd, infoFd, real, source, placeNamed, name);
+    if (filesFd >= 0)
+        ::close(filesFd);
+    if (infoFd >= 0)
+        ::close(infoFd);
 }
 
 // Sends one file to the desktop's trash, or to the stand-in for it, and says what became of it.
