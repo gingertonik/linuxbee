@@ -159,9 +159,51 @@ pictures are not touched. A picture with an empty `type` is a
 
 ### W-ID3VER
 
-`id3Version` chooses ID3v2.3 or ID3v2.4 whenever an ID3v2 tag is saved
-(MP3, WAV), whatever version the file had. The default is ID3v2.3, which is
-MusicBee's default (W-TP). An MP3 with no ID3v2 tag gets one.
+`id3Version` decides the version of an ID3v2 tag that is saved (MP3, WAV).
+
+| `id3Version` | The tag is written as |
+|---|---|
+| `Keep` (the default) | the version the file's ID3v2 tag has now: ID3v2.4 stays ID3v2.4, ID3v2.3 stays ID3v2.3. A file with no ID3v2 tag, or with an older one (ID3v2.2, which cannot be written), gets ID3v2.4. |
+| `V23` | ID3v2.3, whatever the file had |
+| `V24` | ID3v2.4, whatever the file had |
+
+An MP3 with no ID3v2 tag gets one.
+
+Why `Keep` (the owner's library, measured 2026-11-16: 15,694 of 15,740
+MP3 files are ID3v2.4): ID3v2.3 has no frame for the mood, the disc
+subtitle, the release date and others, and holds an original date as a
+year only. Turning an ID3v2.4 tag into ID3v2.3 drops them, and the save
+says nothing. Under `Keep` no save changes a tag's version, so no save
+loses a value the user did not name. MusicBee's own default is ID3v2.3
+(W-TP); this is a difference, and it is meant.
+
+The version is found before anything is changed: it is the version of
+the tag in the file, not of what the tag library makes of it in memory.
+
+**Not kept.** When the tag written is ID3v2.3 (the file's own version
+under `Keep`, or `V23`), a value with no place in ID3v2.3 is not dropped
+in silence. After the new version of the file is written and before it
+replaces the original, it is read once, and what it holds is compared
+with what the save meant it to hold: the file's tags with the changes
+applied. `WriteResult::notKept` has one line for each catalogue field,
+then each other tag, that differs:
+
+- `NAME` when the value is not there at all;
+- `NAME: MEANT became IS` when it is there but different; several
+  values are joined with `; `.
+
+The lines are sorted (`QStringList::sort`). The save is still `Ok` and
+the file is still replaced: the user asked for this version. Nothing is
+moved into a `TXXX` frame (the owner's ruling, 2026-11-16). `notKept` is
+empty for every other status, for an ID3v2.4 tag, and for the other
+formats; no extra read is made for those.
+
+`linuxbeectl tags write` prints `saved` as before, exit 0, and one line
+on standard error for each: `not kept in ID3v2.3: ` and the line.
+
+On the command line (W-CLI): `--id3v2.3` and `--id3v2.4` choose `V23` and
+`V24`; with neither the save is `Keep`. Both together is a usage error
+(exit 2) and nothing is written.
 
 ### W-ID3V1
 
@@ -187,7 +229,7 @@ save is what it was before. The default is false (W-TP).
 linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
                        [--set-other KEY=VALUE]... [--clear-other KEY]...
                        [--picture IMAGE | --no-pictures]
-                       [--id3v2.4] [--no-id3v1] [--keep-mtime] FILE
+                       [--id3v2.3 | --id3v2.4] [--no-id3v1] [--keep-mtime] FILE
 ```
 
 - `--set` given several times for one NAME gives that field several values.
@@ -232,4 +274,4 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 | W-MULTI | How MusicBee stores two artists in an ID3v2.3 frame. linuxBee: as TagLib does. |
 | W-NUMBERS | Is a disc count with no disc number written at all? linuxBee: as `/4`. |
 | W-ID3V1 | With "also save ID3v1 tags" off, does MusicBee remove an existing ID3v1 tag? linuxBee: yes. |
-| W-ID3VER | Does saving an ID3v2.4 file with the default setting turn it into ID3v2.3? linuxBee: yes. |
+| W-ID3VER | Does saving an ID3v2.4 file with the default setting turn it into ID3v2.3? linuxBee: no; a save keeps the file's version (W-ID3VER). |
