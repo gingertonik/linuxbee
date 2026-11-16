@@ -77,6 +77,52 @@ false is `Failed` with `the trash did not take it`. The outcome's
 `path` stays the path as it was given (clean and absolute), links in
 it and all, so that the caller knows which of its files is meant.
 
+## FD-STAYED: "moved", and the file stayed
+
+Rule 3 of FD-SEND is for the folders rule 1 cannot judge (a network
+folder above all). When it strikes, the answer is `StillThere`, and in
+`moveFilesToTrash` the outcome is `Failed` with the reason
+`the file is still in its place` (not `the trash did not take it`,
+which is then untrue).
+
+The trash may then hold a second name for the very same file, with a
+record; a later Restore of it would collide with the file. So, and
+only then:
+
+- if the place the library named lies inside this trash's `files`
+  folder (after `..` and links are resolved), is not a link, and is
+  the same file as the one at the path (same device and same file
+  number), that name is taken away, and with it its record,
+  `info/<that name>.trashinfo`;
+- anything else is left: a copy is another file and not this
+  program's to remove, and nothing outside the trash is ever touched.
+
+**This trash's own folders.** `files` and `info` are entries of the
+trash folder itself, and each must be a real folder there, not a
+link: a link leads out of the trash. When either is a link, nothing
+is removed, the second name neither. The trash folder, or a folder
+above it, may be a link (a home on another disk): what counts is
+the folder it leads to. "Inside `files`" means that the folder of
+the place the library named is that very `files` folder (the same
+device and file number), however the place is spelt.
+
+The name of the file that was to be deleted is never removed: a file
+that is itself in this trash's `files` folder is its own "second
+name", and the only one it has.
+
+Taking a second name away loses nothing: the file keeps its first.
+This is the one place the program removes a name, and it is never the
+name the user knows the file by.
+
+A path that is empty, ends in `/`, or names a folder is never handed
+over: `NotTaken`, and nothing is tried.
+
+`sendToTrashWith(path, pathInTrash, mover)` and
+`moveFilesToTrashWith(paths, mover)` take what stands in for the
+desktop library (an empty one is the library); `sendToTrash` and
+`moveFilesToTrash` are these with the library. `pathInTrash` is
+written for `Went` only.
+
 ## FD-CLI
 
 ```
