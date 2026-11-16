@@ -46,6 +46,19 @@ bool sendToTrash(const QString &path, QString *pathInTrash)
     return ::lstat(QFile::encodeName(path).constData(), &st) != 0;
 }
 
+// Stub from the seed: the builder replaces these two. They ignore the mover.
+SendResult sendToTrashWith(const QString &path, QString *pathInTrash, const TrashMover &mover)
+{
+    (void)mover;
+    return sendToTrash(path, pathInTrash) ? SendResult::Went : SendResult::NotTaken;
+}
+
+QList<TrashOutcome> moveFilesToTrashWith(const QStringList &paths, const TrashMover &mover)
+{
+    (void)mover;
+    return moveFilesToTrash(paths);
+}
+
 // FD-TRASH. A file is never opened or read to decide its outcome. Nothing here removes a file or a
 // folder: a regular file goes to sendToTrash, and every other answer leaves the path as it was.
 QList<TrashOutcome> moveFilesToTrash(const QStringList &paths)
