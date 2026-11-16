@@ -34,7 +34,8 @@ public:
         std::function<QString(
             const QStringList &commands, const QStringList &labels, const QPoint &globalPos)>
             showMenu;
-        // PE-ADD: one of the playlist `ids`, or the empty text for a new playlist. No value: gave up.
+        // PE-ADD: one of the playlist `ids`, or the empty text for a new playlist. No value: gave
+        // up.
         std::function<std::optional<QString>(const QStringList &ids)> choosePlaylist;
     };
 

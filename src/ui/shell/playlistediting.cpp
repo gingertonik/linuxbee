@@ -85,6 +85,21 @@ PlaylistEditing::Hooks defaultHooks(MainWindow *window)
               const QAction *picked = menu.exec(globalPos);
               return picked ? picked->data().toString() : QString();
           };
+    // PE-ADD: a choice among `<New Playlist>` and the playlists; the first stands for the empty
+    // answer.
+    hooks.choosePlaylist = [window](const QStringList &ids) -> std::optional<QString> {
+        QStringList items;
+        items.append(QStringLiteral("<New Playlist>"));
+        items.append(ids);
+        bool ok = false;
+        const QString picked = QInputDialog::getItem(window, QStringLiteral("Add to Playlist"),
+            QStringLiteral("Playlist:"), items, 0, false, &ok);
+        if (!ok)
+            return std::nullopt;
+        if (items.indexOf(picked) == 0)
+            return QString();
+        return picked;
+    };
     return hooks;
 }
 
@@ -232,10 +247,15 @@ PlaylistEditing::PlaylistEditing(MainWindow *window, ActionRegistry *actions, Li
         d->hooks.confirm = fallback.confirm;
     if (!d->hooks.showMenu)
         d->hooks.showMenu = fallback.showMenu;
+    if (!d->hooks.choosePlaylist)
+        d->hooks.choosePlaylist = fallback.choosePlaylist;
 
     // PE-WIRING: File > Playlists > New Playlist. Destroying this object frees the command.
     actions->implement(QStringLiteral("file.playlists.new"), this,
         [this] { run(QStringLiteral("new"), QStringLiteral("playlists")); });
+
+    // PE-WIRING: the selected tracks go to a playlist. Destroying this object frees the command.
+    actions->implement(QStringLiteral("track.addToPlaylist"), this, [this] { addSelected(); });
 
     // PE-WIRING: a right click on a navigator row offers the commands that row has.
     connect(shell->navigator(), &NavigatorPanel::menuRequested, this,
@@ -299,7 +319,50 @@ bool PlaylistEditing::run(const QString &command, const QString &rowId)
 
 bool PlaylistEditing::addSelected()
 {
-    return false; // stub
+    // PE-ADD: nothing selected asks nothing.
+    const QStringList paths = d->shell->selectedPaths();
+    if (paths.isEmpty() || !d->hooks.choosePlaylist)
+        return false;
+    QStringList ids;
+    for (const PlaylistInfo &info : d->playlists->playlists())
+        ids.append(info.id);
+    const std::optional<QString> choice = d->hooks.choosePlaylist(ids);
+    if (!choice)
+        return false;
+
+    QString id = *choice;
+    if (id.isEmpty()) {
+        // PE-ADD: the empty answer makes a playlist at the top, named as PE-COMMANDS names one.
+        if (!d->hooks.askName)
+            return false;
+        const std::optional<QString> name
+            = d->hooks.askName(QStringLiteral("New Playlist"), QStringLiteral("New Playlist"));
+        if (!name)
+            return false;
+        QString error;
+        id = d->playlists->create(*name, QString(), &error);
+        if (id.isEmpty()) {
+            d->report(QStringLiteral("Could not create the playlist: ") + error);
+            return false;
+        }
+    } else if (!d->playlists->exists(id)) {
+        // Checked first: append answers 0 for this case too, and for a write that failed.
+        d->report(QStringLiteral("Could not add to the playlist ") + quoted(id)
+            + QStringLiteral(": there is no such playlist"));
+        return false;
+    }
+
+    // PE-ADD: one call for the whole selection, duplicates allowed. The paths are not empty and the
+    // playlist exists, so 0 here can only mean the store could not write.
+    const int added = d->playlists->append(id, paths, true);
+    if (added == 0) {
+        d->report(QStringLiteral("Could not add to the playlist ") + quoted(id)
+            + QStringLiteral(": the file could not be written"));
+        return false;
+    }
+    d->report(QStringLiteral("Added ") + QString::number(added)
+        + (added == 1 ? QStringLiteral(" track to ") : QStringLiteral(" tracks to ")) + quoted(id));
+    return true;
 }
 
 QString PlaylistEditing::lastMessage() const
