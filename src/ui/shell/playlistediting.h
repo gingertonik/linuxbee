@@ -34,6 +34,9 @@ public:
         std::function<QString(
             const QStringList &commands, const QStringList &labels, const QPoint &globalPos)>
             showMenu;
+        // PE-ADD: one of the playlist `ids`, or the empty text for a new playlist. No value: gave
+        // up.
+        std::function<std::optional<QString>(const QStringList &ids)> choosePlaylist;
     };
 
     // Nothing handed in is owned; all of it must outlive this object.
@@ -50,6 +53,7 @@ public:
     // the user gave up; lastMessage() says why when there is a reason.
     bool run(const QString &command, const QString &rowId);
 
+    bool addSelected(); // PE-ADD: the selected tracks, to a playlist that is asked for
     QString lastMessage() const; // PE-MESSAGE
 
 private:
