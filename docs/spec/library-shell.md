@@ -106,6 +106,46 @@ A chooser that answers nothing (the user cancelled, or no hook was given)
 ends the command without a message. The four commands on the selection
 do nothing, without a message, when nothing is selected.
 
+## SH-REMOVE: the Delete key
+
+`file.remove` (the Delete key) does what the view on show calls for.
+(The owner's rulings, 2026-11-16: in a playlist the Delete key takes
+the track out of the playlist and asks nothing; anywhere else it
+removes the track from the library after a question; Shift+Del stays
+"to the trash, after a question".)
+
+| View on show | The command | Its name in the menu |
+|---|---|---|
+| a playlist (`playlist:ID`) | takes the selected tracks out of that playlist; asks nothing | `Remove from Playlist` |
+| any other | asks, then `Library::remove` of the selected tracks | `Remove from Library` |
+
+With nothing selected nothing happens: nothing is asked and nothing
+is said.
+
+**In a playlist.** Every entry of the playlist whose file is one of
+the selected tracks goes, in one change of the playlist
+(`PlaylistStore::removeAt`, once); an entry for a file the library
+does not know stays. The library is not asked to remove anything and
+no file is touched. The message is `Removed N tracks from the
+playlist` (`Removed 1 track from the playlist`), N being the tracks,
+not the entries.
+
+**Anywhere else.** It asks `confirm(question)` first:
+`Remove N tracks from the library? The files stay. Their play counts
+and dates added are lost.` (for one: `Remove 1 track from the
+library? The file stays. Its play count and date added are lost.`).
+Without a hook the question is a yes-or-no dialog whose default is
+"no". On "no" the command ends: no track is removed, nothing is
+said, and the selection is as it was. On "yes" the tracks are
+removed in one `Library::remove` call and the message is `Removed N
+from the library`. No file is touched either way.
+
+What is lost is what only the library knows of a track: how often it
+was played and skipped, when it was last played, when it was added,
+and its section. The tags, the rating among them, are in the file.
+
+The action's text is set whenever the view changes.
+
 ## SH-DELETE: Delete Files
 
 `file.delete` works on the selected tracks, in the order shown.
