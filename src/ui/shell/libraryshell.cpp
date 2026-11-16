@@ -111,9 +111,6 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     // SR-SHELL: the one runner. The shell connects to it here, before anyone
     // else can, so it hears every signal first.
     d->scanner = new ScanRunner(d->library, { }, this);
-    connect(d->scanner, &ScanRunner::progress, this, [this](int done, int total) {
-        showMessage(tr("Scanning: %1 of %2 files").arg(done).arg(total));
-    });
     connect(d->scanner, &ScanRunner::finished, this, [this](const ScanReport &report) {
         QString text = tr("Scan: %1 added, %2 updated, %3 missing, %4 not audio")
                            .arg(report.added.size())
