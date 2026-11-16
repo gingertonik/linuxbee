@@ -97,6 +97,19 @@ only then:
 - anything else is left: a copy is another file and not this
   program's to remove, and nothing outside the trash is ever touched.
 
+**This trash's own folders.** `files` and `info` are entries of the
+trash folder itself, and each must be a real folder there, not a
+link: a link leads out of the trash. When either is a link, nothing
+is removed, the second name neither. The trash folder, or a folder
+above it, may be a link (a home on another disk): what counts is
+the folder it leads to. "Inside `files`" means that the folder of
+the place the library named is that very `files` folder (the same
+device and file number), however the place is spelt.
+
+The name of the file that was to be deleted is never removed: a file
+that is itself in this trash's `files` folder is its own "second
+name", and the only one it has.
+
 Taking a second name away loses nothing: the file keeps its first.
 This is the one place the program removes a name, and it is never the
 name the user knows the file by.
