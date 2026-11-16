@@ -1,0 +1,3 @@
+213729a5305f396b7513beeb1e58f8b7fff362f28eaa4c6204b65937b66a0200  docs/spec/tag-undo.md
+15778c40086bf5579cea868da67f13e90b4da980de22e664f4d82fd73c1b0ce7  src/core/tagundo/tagundo.h
+c3a4b12d6c056f1987c588ec23e99b966cf334ad751a06885240e8998f883b36  tests/locked/tst_tagundo.cpp
