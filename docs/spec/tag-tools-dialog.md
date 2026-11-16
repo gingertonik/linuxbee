@@ -89,7 +89,8 @@ acts on `saved`.
 
 ## TT-WARN: asked before it cannot be taken back
 
-There is no undo. A panel whose changes cannot be made good by hand
+There is one step of undo (tag-undo.md), and it is lost at the next tag
+change. A panel whose changes cannot be made good by hand
 gives a warning: `warning(tracks)` is a yes-or-no question for a run
 that would change `tracks` files, or empty when there is nothing to
 warn about (the default).
@@ -173,9 +174,9 @@ each track.
 
 | Ticked | `warning` |
 |---|---|
-| `All tags`, not the pictures | `Remove every tag from N? The rating and tags that are not in the list go too. Embedded pictures stay. This cannot be undone.` |
-| `All tags` and `Embedded pictures` | `Remove every tag and the embedded pictures from N? The rating and tags that are not in the list go too. This cannot be undone.` |
-| `Embedded pictures`, not `All tags` (with or without rows) | `Remove the embedded pictures from N? This cannot be undone.` |
+| `All tags`, not the pictures | `Remove every tag from N? The rating and tags that are not in the list go too. Embedded pictures stay. Undo brings them back, until the next tag change or until the program closes.` |
+| `All tags` and `Embedded pictures` | `Remove every tag and the embedded pictures from N? The rating and tags that are not in the list go too. Undo brings them back, until the next tag change or until the program closes.` |
+| `Embedded pictures`, not `All tags` (with or without rows) | `Remove the embedded pictures from N? Undo brings them back, until the next tag change or until the program closes.` |
 | rows of the list only | none: a field can be typed in again |
 
 Nothing is remembered: `load` reads nothing and `save` writes nothing,

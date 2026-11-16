@@ -261,6 +261,12 @@ ToolsShell::~ToolsShell()
     delete d;
 }
 
+// Stub from the seed: the builder replaces it.
+TagUndo *ToolsShell::tagUndo() const
+{
+    return nullptr;
+}
+
 void ToolsShell::addPreferencesPage(PageFactory factory)
 {
     // TS-PREFERENCES: an empty factory adds nothing.
