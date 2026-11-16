@@ -15,6 +15,7 @@
 #include <QHash>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QSet>
 #include <QStatusBar>
 
 // Plan 30: SH-COMMANDS registers every command in task 2; each behaviour
@@ -123,11 +124,13 @@ void LibraryShell::deleteSelected()
     // the question is answered.
     QStringList paths;
     QHash<QString, qint64> idOfPath; // clean absolute path, as moveFilesToTrash gives it back
+    QHash<qint64, QString> pathOfId; // the path as the library held it
     for (const qint64 id : ids) {
         const std::optional<LibraryTrack> track = d->library->track(id);
         if (!track)
             continue;
         paths.append(track->path);
+        pathOfId.insert(id, track->path);
         idOfPath.insert(QDir::cleanPath(QFileInfo(track->path).absoluteFilePath()), id);
     }
     if (paths.isEmpty())
@@ -166,8 +169,18 @@ void LibraryShell::deleteSelected()
             break;
         }
     }
-    if (!gone.isEmpty())
+    if (!gone.isEmpty()) {
         d->library->remove(gone);
+        // Step 5: once, after the library was told: the paths as the library held them, in the
+        // order shown.
+        const QSet<qint64> wentIds(gone.cbegin(), gone.cend());
+        QStringList wentPaths;
+        for (const qint64 id : ids) {
+            if (wentIds.contains(id) && pathOfId.contains(id))
+                wentPaths.append(pathOfId.value(id));
+        }
+        emit filesTrashed(wentPaths);
+    }
 
     // Step 4: the message.
     QString text;
