@@ -13,7 +13,10 @@ must be the library's.
 For each scan it takes `Library::scanKnown()` on its own thread, runs
 `findForScan` on another thread, and calls `Library::applyScan` on its
 own thread for each part and for the answer (L-PARTS, "In parts"). No
-function of the library is ever called from the other thread. All
+function of the library is ever called from the other thread: the
+looking is handed what the library knows and never the library. (No
+test can show this for a call that touches no database; a review
+reads for it and runs the two scan tests under a thread checker.) All
 signals are emitted on the runner's own thread.
 
 `hooks.looking(done, total)`, when set, is called on the looking thread
@@ -42,7 +45,8 @@ not looked at). It is there for tests, and to slow a scan down by hand.
   report.
 - The findings are handed over every `partSize()` files (200 unless
   `setPartSize` says otherwise; below 1 counts as 1) and stored as they
-  arrive, so tracks appear in the library while a long scan runs.
+  arrive, in the order they were handed over, so tracks appear in the
+  library while a long scan runs.
 - `progress(done, total)` says how far the looking has got. It is
   emitted on the runner's thread, never with a smaller `done` than
   before within one scan, and, for a scan that was not stopped, a last
@@ -57,6 +61,17 @@ stopped scan had already handed over stays stored; it ends with
 `finished` and a report whose `cancelled` is true. The forgotten ones
 get no signal. `idle()` follows. With nothing running, `cancel()` does
 nothing.
+
+- A scan that `cancel()` reached before its `finished` was emitted
+  reports `cancelled`, even when the looking had ended and everything
+  it found is stored.
+- A part handed over before the stop took effect is stored.
+- A refused scan is never `cancelled`: it did nothing that could be
+  stopped.
+- A scan asked for after `cancel()`, while the stopped scan has not
+  ended, waits for it: the stopped scan's `finished` comes before its
+  `started`, `idle()` comes once, after it, and nothing the stopped
+  scan found is in its report.
 
 Destroying the runner stops the looking and waits for that thread to
 end. Nothing is stored and no signal is emitted from the destructor on.
