@@ -129,6 +129,19 @@ has none). The tree's icon size is the cache's `edge` both ways.
   track has now, so a file that changed is looked up again; the old
   picture stays until the new one is there.
 
+**The cover's space.** With a cache, every heading keeps a space `edge`
+wide and `edge` high before its text, whether its cover is there, has
+not come yet, or does not exist. A cover smaller than the space, or
+not square, is drawn inside it and the space stays as it is. So the
+text of every heading starts at the same place, and a cover that
+arrives moves no text. The space of an album without a cover is
+empty, and that album's heading still has no icon. Headings that are
+there when a cache is given get the space at once. Without a cache
+there is no space: when the cache goes, by `setCoverCache(nullptr)` or
+because it was destroyed, the headings that are there lose their
+covers and the space at once (their height stays until the next
+fill).
+
 Speed: the view reads no file and looks for no cover itself. A fill of
 any number of albums costs the loads of the few headings in view; an
 album scrolled past without stopping costs none; a cover seen before
