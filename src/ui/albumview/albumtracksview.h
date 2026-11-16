@@ -12,6 +12,8 @@
 // user did; it reads no library and plays nothing.
 namespace linuxbee::ui {
 
+class CoverCache;
+
 class AlbumTracksView : public QWidget {
     Q_OBJECT
 public:
@@ -21,6 +23,9 @@ public:
     // The tracks, already in the order to show (AV-ORDER is the caller's business).
     void setTracks(const QList<LibraryTrack> &tracksInOrder);
     QList<AlbumGroup> groups() const;
+    // AV-COVER: where the headings' covers come from. Not owned; none unless set.
+    void setCoverCache(CoverCache *cache);
+    CoverCache *coverCache() const;
     int fills() const; // AV-VIEW: how often setTracks has built the rows
 
     int

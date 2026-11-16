@@ -1,5 +1,9 @@
 #include "albumview/albumtracksview.h"
 
+#include <QPointer>
+
+#include "covers/covercache.h"
+
 #include <algorithm>
 #include <functional>
 #include <utility>
@@ -82,6 +86,7 @@ struct AlbumTracksView::Private {
     QWidget *bar = nullptr; // jumpBar
     QTreeWidget *tree = nullptr;
     QList<AlbumGroup> groups;
+    QPointer<CoverCache> covers; // AV-COVER
     QList<LibraryTrack> shown; // the tracks the tree was filled from (shared, not copied)
     QHash<qint64, QTreeWidgetItem *> trackRows; // the rows of the albums in the tree
     QList<qint64> announced; // selectedTrackIds() as the listeners last heard it
@@ -401,6 +406,16 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
     d->tree->scrollToTop();
     d->quiet = false;
     d->announce();
+}
+
+void AlbumTracksView::setCoverCache(CoverCache *cache)
+{
+    d->covers = cache; // stub: nothing is asked of it
+}
+
+CoverCache *AlbumTracksView::coverCache() const
+{
+    return d->covers.data();
 }
 
 QList<AlbumGroup> AlbumTracksView::groups() const

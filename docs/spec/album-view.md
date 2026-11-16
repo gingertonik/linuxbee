@@ -99,6 +99,41 @@ that letter. For `#` it is the first group whose first character is not
 one of `A` to `Z`, a group with no artist included. Any other character,
 and a letter no group has, gives -1.
 
+## AV-COVER: a cover at each heading
+
+`setCoverCache(cache)` gives the view a `CoverCache` (covers.md, CC-x);
+`coverCache()` is that cache, none unless one was given. The cache is
+not owned. A cache that is destroyed is forgotten, as if none had been
+given.
+
+With a cache, each heading shows its album's cover as the row's icon,
+before the text. The album's cover is the cover of its first track: the
+cache is asked `cover(path, stamp)` with that track's path and, as the
+stamp, its `modified` time in milliseconds since the epoch (0 when it
+has none). The tree's icon size is the cache's `edge` both ways.
+
+- Every heading is at least `edge` pixels high from the start, with or
+  without a picture, so a cover that arrives moves no row. An album
+  without a cover has no icon.
+- Covers are asked for only for headings that are in view, wholly or in
+  part, and only while the view is shown: after a fill, when the view is
+  scrolled or resized, when it is shown, and when a cache is given. One
+  ask for an album, not one for each track.
+- Nothing is asked inside `setTracks` or inside a scroll: the asking
+  happens once at the next turn of the event loop, however many of
+  those came before it.
+- When the cache says `loaded` for a file, the heading in view whose
+  first track that is gets its icon.
+- A heading that is kept through a fill (AV-VIEW, "One change, one
+  album") keeps its icon. It is still asked for with the stamp its first
+  track has now, so a file that changed is looked up again; the old
+  picture stays until the new one is there.
+
+Speed: the view reads no file and looks for no cover itself. A fill of
+any number of albums costs the loads of the few headings in view; an
+album scrolled past without stopping costs none; a cover seen before
+costs none (the cache keeps it).
+
 ## AV-VIEW: the widget
 
 Widgets, by object name:
@@ -216,6 +251,9 @@ The order is one `AlbumOrder` that this object keeps for as long as it
 lives, so a fill after one track changed prepares that track's keys at
 most, and none when no key of it changed.
 
+The object gives the view a `CoverCache` of its own (AV-COVER), with
+the default edge, for as long as it lives.
+
 **AV-FILL: one fill for many changes.** A change of the model or of the
 node's tracks does not fill the view; it makes it stale. A stale view is
 filled once: at the next turn of the event loop, or at once when
@@ -267,7 +305,9 @@ In mode `tracks` the view is given no tracks and nothing above happens.
 
 ## Not in this version
 
-- Album covers, and a cover as the heading.
+- Album covers as a view of their own, a size setting for the heading's
+  cover, and a click on the cover selecting the album apart from the
+  heading's own click.
 - The other views of W-MPV: Album Covers, Artists, Jukebox.
 - Choosing the grouping, the fields shown and the sort (MusicBee's
   "Customize Panel" and "Sort By").
