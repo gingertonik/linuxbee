@@ -127,15 +127,45 @@ void TrackListModel::upsertTracks(const QList<LibraryTrack> &tracks)
     if (tracks.isEmpty())
         return;
 
-    // T-ROWS: more than 50 at once resets the model once. Still only the
-    // tracks named are prepared; the order is put right from the keys kept.
+    // T-ROWS: more than 50 at once is one change of layout, not a reset. Still
+    // only the tracks named are prepared; they are sorted among themselves
+    // and merged into the order kept, and every persistent index follows its
+    // track to the row it has afterwards.
     if (tracks.size() > 50) {
-        beginResetModel();
-        for (const LibraryTrack &track : tracks)
-            d->put(track, true);
-        d->sortKept();
-        d->refilter();
-        endResetModel();
+        emit layoutAboutToBeChanged();
+        const QModelIndexList from = persistentIndexList();
+        QList<Private::Pinned> pinned;
+        pinned.reserve(from.size());
+        for (const QModelIndex &index : from)
+            pinned.append(d->pin(index.row(), index.column()));
+
+        QList<int> touched;
+        touched.reserve(tracks.size());
+        QList<char> seen;
+        for (const LibraryTrack &track : tracks) {
+            const int slot = d->put(track, true);
+            if (seen.size() <= slot)
+                seen.resize(d->held.size(), 0);
+            if (!seen.at(slot)) {
+                seen[slot] = 1;
+                touched.append(slot);
+            }
+        }
+        for (const int slot : std::as_const(touched)) {
+            Private::Entry &entry = d->held[slot];
+            entry.shown = d->accepts(entry.track, &entry.cache);
+        }
+        d->mergeIn(touched);
+        d->rebuildShown();
+
+        QModelIndexList to;
+        to.reserve(from.size());
+        for (const Private::Pinned &pin : std::as_const(pinned)) {
+            const int row = d->rowOfId(pin.id);
+            to.append(row >= 0 ? index(row, pin.column) : QModelIndex());
+        }
+        changePersistentIndexList(from, to);
+        emit layoutChanged();
         emit summaryChanged();
         return;
     }
@@ -243,17 +273,32 @@ void TrackListModel::removeTracks(const QList<qint64> &ids)
     if (!anyPresent)
         return;
 
-    // T-ROWS: more than 50 at once resets the model once. Nothing is prepared.
+    // T-ROWS: more than 50 at once is one change of layout, not a reset.
+    // Nothing is prepared; an index of a track that went is made invalid.
     if (ids.size() > 50) {
-        beginResetModel();
+        emit layoutAboutToBeChanged();
+        const QModelIndexList from = persistentIndexList();
+        QList<Private::Pinned> pinned;
+        pinned.reserve(from.size());
+        for (const QModelIndex &index : from)
+            pinned.append(d->pin(index.row(), index.column()));
+
         for (const qint64 id : ids) {
             const auto found = d->slotOf.constFind(id);
             if (found != d->slotOf.constEnd())
                 d->release(found.value());
         }
         d->order.removeIf([this](int slot) { return !d->held.at(slot).live; });
-        d->refilter();
-        endResetModel();
+        d->rebuildShown();
+
+        QModelIndexList to;
+        to.reserve(from.size());
+        for (const Private::Pinned &pin : std::as_const(pinned)) {
+            const int row = d->rowOfId(pin.id);
+            to.append(row >= 0 ? index(row, pin.column) : QModelIndex());
+        }
+        changePersistentIndexList(from, to);
+        emit layoutChanged();
         emit summaryChanged();
         return;
     }

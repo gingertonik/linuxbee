@@ -137,6 +137,29 @@ struct TrackListModel::Private {
     // nothing and prepares no value; folds only what the caches do not have.
     // Defined in tracklistorder.cpp.
     void refilter();
+    // T-ROWS, more than 50: takes the slots given (each once) out of `order` and
+    // puts them back where their keys say, by sorting them among themselves
+    // and merging them into the order kept. The rest is not sorted again.
+    void mergeIn(QList<int> moved);
+    // T-ROWS, more than 50: builds `shown`, shownBytes and shownMs again from
+    // the rows' flags, in `order`. Filters nothing and prepares nothing.
+    void rebuildShown();
+    // T-ROWS, more than 50: a persistent index, taken apart before the change
+    // and put back after it.
+    struct Pinned {
+        qint64 id = 0; // -1 for an index that pointed at no row
+        int column = 0;
+    };
+    Pinned pin(int row, int column) const
+    {
+        return Pinned { row >= 0 && row < shown.size() ? trackAt(shown.at(row)).id : -1, column };
+    }
+    // The row the track has now, -1 when it is gone or not shown.
+    int rowOfId(qint64 id) const
+    {
+        const auto found = slotOf.constFind(id);
+        return found == slotOf.constEnd() ? -1 : rowFor(found.value());
+    }
     // All three, for a change of the keys or of every track.
     void reorder()
     {
