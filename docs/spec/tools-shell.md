@@ -21,7 +21,7 @@ tag-editor.md, organise-dialog.md, convert-dialog.md and preferences.md.
 
 ## TS-COMMANDS
 
-The shell implements six commands while it exists:
+The shell implements nine commands while it exists:
 
 | Command | Opens |
 |---|---|
@@ -31,6 +31,9 @@ The shell implements six commands while it exists:
 | `edit.preferences` | the preferences (TS-PREFERENCES) |
 | `tools.tagging.searchReplace` | the tagging-tool dialog with the search and replace panel (TS-TOOLS) |
 | `tools.tagging.capitalise` | the tagging-tool dialog with the capitalise panel (TS-TOOLS) |
+| `tools.tagging.removeTags` | the same dialog with the Remove Tags panel (tag-tools-dialog.md, TT-REMOVE) |
+| `tools.tagging.renumber` | the same dialog with the Renumber Tracks panel (TT-RENUMBER) |
+| `tools.tagging.inferFromFilename` | the same dialog with the Infer Tags From Filename panel (TT-INFER) |
 
 Each creates its dialog with the main window as parent, connects to it,
 hands it to the presenter, and destroys it when the presenter returns.

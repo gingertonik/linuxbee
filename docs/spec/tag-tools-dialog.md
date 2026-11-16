@@ -135,10 +135,75 @@ Remembered, in the group `tagtools/case`: `style` (the item data) and
 `fields` (the ticked names). An unknown style means `Each Word`. When
 none of the stored names is a row, the four default rows are ticked.
 
+## TT-REMOVE: the Remove Tags panel
+
+Title `Remove Tags`. Class `RemoveTagsPanel`, `tagtools/removetagspanel.h`.
+(MusicBee wiki, "Tools Menu": "Remove Tags: Clear a tag or tags from all
+selected tracks.")
+
+| Name | Widget | Option (G-REMOVE) |
+|---|---|---|
+| `fieldList` | list of rows that can be ticked | `fields`: the ticked rows, in list order. One row for each catalogue field except Rating, in catalogue order |
+| `allTagsBox` | check box, `All tags` | `allTags`. While it is ticked the list is disabled |
+| `picturesBox` | check box, `Embedded pictures` | `removePictures` |
+
+A new panel has nothing ticked. With no row ticked and neither box
+ticked, `problem()` is `Choose what to remove` and `changes` are all
+empty. Otherwise there is no problem and `changes` is `removeTags` for
+each track.
+
+Nothing is remembered: `load` reads nothing and `save` writes nothing,
+so that what was removed from one selection is never ticked already for
+the next. No key under `tagtools/remove` is written.
+
+## TT-RENUMBER: the Renumber Tracks panel
+
+Title `Renumber Tracks`. Class `RenumberPanel`, `tagtools/renumberpanel.h`.
+(MusicBee wiki, "Tools Menu": "Renumber Tracks: Fix track numbering for
+an album.")
+
+| Name | Widget | Option (G-RENUMBER) |
+|---|---|---|
+| `startSpin` | spin box, 0 to 99999 | `start` |
+| `digitsSpin` | spin box, 0 to 9 | `digits` |
+| `totalBox` | check box, `Also write the track count` | `writeTotal` |
+
+A new panel has 1, 0 and no tick. There is never a problem. `changes`
+is `renumberTracks` over the tags of the targets, in the order the
+targets were given: the caller decides the order (tools-shell.md,
+TS-SELECTION: the order the list shows).
+
+Remembered, in the group `tagtools/renumber`: `digits` and `total`. A
+stored `digits` that is not a whole number from 0 to 9 means 0; a
+stored `total` other than `true` means no tick. The start is not
+remembered and not read: a new panel always starts at 1.
+
+## TT-INFER: the Infer Tags From Filename panel
+
+Title `Infer Tags From Filename`. Class `InferPanel`,
+`tagtools/inferpanel.h`.
+
+| Name | Widget | Option (G-INFER) |
+|---|---|---|
+| `patternEdit` | line edit | the pattern |
+| `blankOnlyBox` | check box, `Only fill fields that are empty` | `blankFieldsOnly` |
+
+A new panel has the pattern `<Track#> - <Title>` and the box ticked.
+`problem()` is `validateInferPattern` of the pattern. `changes` is
+`inferTags` for each track, with the track's path; a file whose name
+does not fit the pattern gets no changes.
+
+Remembered, in the group `tagtools/infer`: `pattern` and `blankOnly`. A
+stored pattern that is empty or only spaces means the new panel's
+pattern; any other is shown as it is, with its problem if it has one.
+A stored `blankOnly` other than `false` means ticked.
+
 ## Not in this version
 
-- The other tools (Remove Tags, Renumber Tracks, Infer From Filename):
-  panels of a later plan, in this same dialog.
+- Remove Tags: removing a tag that is outside the catalogue, or the
+  rating. Renumber Tracks: numbering each disc on its own. Infer From
+  Filename: a list of patterns used before, and saying which file names
+  do not fit. Copy and swap (G-COPY) have no panel and no command.
 - Editing the small-word list; choosing several fields in Search and
   Replace; remembering the texts searched for.
 - Unticking single rows of the preview to leave them out.

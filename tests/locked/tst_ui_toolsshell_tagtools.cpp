@@ -167,9 +167,7 @@ void ToolsShellTagToolsTest::commands()
     (void)&sorted;
     for (const char16_t *id : { u"tools.tagging.searchReplace", u"tools.tagging.capitalise" })
         QVERIFY2(r.actions.isImplemented(s(id)), qPrintable(s(id)));
-    // The tools that have no window yet stay as they are.
-    for (const char16_t *id : { u"tools.tagging.removeTags", u"tools.tagging.renumber", u"tools.tagging.inferFromFilename" })
-        QVERIFY2(!r.actions.isImplemented(s(id)), qPrintable(s(id)));
+    // The other three tools: tst_ui_toolsshell_panels.cpp.
     r.tools.reset();
     for (const char16_t *id : { u"tools.tagging.searchReplace", u"tools.tagging.capitalise" })
         QVERIFY2(!r.actions.isImplemented(s(id)), qPrintable(s(id)));
