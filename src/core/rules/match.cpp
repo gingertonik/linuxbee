@@ -218,6 +218,7 @@ bool evaluate(const RuleSet &set, const TagSource &track, const RuleContext &con
 // U-MATCH.
 bool matchesRules(const RuleSet &rules, const TagSource &track, const RuleContext &context)
 {
+    countRuleSetChecked();
     if (!validateRules(rules).isEmpty())
         return false;
     return evaluate(rules, track, context, nullptr);

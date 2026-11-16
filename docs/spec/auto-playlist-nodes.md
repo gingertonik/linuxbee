@@ -107,6 +107,13 @@ question and `showMenu` a pop-up menu.
 - adds to what `--parts` prints the line `auto-playlists=N`, N being how
   many the store has.
 
+## AN-SPEED
+
+Speed: a showing hands each track of the library out once
+(`Library::tracks()`), and takes the tracks it shows from that one
+answer: `tracksRead()` rises by the number of tracks in the library,
+whether the playlist holds none of them or all.
+
 ## Not in this version
 
 - **Making and editing an auto-playlist in the window.** The command
