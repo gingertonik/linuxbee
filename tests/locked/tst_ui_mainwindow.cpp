@@ -329,7 +329,7 @@ void MainWindowTest::menus()
         QStringList({ s(u"edit.undo"), s(u"-"), s(u"edit.selectAll"), s(u"edit.copyTags"), s(u"edit.pasteTags"),
             s(u"edit.editField"), s(u"-"), s(u"edit.find"), s(u"-"), s(u"edit.preferences") }));
     QCOMPARE(entries(bar.findChild<QMenu *>(s(u"menu.File"))),
-        QStringList({ s(u"file.addFiles"), s(u"file.scanFolders"), s(u">Library"), s(u">Playlists"), s(u"-"),
+        QStringList({ s(u"file.addFiles"), s(u"file.scanFolders"), s(u"file.scanStop"), s(u">Library"), s(u">Playlists"), s(u"-"),
             s(u"file.editTags"), s(u"file.locate"), s(u"file.organise"), s(u"-"), s(u"file.remove"),
             s(u"file.delete"), s(u"-"), s(u"file.quit") }));
     // A separator asked for at the top of a menu is not drawn.

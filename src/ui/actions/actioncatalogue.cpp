@@ -11,6 +11,7 @@ QList<ActionInfo> actionCatalogue()
     return {
         { QStringLiteral("file.addFiles"), QStringLiteral("Add Files to Library\u2026"), QStringLiteral("File"), QStringLiteral(""), false, false },
         { QStringLiteral("file.scanFolders"), QStringLiteral("Scan Folders for New Files\u2026"), QStringLiteral("File"), QStringLiteral("Ins"), false, false },
+        { QStringLiteral("file.scanStop"), QStringLiteral("Stop Scan"), QStringLiteral("File"), QStringLiteral(""), false, false },
         { QStringLiteral("file.library.import"), QStringLiteral("Import from Another Program\u2026"), QStringLiteral("File/Library"), QStringLiteral(""), false, true },
         { QStringLiteral("file.library.relink"), QStringLiteral("Remap Music Folders\u2026"), QStringLiteral("File/Library"), QStringLiteral(""), false, false },
         { QStringLiteral("file.library.statistics"), QStringLiteral("Show Library Statistics"), QStringLiteral("File/Library"), QStringLiteral(""), false, false },
