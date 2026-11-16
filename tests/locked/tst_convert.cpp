@@ -443,10 +443,10 @@ void ConvertTest::mp3Result()
     // file the tag library's average includes the header frame.
     QVERIFY2(qAbs(t.audio.bitrateKbps - 320) <= 10, qPrintable(QString::number(t.audio.bitrateKbps)));
     QCOMPARE(t.audio.sampleRateHz, 44100);
-    // C-TAGS: job.tagOptions decides the tag kind. Defaults: ID3v2.3 and ID3v1.
-    QCOMPARE(t.tagTypes, QStringList({ s(u"ID3v2.3"), s(u"ID3v1") }));
+    // C-TAGS: job.tagOptions decides the tag kind. Defaults: a new tag is ID3v2.4 (W-ID3VER), and ID3v1.
+    QCOMPARE(t.tagTypes, QStringList({ s(u"ID3v2.4"), s(u"ID3v1") }));
     const QByteArray b = bytesOf(job.destination);
-    QVERIFY(b.startsWith(QByteArray("ID3\x03\x00", 5))); // BYTES
+    QVERIFY(b.startsWith(QByteArray("ID3\x04\x00", 5))); // BYTES
     // BYTES: GEN's RATING 80 is 4 stars, which the tag writer stores as POPM byte 196.
     QVERIFY(b.contains(QByteArray("POPM\0\0\0\x06\0\0\0\xC4\0\0\0\0", 16)));
     QVERIFY(b.right(128).startsWith("TAGTone Title"));

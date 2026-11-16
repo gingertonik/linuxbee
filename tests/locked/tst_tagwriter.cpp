@@ -180,7 +180,9 @@ void TagWriterTest::roundTrip()
 void TagWriterTest::id3v23Bytes()
 {
     const QString path = copy("basic.mp3"); // GEN: an ID3v2.4 tag
-    QCOMPARE(linuxbee::writeTags(path, usualChanges()).status, WriteResult::Status::Ok);
+    WriteOptions asV23; // W-ID3VER: asked for; the default keeps the file's version
+    asV23.id3Version = WriteOptions::Id3Version::V23;
+    QCOMPARE(linuxbee::writeTags(path, usualChanges(), asV23).status, WriteResult::Status::Ok);
     const QByteArray b = bytesOf(path);
     // BYTES, W-ID3VER: "ID3", major version 3, revision 0.
     QVERIFY(b.startsWith(QByteArray("ID3\x03\x00", 5)));
@@ -221,7 +223,7 @@ void TagWriterTest::id3v1()
     // BYTES: "TAG", then the title in 30 bytes padded with zeros.
     QCOMPARE(b.right(128).left(33), QByteArray("TAGNew Title").leftJustified(33, '\0'));
     QVERIFY(b.startsWith("ID3")); // W-ID3V1: an ID3v2 tag was created in front
-    QCOMPARE(linuxbee::readTags(path).tags.tagTypes, QStringList({ s(u"ID3v2.3"), s(u"ID3v1") }));
+    QCOMPARE(linuxbee::readTags(path).tags.tagTypes, QStringList({ s(u"ID3v2.4"), s(u"ID3v1") })); // W-ID3VER: a new tag
 
     // A file that had none gets one.
     path = copy("basic.mp3");
@@ -307,7 +309,7 @@ void TagWriterTest::wavKeepsOneTag()
     // W-WAV: no RIFF Info chunk is created beside the ID3 chunk.
     const QString path = copy("basic.wav");
     QCOMPARE(linuxbee::writeTags(path, usualChanges()).status, WriteResult::Status::Ok);
-    QCOMPARE(linuxbee::readTags(path).tags.tagTypes, QStringList({ s(u"ID3v2.3") }));
+    QCOMPARE(linuxbee::readTags(path).tags.tagTypes, QStringList({ s(u"ID3v2.4") })); // W-ID3VER: GEN's chunk is ID3v2.4, kept
     QVERIFY(!bytesOf(path).contains("LIST")); // BYTES: an Info chunk lives in a LIST chunk
 }
 

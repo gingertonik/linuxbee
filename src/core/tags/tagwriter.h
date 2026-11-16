@@ -28,9 +28,10 @@ struct TagChanges {
 };
 
 struct WriteOptions {
-    enum class Id3Version { V23, V24 };
-    // W-ID3VER: used when an ID3v2 tag is written (MP3, WAV).
-    Id3Version id3Version = Id3Version::V23;
+    enum class Id3Version { Keep, V23, V24 };
+    // W-ID3VER: used when an ID3v2 tag is written (MP3, WAV). Keep: the version
+    // the file's tag has; ID3v2.4 when it has none or an older one.
+    Id3Version id3Version = Id3Version::Keep;
     // W-ID3V1: MP3 only. true keeps an ID3v1 tag in step; false removes it.
     bool writeId3v1 = true;
     // W-MTIME: true puts the file's modification time back after saving.
@@ -56,6 +57,9 @@ struct WriteResult {
     // InvalidChange: one line per refused entry, each starting with the
     // field name or key it is about.
     QStringList problems;
+    // W-ID3VER, "not kept": Ok only. One line for each value that is not in the
+    // ID3v2.3 tag just written as this save meant it to be. Empty otherwise.
+    QStringList notKept;
 
     bool ok() const { return status == Status::Ok || status == Status::Unchanged; }
 };
