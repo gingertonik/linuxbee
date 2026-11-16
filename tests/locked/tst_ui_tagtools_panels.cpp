@@ -302,6 +302,7 @@ void TagToolPanelsTest::removePanelRemembersNothing()
         TagToolDialog d(panel, three(), &settings);
         Recorder rec;
         d.setSaver(rec.saver());
+        d.setConfirm([](const QString &) { return true; }); // TT-WARN: asked now; this test is about what is remembered
         need<QCheckBox>(*panel, u"allTagsBox")->setChecked(true);
         need<QCheckBox>(*panel, u"picturesBox")->setChecked(true);
         tick(need<QListWidget>(*panel, u"fieldList"), s(u"Album"), true);

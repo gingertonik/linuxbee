@@ -87,6 +87,22 @@ The saver is `writeTags` with default options unless `setSaver` replaced
 it. The dialog reads no file and does not touch the library; the caller
 acts on `saved`.
 
+## TT-WARN: asked before it cannot be taken back
+
+There is no undo. A panel whose changes cannot be made good by hand
+gives a warning: `warning(tracks)` is a yes-or-no question for a run
+that would change `tracks` files, or empty when there is nothing to
+warn about (the default).
+
+Apply, after it has found no problem and something to change, asks the
+panel for its warning, with the number of tracks that would change.
+When that is not empty it is put to `confirm` (`setConfirm`; by default
+a dialog whose default answer is "no"), once for each Apply. On "no"
+Apply does nothing and returns false: no file is handed to the saver,
+`saved` is not emitted, the options are not stored, and the dialog
+stays open as it was. On "yes" it goes on as TT-APPLY says. A preview
+asks nothing.
+
 ## TT-REMEMBER
 
 When the dialog was given settings, it calls the panel's `load` before
@@ -151,6 +167,16 @@ A new panel has nothing ticked. With no row ticked and neither box
 ticked, `problem()` is `Choose what to remove` and `changes` are all
 empty. Otherwise there is no problem and `changes` is `removeTags` for
 each track.
+
+**The warning (TT-WARN).** With N the files (`1 file`, `3 files`,
+`17,000 files`, a comma between thousands):
+
+| Ticked | `warning` |
+|---|---|
+| `All tags`, not the pictures | `Remove every tag from N? The rating and tags that are not in the list go too. Embedded pictures stay. This cannot be undone.` |
+| `All tags` and `Embedded pictures` | `Remove every tag and the embedded pictures from N? The rating and tags that are not in the list go too. This cannot be undone.` |
+| `Embedded pictures`, not `All tags` (with or without rows) | `Remove the embedded pictures from N? This cannot be undone.` |
+| rows of the list only | none: a field can be typed in again |
 
 Nothing is remembered: `load` reads nothing and `save` writes nothing,
 so that what was removed from one selection is never ticked already for

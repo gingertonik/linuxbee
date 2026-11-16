@@ -182,6 +182,11 @@ void TagToolDialog::setSaver(Saver saver)
     d->saver = std::move(saver);
 }
 
+void TagToolDialog::setConfirm(Confirm)
+{
+    // Stub from the seed: TT-WARN is not built.
+}
+
 ToolPanel *TagToolDialog::panel() const
 {
     return d->panel;

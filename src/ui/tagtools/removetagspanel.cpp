@@ -87,6 +87,11 @@ void RemoveTagsPanel::save(QSettings &) const
 {
 }
 
+QString RemoveTagsPanel::warning(int) const
+{
+    return QString(); // stub from the seed
+}
+
 RemoveOptions RemoveTagsPanel::options() const
 {
     RemoveOptions o;

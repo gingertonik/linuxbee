@@ -24,6 +24,12 @@ public:
     virtual QList<TagChanges> changes(const QList<EditTarget> &targets) const = 0;
     virtual void load(QSettings &settings) = 0; // TT-REMEMBER
     virtual void save(QSettings &settings) const = 0;
+    // TT-WARN: what Apply asks before it writes `tracks` files; empty: nothing to ask.
+    virtual QString warning(int tracks) const
+    {
+        Q_UNUSED(tracks);
+        return QString();
+    }
 
 signals:
     void optionsChanged(); // whenever an option changed, by the user or by load()
