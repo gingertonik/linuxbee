@@ -113,6 +113,23 @@ puts one widget into the window's status bar, by object name:
 processes such as scanning; "Clicking on the X will terminate it (with
 a confirmation)".)
 
+**Seen.** The row is a permanent widget of the status bar
+(`QStatusBar::addPermanentWidget`): it sits at the right end, and a
+message in the status bar, whoever wrote it and however long it stays,
+does not put it away. (A status bar hides its ordinary widgets while a
+message is up, and the shells write messages that never time out. MusicBee
+shows running work at the left; here the left belongs to the message.)
+While a scan runs the row, the bar, the text and the button are all
+visible (`isVisible()`, with the window shown) and lie inside the
+status bar. With no scan running, the row takes no room.
+
+The text is never cut: `scanProgressText` has a minimum width of at
+least the text `000,000 of 000,000 files` in its font, so the row is
+as wide at the first file as at the last.
+
+The comma between thousands is fixed (SP-VALUE); it does not follow
+the locale, as no other text of the program does.
+
 Destroying the object takes the row out of the status bar.
 
 ## SP-WATCH
