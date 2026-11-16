@@ -9,6 +9,9 @@
 #include "preferences/preferencesdialog.h"
 #include "tageditor/tageditordialog.h"
 #include "tagtools/capitalisepanel.h"
+#include "tagtools/inferpanel.h"
+#include "tagtools/removetagspanel.h"
+#include "tagtools/renumberpanel.h"
 #include "tagtools/searchreplacepanel.h"
 #include "tagtools/tagtooldialog.h"
 
@@ -119,6 +122,27 @@ struct ToolsShell::Private {
             tagTool(new CapitalisePanel(), ids);
     }
 
+    void removeTags()
+    {
+        const QList<qint64> ids = selectedIds();
+        if (!ids.isEmpty())
+            tagTool(new RemoveTagsPanel(), ids);
+    }
+
+    void renumber()
+    {
+        const QList<qint64> ids = selectedIds();
+        if (!ids.isEmpty())
+            tagTool(new RenumberPanel(), ids);
+    }
+
+    void inferFromFilename()
+    {
+        const QList<qint64> ids = selectedIds();
+        if (!ids.isEmpty())
+            tagTool(new InferPanel(), ids);
+    }
+
     // TS-ORGANISE: the organiser is given the selected paths and the settings.
     void organise()
     {
@@ -220,6 +244,12 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
         QStringLiteral("tools.tagging.searchReplace"), this, [this] { d->searchReplace(); });
     d->actions->implement(
         QStringLiteral("tools.tagging.capitalise"), this, [this] { d->capitalise(); });
+    d->actions->implement(
+        QStringLiteral("tools.tagging.removeTags"), this, [this] { d->removeTags(); });
+    d->actions->implement(
+        QStringLiteral("tools.tagging.renumber"), this, [this] { d->renumber(); });
+    d->actions->implement(QStringLiteral("tools.tagging.inferFromFilename"), this,
+        [this] { d->inferFromFilename(); });
 }
 
 ToolsShell::~ToolsShell()
