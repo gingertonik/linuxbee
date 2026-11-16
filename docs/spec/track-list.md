@@ -154,7 +154,16 @@ the sort keys in force, prepared (T-PREPARED), and:
   then `dataChanged` for it; shown only after: `rowsInserted`; shown
   only before: `rowsRemoved`; shown neither before nor after: no signal
   about rows. A track is shown when the filter accepts it as it is now.
-- With more than 50 the model may reset once instead.
+- With more than 50 the model does not reset either: a reset makes a
+  view forget where it was scrolled to, and a scan stores its files in
+  parts of 200. It announces one change of layout
+  (`layoutAboutToBeChanged`, then `layoutChanged`) and no rows. Every
+  persistent index is moved to the row its track has afterwards, in the
+  column it had, or made invalid when its track is no longer shown; so
+  a selection and a current row stay with their tracks.
+  (Not locked, and wanted: the tracks named are sorted among
+  themselves and merged into the order kept; the whole list is not
+  sorted again.)
 - Either way `upsertTracks` prepares values for the tracks named and
   for no other: at most K x the number of sort keys for K tracks.
   `removeTracks` prepares none. Neither calls `compareFieldValues`.

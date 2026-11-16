@@ -95,6 +95,40 @@ void TrackListModel::Private::refilter()
     }
 }
 
+void TrackListModel::Private::mergeIn(QList<int> moved)
+{
+    QList<char> moving(held.size(), 0);
+    for (const int slot : std::as_const(moved))
+        moving[slot] = 1;
+    QList<int> kept;
+    kept.reserve(order.size());
+    for (const int slot : std::as_const(order)) {
+        if (!moving.at(slot))
+            kept.append(slot);
+    }
+    // The order is total, so the same comparison sorts, merges and decides.
+    const auto less = [this](int a, int b) { return before(placeOf(a), placeOf(b)); };
+    std::sort(moved.begin(), moved.end(), less);
+    QList<int> merged(kept.size() + moved.size());
+    std::merge(kept.cbegin(), kept.cend(), moved.cbegin(), moved.cend(), merged.begin(), less);
+    order = std::move(merged);
+}
+
+void TrackListModel::Private::rebuildShown()
+{
+    shown.clear();
+    shownBytes = 0;
+    shownMs = 0;
+    for (const int slot : std::as_const(order)) {
+        const Entry &entry = held.at(slot);
+        if (!entry.shown)
+            continue;
+        shown.append(slot);
+        shownBytes += entry.track.sizeBytes;
+        shownMs += static_cast<qint64>(entry.track.tags.audio.durationMs);
+    }
+}
+
 void TrackListModel::sort(int column, Qt::SortOrder order)
 {
     if (column < 0 || column >= d->columns.size())

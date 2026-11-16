@@ -40,6 +40,17 @@ QString modeOf(const QString &text)
     return text.compare(tracksMode(), Qt::CaseInsensitive) == 0 ? tracksMode() : albumsMode();
 }
 
+// AV-FILL: the same track ids, in whatever order. Compared in order first
+// (the usual case, and cheap); only when that fails, as sets.
+bool sameTracks(const QList<qint64> &now, const QList<qint64> &before)
+{
+    if (now == before)
+        return true;
+    if (now.size() != before.size())
+        return false;
+    return QSet<qint64>(now.begin(), now.end()) == QSet<qint64>(before.begin(), before.end());
+}
+
 }
 
 struct AlbumViewing::Private {
@@ -174,7 +185,7 @@ void AlbumViewing::Private::bringUpToDate()
         return;
     // AV-FILL, the same tracks fill nothing: neither the ids nor the node's
     // tracks differ from the last fill, so the view is left as it is.
-    if (inAlbums() && !view.isNull() && !nodeChanged && listIds() == filledIds) {
+    if (inAlbums() && !view.isNull() && !nodeChanged && sameTracks(listIds(), filledIds)) {
         stale = false;
         return;
     }
