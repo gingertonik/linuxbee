@@ -5,88 +5,93 @@
 // Sorting and filtering inside the model. Contract: docs/spec/track-list.md (T-MODEL).
 namespace linuxbee::ui {
 
-namespace {
-
-struct SortKey {
-    QString field;
-    bool descending = false;
-};
-
-// One track, with each sort key already read and prepared for comparing
-// (T-PREPARED).
-struct Candidate {
-    int position = 0;
-    QList<PreparedValue> values;
-    QString path;
-};
-
+QList<PreparedValue> TrackListModel::Private::prepareKeys(const LibraryTrack &track) const
+{
+    // T-GIVEN: in the given order the keys decide nothing, so none is prepared.
+    QList<PreparedValue> keys;
+    if (givenOrder)
+        return keys;
+    const LibraryFieldSource source(track);
+    for (const SortKey &key : sortKeys)
+        keys.append(prepareFieldValue(key.field, source.value(key.field).value_or(QString())));
+    return keys;
 }
 
-void TrackListModel::Private::sortAll()
+bool TrackListModel::Private::before(const Place &a, const Place &b) const
 {
-    // T-GIVEN: in the given order the keys decide nothing; `tracks` is already
-    // in the order given, so the candidates below stay as they come.
-    QList<SortKey> keys;
-    if (!givenOrder) {
-        for (const QString &name : std::as_const(sortFields)) {
-            const bool descending = name.startsWith(QLatin1Char('-'));
-            keys.append(SortKey { descending ? name.mid(1) : name, descending });
-        }
-    }
-
-    QList<Candidate> candidates;
-    for (int i = 0; i < tracks.size(); ++i) {
-        const LibraryTrack &track = tracks.at(i);
-        const LibraryFieldSource source(track);
-        Candidate candidate;
-        candidate.position = i;
-        candidate.path = track.path;
-        for (const SortKey &key : std::as_const(keys))
-            candidate.values.append(
-                prepareFieldValue(key.field, source.value(key.field).value_or(QString())));
-        candidates.append(candidate);
-    }
-
     // A blank value comes last in both directions. Tracks that tie on every
-    // key are in order of path.
-    if (!givenOrder)
-        std::stable_sort(
-            candidates.begin(), candidates.end(), [&keys](const Candidate &a, const Candidate &b) {
-                for (int k = 0; k < keys.size(); ++k) {
-                    const PreparedValue &valueA = a.values.at(k);
-                    const PreparedValue &valueB = b.values.at(k);
-                    const bool blankA = valueA.blank;
-                    const bool blankB = valueB.blank;
-                    if (blankA != blankB)
-                        return blankB;
-                    if (blankA)
-                        continue;
-                    const int order = comparePrepared(valueA, valueB);
-                    if (order != 0)
-                        return keys.at(k).descending ? order > 0 : order < 0;
-                }
-                return a.path < b.path;
-            });
+    // key are in order of path, and then in the order given.
+    if (!givenOrder) {
+        for (int k = 0; k < sortKeys.size(); ++k) {
+            const PreparedValue &valueA = a.keys->at(k);
+            const PreparedValue &valueB = b.keys->at(k);
+            if (valueA.blank != valueB.blank)
+                return valueB.blank;
+            if (valueA.blank)
+                continue;
+            const int result = comparePrepared(valueA, valueB);
+            if (result != 0)
+                return sortKeys.at(k).descending ? result > 0 : result < 0;
+        }
+        if (*a.path != *b.path)
+            return *a.path < *b.path;
+    }
+    return a.seq < b.seq;
+}
 
+int TrackListModel::Private::lowerBound(const QList<int> &list, const Place &place, int skip) const
+{
+    int low = 0;
+    int high = int(list.size()) - (skip >= 0 ? 1 : 0);
+    while (low < high) {
+        const int middle = low + (high - low) / 2;
+        const int index = skip >= 0 && middle >= skip ? middle + 1 : middle;
+        if (before(placeOf(list.at(index)), place))
+            low = middle + 1;
+        else
+            high = middle;
+    }
+    return low;
+}
+
+bool TrackListModel::Private::accepts(const LibraryTrack &track, SearchCache *cache) const
+{
+    return filter.isEmpty() || filter.matches(LibraryFieldSource(track), { }, cache);
+}
+
+void TrackListModel::Private::prepareAll()
+{
+    for (Entry &entry : held) {
+        if (entry.live)
+            entry.keys = prepareKeys(entry.track);
+    }
+}
+
+void TrackListModel::Private::sortKept()
+{
     order.clear();
-    for (const Candidate &candidate : std::as_const(candidates))
-        order.append(candidate.position);
+    for (int slot = 0; slot < held.size(); ++slot) {
+        if (held.at(slot).live)
+            order.append(slot);
+    }
+    // The order is total (the order given breaks every tie), so no stable sort is needed.
+    std::sort(order.begin(), order.end(),
+        [this](int a, int b) { return before(placeOf(a), placeOf(b)); });
 }
 
 void TrackListModel::Private::refilter()
 {
     shown.clear();
-    rowOf.clear();
     shownBytes = 0;
     shownMs = 0;
-    for (const int position : std::as_const(order)) {
-        const LibraryTrack &track = tracks.at(position);
-        if (!filter.isEmpty() && !filter.matches(LibraryFieldSource(track), { }, &caches[position]))
+    for (const int slot : std::as_const(order)) {
+        Entry &entry = held[slot];
+        entry.shown = accepts(entry.track, &entry.cache);
+        if (!entry.shown)
             continue;
-        rowOf.insert(track.id, int(shown.size()));
-        shown.append(position);
-        shownBytes += track.sizeBytes;
-        shownMs += static_cast<qint64>(track.tags.audio.durationMs);
+        shown.append(slot);
+        shownBytes += entry.track.sizeBytes;
+        shownMs += static_cast<qint64>(entry.track.tags.audio.durationMs);
     }
 }
 
@@ -109,7 +114,7 @@ void TrackListModel::sort(int column, Qt::SortOrder order)
     // (setSortFields would stop there). One reset.
     beginResetModel();
     d->givenOrder = false;
-    d->sortFields = keys;
+    d->setSortFields(keys);
     d->reorder();
     endResetModel();
 }

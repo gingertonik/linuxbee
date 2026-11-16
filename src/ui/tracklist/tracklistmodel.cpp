@@ -24,7 +24,7 @@ TrackListModel::TrackListModel(QObject *parent)
     , d(new Private)
 {
     d->columns = defaultColumns();
-    d->sortFields = defaultSort();
+    d->setSortFields(defaultSort());
 }
 
 TrackListModel::~TrackListModel()
@@ -81,7 +81,7 @@ void TrackListModel::setSortFields(const QStringList &fields)
     if (fields == d->sortFields)
         return;
     beginResetModel();
-    d->sortFields = fields;
+    d->setSortFields(fields);
     d->reorder();
     endResetModel();
 }
@@ -93,8 +93,9 @@ bool TrackListModel::givenOrder() const
 
 void TrackListModel::setGivenOrder(bool on)
 {
-    // T-GIVEN: `tracks` has kept the order given (put() replaces in place and
-    // appends), so showing it again is a reorder. Not stored; load() leaves it.
+    // T-GIVEN: every track has kept its place in the order given (put()
+    // replaces in place and appends), so showing it again is a reorder. Not
+    // stored; load() leaves it.
     if (on == d->givenOrder)
         return;
     beginResetModel();
@@ -105,14 +106,17 @@ void TrackListModel::setGivenOrder(bool on)
 
 void TrackListModel::setTracks(const QList<LibraryTrack> &tracks)
 {
-    if (tracks.isEmpty() && d->tracks.isEmpty())
+    if (tracks.isEmpty() && d->slotOf.isEmpty())
         return;
     beginResetModel();
-    d->tracks.clear();
-    d->caches.clear();
-    d->positionOf.clear();
+    d->held.clear();
+    d->freeSlots.clear();
+    d->slotOf.clear();
+    d->order.clear();
+    d->shown.clear();
+    d->nextSeq = 0;
     for (const LibraryTrack &track : tracks)
-        d->put(track);
+        d->put(track, false);
     d->reorder();
     endResetModel();
     emit summaryChanged();
@@ -122,11 +126,108 @@ void TrackListModel::upsertTracks(const QList<LibraryTrack> &tracks)
 {
     if (tracks.isEmpty())
         return;
-    beginResetModel();
-    for (const LibraryTrack &track : tracks)
-        d->put(track);
-    d->reorder();
-    endResetModel();
+
+    // T-ROWS: more than 50 at once resets the model once. Still only the
+    // tracks named are prepared; the order is put right from the keys kept.
+    if (tracks.size() > 50) {
+        beginResetModel();
+        for (const LibraryTrack &track : tracks)
+            d->put(track, true);
+        d->sortKept();
+        d->refilter();
+        endResetModel();
+        emit summaryChanged();
+        return;
+    }
+
+    const int lastColumn = int(d->columns.size()) - 1;
+    for (const LibraryTrack &track : tracks) {
+        // Everything is worked out before the first signal, from the keys the
+        // rows have now and the keys of this track as it is now.
+        const QList<PreparedValue> keys = d->prepareKeys(track);
+        SearchCache cache;
+        const bool accepted = d->accepts(track, &cache);
+        const auto found = d->slotOf.constFind(track.id);
+
+        if (found == d->slotOf.constEnd()) {
+            const qint64 seq = d->nextSeq;
+            const Private::Place place { &keys, &track.path, seq };
+            const int orderAt = d->lowerBound(d->order, place, -1);
+            const int row = accepted ? d->lowerBound(d->shown, place, -1) : -1;
+            const int slot = d->allocate();
+            Private::Entry &entry = d->held[slot];
+            entry.track = track;
+            entry.cache = std::move(cache);
+            entry.keys = keys;
+            entry.seq = seq;
+            entry.live = true;
+            ++d->nextSeq;
+            d->slotOf.insert(track.id, slot);
+            d->order.insert(orderAt, slot);
+            if (row >= 0) {
+                beginInsertRows({ }, row, row);
+                d->shown.insert(row, slot);
+                entry.shown = true;
+                d->shownBytes += track.sizeBytes;
+                d->shownMs += static_cast<qint64>(track.tags.audio.durationMs);
+                endInsertRows();
+            }
+            continue;
+        }
+
+        const int slot = found.value();
+        const int oldRow = d->rowFor(slot);
+        const int oldOrder = d->orderIndexOf(slot);
+        const Private::Place place { &keys, &track.path, d->held.at(slot).seq };
+        const int newOrder = d->lowerBound(d->order, place, oldOrder);
+        const int newRow = accepted ? d->lowerBound(d->shown, place, oldRow) : -1;
+
+        // The track takes the place of the old one in the data; the rows are
+        // moved, inserted or removed around it.
+        const auto replace = [&]() {
+            Private::Entry &entry = d->held[slot];
+            if (entry.shown) {
+                d->shownBytes -= entry.track.sizeBytes;
+                d->shownMs -= static_cast<qint64>(entry.track.tags.audio.durationMs);
+            }
+            entry.track = track;
+            entry.cache = std::move(cache);
+            entry.keys = keys;
+            entry.shown = accepted;
+            if (accepted) {
+                d->shownBytes += track.sizeBytes;
+                d->shownMs += static_cast<qint64>(track.tags.audio.durationMs);
+            }
+            if (newOrder != oldOrder)
+                d->order.move(oldOrder, newOrder);
+        };
+
+        if (oldRow >= 0 && accepted) {
+            if (newRow == oldRow) {
+                replace();
+            } else {
+                // Moving down, the destination is the row after the new one.
+                beginMoveRows({ }, oldRow, oldRow, { }, newRow > oldRow ? newRow + 1 : newRow);
+                replace();
+                d->shown.move(oldRow, newRow);
+                endMoveRows();
+            }
+            const int row = newRow;
+            emit dataChanged(index(row, 0), index(row, lastColumn));
+        } else if (oldRow >= 0) {
+            beginRemoveRows({ }, oldRow, oldRow);
+            replace();
+            d->shown.removeAt(oldRow);
+            endRemoveRows();
+        } else if (accepted) {
+            beginInsertRows({ }, newRow, newRow);
+            replace();
+            d->shown.insert(newRow, slot);
+            endInsertRows();
+        } else {
+            replace();
+        }
+    }
     emit summaryChanged();
 }
 
@@ -134,17 +235,48 @@ void TrackListModel::removeTracks(const QList<qint64> &ids)
 {
     bool anyPresent = false;
     for (const qint64 id : ids) {
-        if (d->positionOf.contains(id)) {
+        if (d->slotOf.contains(id)) {
             anyPresent = true;
             break;
         }
     }
     if (!anyPresent)
         return;
-    beginResetModel();
-    d->removeIds(QSet<qint64>(ids.begin(), ids.end()));
-    d->reorder();
-    endResetModel();
+
+    // T-ROWS: more than 50 at once resets the model once. Nothing is prepared.
+    if (ids.size() > 50) {
+        beginResetModel();
+        for (const qint64 id : ids) {
+            const auto found = d->slotOf.constFind(id);
+            if (found != d->slotOf.constEnd())
+                d->release(found.value());
+        }
+        d->order.removeIf([this](int slot) { return !d->held.at(slot).live; });
+        d->refilter();
+        endResetModel();
+        emit summaryChanged();
+        return;
+    }
+
+    for (const qint64 id : ids) {
+        const auto found = d->slotOf.constFind(id);
+        if (found == d->slotOf.constEnd())
+            continue;
+        const int slot = found.value();
+        const int row = d->rowFor(slot);
+        const int orderAt = d->orderIndexOf(slot);
+        if (row >= 0)
+            beginRemoveRows({ }, row, row);
+        if (row >= 0) {
+            d->shownBytes -= d->trackAt(slot).sizeBytes;
+            d->shownMs -= static_cast<qint64>(d->trackAt(slot).tags.audio.durationMs);
+            d->shown.removeAt(row);
+        }
+        d->order.removeAt(orderAt);
+        d->release(slot);
+        if (row >= 0)
+            endRemoveRows();
+    }
     emit summaryChanged();
 }
 
@@ -161,19 +293,20 @@ void TrackListModel::setFilter(const SearchQuery &query)
 
 int TrackListModel::totalCount() const
 {
-    return int(d->tracks.size());
+    return int(d->slotOf.size());
 }
 
 qint64 TrackListModel::trackId(int row) const
 {
     if (row < 0 || row >= d->shown.size())
         return 0;
-    return d->tracks.at(d->shown.at(row)).id;
+    return d->trackAt(d->shown.at(row)).id;
 }
 
 int TrackListModel::rowOf(qint64 id) const
 {
-    return d->rowOf.value(id, -1);
+    const auto found = d->slotOf.constFind(id);
+    return found == d->slotOf.constEnd() ? -1 : d->rowFor(found.value());
 }
 
 QString TrackListModel::summary() const
@@ -211,7 +344,7 @@ QVariant TrackListModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() >= d->shown.size() || index.column() >= d->columns.size())
         return { };
-    const LibraryTrack &track = d->tracks.at(d->shown.at(index.row()));
+    const LibraryTrack &track = d->trackAt(d->shown.at(index.row()));
     const QString &field = d->columns.at(index.column());
     switch (role) {
     case Qt::DisplayRole: {

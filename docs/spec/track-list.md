@@ -142,6 +142,28 @@ look at each track and no more. So the model keeps two things:
   are set anew. A second filter over the same tracks folds only values
   the first did not need.
 
+**T-ROWS: one track, one row.** A change of a few tracks must not cost
+the whole list. So the model also keeps, for each track, the values of
+the sort keys in force, prepared (T-PREPARED), and:
+
+- `upsertTracks` of up to 50 tracks and `removeTracks` of up to 50 ids
+  do not reset the model. For each track named, in the order named:
+  a track that was shown and is shown in the same row: `dataChanged`
+  for that row, first column to last; shown before and after in another
+  row: `rowsMoved` for that one row (so that a selection goes with it),
+  then `dataChanged` for it; shown only after: `rowsInserted`; shown
+  only before: `rowsRemoved`; shown neither before nor after: no signal
+  about rows. A track is shown when the filter accepts it as it is now.
+- With more than 50 the model may reset once instead.
+- Either way `upsertTracks` prepares values for the tracks named and
+  for no other: at most K x the number of sort keys for K tracks.
+  `removeTracks` prepares none. Neither calls `compareFieldValues`.
+- After the call the rows, the cells, `rowOf`, `totalCount` and the
+  summary are those of a model that was given the same tracks afresh.
+- In the given order (T-GIVEN) a replaced track keeps its place, a new
+  one goes to the end, and nothing is prepared.
+- `summaryChanged` is emitted once for each call that changed anything.
+
 **Roles.** `Qt::DisplayRole` the text; `Qt::ToolTipRole` the file's path;
 `Qt::TextAlignmentRole` right for number, duration and size columns and
 left for text, vertically centred, for cells and headers alike;
