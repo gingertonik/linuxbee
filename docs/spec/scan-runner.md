@@ -19,6 +19,13 @@ test can show this for a call that touches no database; a review
 reads for it and runs the two scan tests under a thread checker.) All
 signals are emitted on the runner's own thread.
 
+More than one runner may work on one library (the window's and the
+background shell's do). Each stores on the library's thread, so their
+parts are stored one after the other; a file two scans both found is
+added by the one that stores it first and left alone by the other
+(L-PARTS), and a finding about a track that the other changed
+meanwhile is passed over (L-PARTS).
+
 `hooks.looking(done, total)`, when set, is called on the looking thread
 before each file, with the values of the progress function, and before
 the runner looks whether it was told to stop (so a stop asked for while

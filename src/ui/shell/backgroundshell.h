@@ -24,6 +24,7 @@ namespace linuxbee::ui {
 class MainWindow;
 class MprisService;
 class PlaybackShell;
+class ScanRunner;
 
 class BackgroundShell : public QObject {
     Q_OBJECT
@@ -41,6 +42,7 @@ public:
 
     MprisService *mpris() const;
     FolderMonitor *monitor() const;
+    ScanRunner *scanner() const; // BG-MONITOR: the runner the monitor's scans go through
 
     // BG-FOLDERS
     QStringList monitoredFolders() const;

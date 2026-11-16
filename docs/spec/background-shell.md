@@ -25,9 +25,11 @@ a scan does in library.md.
 Constructing the shell creates an `MprisService` over the playback
 shell's player and queue and starts it on the bus it was given
 (BG-MPRIS), and creates a `FolderMonitor` for the folders stored in the
-settings (BG-MONITOR). Nothing is scanned and nothing is played.
+settings (BG-MONITOR) and a `ScanRunner` of its own on the library
+(`scanner()`; scan-runner.md). Nothing is scanned and nothing is played.
 
-Destroying the shell takes linuxBee off the bus and stops the watching.
+Destroying the shell takes linuxBee off the bus and stops the watching, and then its runner
+(SR-STOP: what was stored stays, and nothing is stored after).
 The player and the library are untouched by that.
 
 ## BG-MPRIS
@@ -56,11 +58,22 @@ Settings, all in the group `library`:
 | `settleMs` | the monitor's settle time, 0 to 60000 | the monitor's own default |
 | `checkOnStartup` | BG-STARTUP | false |
 
-The monitor's scanner is `Library::scan` of the folders it names, with
-new files going to that section and the time from the `now` hook. The
-section is read from the settings at each scan.
+The monitor's scans do not hold the window. The monitor's scanner asks
+the shell's runner for a scan of the folders it names
+(`ScanRunner::scan`), with new files going to that section and the time
+from the `now` hook, and returns at once with an empty report: no file
+is looked at and nothing is stored inside the call. So
+`FolderMonitor::scanned` now says that a scan was asked for, and its
+report is empty; what the scan did is the report of the runner's
+`finished`. The section is read from the settings when the scan is
+asked for, and it is that scan's section until it ends, whatever the
+settings say by then and however many scans wait behind it.
 
-After a scan that added files, the message is the section, a colon, and
+The runner is the shell's own, not the window's (SR-SHELL), so the
+window's "Scan Folders" message and this one do not answer each
+other's scans.
+
+When the runner's scan has ended (`finished`), and it added files, the message is that scan's section, a colon, and
 `1 new file` or `N new files`: `Inbox: 2 new files`. A scan that added
 nothing says nothing.
 
