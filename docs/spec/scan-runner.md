@@ -97,6 +97,102 @@ Folders" goes through it (library-shell.md, SH-COMMANDS):
 
 Asked for again while a scan runs, the command queues another.
 
+## SP-ROW: the scan's row in the status bar
+
+`ScanProgress(window, actions, hooks)` in `src/ui/shell/scanprogress.h`
+puts one widget into the window's status bar, by object name:
+
+| Name | Widget | |
+|---|---|---|
+| `scanProgressRow` | the widget that holds the three below | hidden unless a scan runs |
+| `scanProgress` | a progress bar | SP-VALUE |
+| `scanProgressText` | a label | SP-VALUE |
+| `scanStopButton` | a tool button, tool tip `Stop the scan` | SP-STOP |
+
+(MusicBee wiki, "Status Bar": the left of the status bar shows ongoing
+processes such as scanning; "Clicking on the X will terminate it (with
+a confirmation)".)
+
+**Seen.** The row is a permanent widget of the status bar
+(`QStatusBar::addPermanentWidget`): it sits at the right end, and a
+message in the status bar, whoever wrote it and however long it stays,
+does not put it away. (A status bar hides its ordinary widgets while a
+message is up, and the shells write messages that never time out. MusicBee
+shows running work at the left; here the left belongs to the message.)
+While a scan runs the row, the bar, the text and the button are all
+visible (`isVisible()`, with the window shown) and lie inside the
+status bar. With no scan running, the row takes no room.
+
+The text is never cut: `scanProgressText` has a minimum width of at
+least the text `000,000 of 000,000 files` in its font, so the row is
+as wide at the first file as at the last.
+
+The comma between thousands is fixed (SP-VALUE); it does not follow
+the locale, as no other text of the program does.
+
+Destroying the object takes the row out of the status bar.
+
+## SP-WATCH
+
+`watch(runner)` makes the object listen to a `ScanRunner`; a runner
+given twice is watched once; a runner that is destroyed is forgotten.
+
+A watched runner is scanning from its `started` until its `idle` (and
+from `watch` on, when `isRunning()` is true then). The row is shown
+while at least one watched runner is scanning, and `isShown()` says so
+at once. The row shows one runner: of those scanning, the one that has
+been scanning longest. When that one stops scanning, the row shows the
+next, with what that one reported last.
+
+## SP-VALUE
+
+For the runner shown:
+
+- from `started` until its first `progress`: the bar is busy (maximum
+  0) and the text is `Looking for files…`;
+- after `progress(done, total)`: the bar has maximum `total` and value
+  `done`, and the text is `DONE of TOTAL files` (`file` when the total
+  is 1), the numbers with a comma between thousands. A total of 0 gives
+  `0 of 0 files` and a full bar (maximum 1, value 1), not a busy one;
+- each `started` starts over.
+
+## SP-ONCE
+
+A scan reports every file. The widgets are not written inside a signal:
+they are written once at the next turn of the event loop, with the
+latest values, however many signals came before; and not at all when
+nothing they show would change. `updates()` counts those writings since
+the object was made, for tests and for a person timing the program.
+
+## SP-STOP
+
+`stop()`, the button and the command `file.scanStop` do the same:
+
+- with no watched runner scanning, or while stopping already: nothing is
+  asked, and the answer is false;
+- else `confirm("Stop the scan? The files stored so far stay in the
+  library.")` is asked once. No: nothing, false;
+- yes: `cancel()` is called once on every watched runner that is
+  scanning, and the answer is true. Until the row is hidden it reads
+  `Stopping…`, whatever is reported meanwhile, and the button and the
+  command are off.
+
+The command is implemented while the object lives, and is on exactly
+while the row is shown and not stopping. The next scan finds the button
+and the command on again. Without a hook, `confirm` is a yes-or-no
+question in a dialog.
+
+## SP-MAIN
+
+`src/app/main.cpp` additionally creates a `ScanProgress` over the window
+and the registry, with the default hooks, before the `--commands`
+answer (which then lists `file.scanStop`). It has it watch the library
+shell's runner (SR-SHELL), and the background shell's
+(background-shell.md, BG-MONITOR) once that shell is made.
+
+The command is in the File menu after `Scan Folders…`, as `Stop Scan`,
+with no shortcut.
+
 ## Not in this version
 
 - A command, a button or a key to stop a scan (the runner can; the
