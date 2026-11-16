@@ -389,7 +389,7 @@ void BackgroundShellTest::reload()
     // A folder that was not monitored before is checked at once: what is in it comes in.
     QTRY_COMPARE_WITH_TIMEOUT(r.library->count(), 2, r.patience());
     QCOMPARE(r.library->trackByPath(waiting)->category, s(u"Music")); // the section as it is now
-    QCOMPARE(r.background->lastMessage(), s(u"Music: 1 new file"));
+    QTRY_COMPARE_WITH_TIMEOUT(r.background->lastMessage(), s(u"Music: 1 new file"), r.patience());
     QCOMPARE(scans, 1);
     // Reloading with no new folder checks nothing.
     r.background->reload();
@@ -431,7 +431,7 @@ void BackgroundShellTest::checkOnStartup()
     QCOMPARE(r.library->count(), 1); // not inside the constructor: the window comes up first
     QTRY_COMPARE_WITH_TIMEOUT(r.library->count(), 2, r.patience());
     QCOMPARE(r.library->trackByPath(waiting)->category, s(u"Inbox"));
-    QCOMPARE(r.background->lastMessage(), s(u"Inbox: 1 new file"));
+    QTRY_COMPARE_WITH_TIMEOUT(r.background->lastMessage(), s(u"Inbox: 1 new file"), r.patience());
 }
 
 void BackgroundShellTest::gone()

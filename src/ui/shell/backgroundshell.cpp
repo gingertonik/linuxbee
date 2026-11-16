@@ -138,6 +138,11 @@ FolderMonitor *BackgroundShell::monitor() const
     return d->monitor.get();
 }
 
+ScanRunner *BackgroundShell::scanner() const
+{
+    return nullptr; // stub
+}
+
 QStringList BackgroundShell::monitoredFolders() const
 {
     return d->monitor->folders();
