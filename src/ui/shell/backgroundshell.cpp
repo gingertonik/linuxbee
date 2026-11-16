@@ -4,12 +4,14 @@
 #include "library/foldermonitor.h"
 #include "mainwindow/mainwindow.h"
 #include "shell/playbackshell.h"
+#include "shell/scanrunner.h"
 
 #include <QCoreApplication>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTimer>
 
+#include <deque>
 #include <memory>
 
 namespace linuxbee::ui {
@@ -32,8 +34,11 @@ struct BackgroundShell::Private {
     MainWindow *window = nullptr;
     Library *library = nullptr;
     QSettings *settings = nullptr;
+    std::unique_ptr<ScanRunner> runner;
     std::unique_ptr<FolderMonitor> monitor;
     std::unique_ptr<MprisService> mpris;
+    // The section each scan the runner has not yet ended was asked with, oldest first.
+    std::deque<QString> sections;
     QString message;
 
     // BG-MESSAGE: one line in the window's status bar, kept as lastMessage().
@@ -53,24 +58,35 @@ BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackS
     d->library = library;
     d->settings = settings;
 
-    // BG-MONITOR: the stored folders, and the settle time when it is a number from 0
-    // to 60000. Anything else leaves the monitor's own default in place. Each scan puts
-    // its new files in the section the settings name when that scan starts.
-    auto scanSection = std::make_shared<QString>();
-    d->monitor = std::make_unique<FolderMonitor>(
-        [library, settings, now = hooks.now, scanSection](const QStringList &folders) {
-            *scanSection = sectionFrom(settings);
-            return libraryScanner(library, *scanSection, now)(folders);
-        });
-    // BG-MONITOR: a scan that added files says how many, in its section. A scan that
-    // added nothing says nothing and leaves the last message as it was.
-    connect(d->monitor.get(), &FolderMonitor::scanned, this,
-        [this, scanSection](const ScanReport &report, const QStringList &) {
+    // BG-MONITOR: the shell's own runner. A scan the monitor asks for goes to it with the
+    // section the settings name at that moment, kept until that scan ends.
+    d->runner = std::make_unique<ScanRunner>(library);
+    connect(d->runner.get(), &ScanRunner::finished, this,
+        [this](const ScanReport &report, const QStringList &) {
+            if (d->sections.empty())
+                return;
+            const QString section = d->sections.front();
+            d->sections.pop_front();
+            // A scan that added files says how many, in its section. A scan that added
+            // nothing says nothing and leaves the last message as it was.
             const int added = report.added.size();
             if (added == 1)
-                d->showMessage(tr("%1: 1 new file").arg(*scanSection));
+                d->showMessage(tr("%1: 1 new file").arg(section));
             else if (added > 1)
-                d->showMessage(tr("%1: %2 new files").arg(*scanSection).arg(added));
+                d->showMessage(tr("%1: %2 new files").arg(section).arg(added));
+        });
+
+    // BG-MONITOR: the stored folders, and the settle time when it is a number from 0
+    // to 60000. Anything else leaves the monitor's own default in place. The monitor's
+    // scanner only asks the runner and returns an empty report at once.
+    d->monitor = std::make_unique<FolderMonitor>(
+        [this, settings, now = hooks.now](const QStringList &folders) {
+            ScanOptions options;
+            options.category = sectionFrom(settings);
+            options.now = now ? now() : QDateTime();
+            d->sections.push_back(options.category);
+            d->runner->scan(folders, options);
+            return ScanReport();
         });
     d->monitor->setFolders(settings->value(QStringLiteral("library/monitored")).toStringList());
     bool settleOk = false;
@@ -125,6 +141,7 @@ BackgroundShell::~BackgroundShell()
     // Off the bus first, then the watching stops. The player and the library are untouched.
     d->mpris.reset();
     d->monitor.reset();
+    d->runner.reset();
     delete d;
 }
 
@@ -140,7 +157,7 @@ FolderMonitor *BackgroundShell::monitor() const
 
 ScanRunner *BackgroundShell::scanner() const
 {
-    return nullptr; // stub
+    return d->runner.get();
 }
 
 QStringList BackgroundShell::monitoredFolders() const
