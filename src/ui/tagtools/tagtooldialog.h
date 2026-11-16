@@ -2,6 +2,8 @@
 #include <QDialog>
 #include <QList>
 
+#include <functional>
+
 #include "tagtools/toolpanel.h"
 
 class QSettings;
@@ -22,6 +24,9 @@ public:
     ~TagToolDialog() override;
 
     void setSaver(Saver saver);
+    // TT-WARN: how a yes-or-no question is asked. By default a dialog whose default is "no".
+    using Confirm = std::function<bool(const QString &question)>;
+    void setConfirm(Confirm confirm);
     ToolPanel *panel() const;
 
     // What Apply would write now: one entry per target, in order.

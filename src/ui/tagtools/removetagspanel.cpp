@@ -2,6 +2,7 @@
 
 #include <QCheckBox>
 #include <QListWidget>
+#include <QLocale>
 #include <QListWidgetItem>
 #include <QSettings>
 #include <QVBoxLayout>
@@ -85,6 +86,27 @@ void RemoveTagsPanel::load(QSettings &)
 
 void RemoveTagsPanel::save(QSettings &) const
 {
+}
+
+QString RemoveTagsPanel::warning(int tracks) const
+{
+    // TT-REMOVE, the warning: only "All tags" and "Embedded pictures" ask.
+    const bool all = d->allTags->isChecked();
+    const bool pictures = d->pictures->isChecked();
+    if (!all && !pictures)
+        return QString();
+    const QString count = tracks == 1
+        ? tr("1 file")
+        : tr("%1 files").arg(QLocale(QLocale::English).toString(tracks));
+    if (all && pictures)
+        return tr("Remove every tag and the embedded pictures from %1? The rating and tags that "
+                  "are not in the list go too. This cannot be undone.")
+            .arg(count);
+    if (all)
+        return tr("Remove every tag from %1? The rating and tags that are not in the list go "
+                  "too. Embedded pictures stay. This cannot be undone.")
+            .arg(count);
+    return tr("Remove the embedded pictures from %1? This cannot be undone.").arg(count);
 }
 
 RemoveOptions RemoveTagsPanel::options() const

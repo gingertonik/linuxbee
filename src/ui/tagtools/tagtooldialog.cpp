@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
 #include <QTableWidget>
@@ -68,6 +69,7 @@ struct TagToolDialog::Private {
     QList<EditTarget> targets;
     QSettings *settings = nullptr;
     TagToolDialog::Saver saver;
+    TagToolDialog::Confirm confirm;
     QList<TagChanges> pending;
     int changedTracks = 0;
     QString problem;
@@ -182,6 +184,11 @@ void TagToolDialog::setSaver(Saver saver)
     d->saver = std::move(saver);
 }
 
+void TagToolDialog::setConfirm(Confirm confirm)
+{
+    d->confirm = std::move(confirm);
+}
+
 ToolPanel *TagToolDialog::panel() const
 {
     return d->panel;
@@ -196,6 +203,17 @@ bool TagToolDialog::apply()
 {
     if (!d->problem.isEmpty() || d->changedTracks == 0)
         return false;
+
+    // TT-WARN: once per Apply, before the first file is handed to the saver.
+    const QString question = d->panel->warning(d->changedTracks);
+    if (!question.isEmpty()) {
+        const bool yes = d->confirm ? d->confirm(question)
+                                    : QMessageBox::question(this, windowTitle(), question,
+                                          QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+                == QMessageBox::Yes;
+        if (!yes)
+            return false;
+    }
 
     // TT-APPLY, step 1: every track with changes goes to the saver, in order.
     // A failure does not stop the others.

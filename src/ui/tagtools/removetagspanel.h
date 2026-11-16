@@ -16,6 +16,7 @@ public:
     QList<TagChanges> changes(const QList<EditTarget> &targets) const override;
     void load(QSettings &settings) override;
     void save(QSettings &settings) const override;
+    QString warning(int tracks) const override; // TT-REMOVE
 
     RemoveOptions options() const; // what the controls say now
 
