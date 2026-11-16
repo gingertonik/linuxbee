@@ -14,11 +14,15 @@
 #include "tagtools/renumberpanel.h"
 #include "tagtools/searchreplacepanel.h"
 #include "tagtools/tagtooldialog.h"
+#include "tagundo/tagundo.h"
 
 #include <QCoreApplication>
 #include <QDialog>
 #include <QFile>
 #include <QStatusBar>
+#include <QTemporaryDir>
+
+#include <memory>
 
 namespace linuxbee::ui {
 
@@ -34,6 +38,32 @@ struct ToolsShell::Private {
     QList<PageFactory> pageFactories;
     QString message;
     ToolsShell *owner = nullptr; // the context of the dialogs' connections
+
+    // TS-UNDO: the scratch folder, then the undo that keeps pictures in it. Members go in
+    // reverse order, so the undo removes its files before the folder is removed.
+    QTemporaryDir scratch;
+    std::unique_ptr<TagUndo> undo;
+
+    // TS-UNDO: begin(the dialog's title) before the presenter, end() after it, however
+    // the presenter is left.
+    struct Step {
+        TagUndo *undo;
+        Step(TagUndo *u, const QString &name)
+            : undo(u)
+        {
+            undo->begin(name);
+        }
+        ~Step() { undo->end(); }
+        Step(const Step &) = delete;
+        Step &operator=(const Step &) = delete;
+    };
+
+    TagUndo::Writer saver()
+    {
+        return [this](const QString &path, const TagChanges &changes) {
+            return undo->write(path, changes);
+        };
+    }
 
     // TS-MESSAGE: one line in the window's status bar, kept as lastMessage().
     void showMessage(const QString &text)
@@ -81,8 +111,10 @@ struct ToolsShell::Private {
         if (ids.isEmpty())
             return;
         TagEditorDialog dialog(targetsFor(ids), window);
+        dialog.setSaver(saver());
         QObject::connect(&dialog, &TagEditorDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
+        const Step step(undo.get(), dialog.windowTitle());
         presenter(&dialog);
     }
 
@@ -106,8 +138,10 @@ struct ToolsShell::Private {
     void tagTool(ToolPanel *panel, const QList<qint64> &ids)
     {
         TagToolDialog dialog(panel, targetsFor(ids), settings, window);
+        dialog.setSaver(saver());
         QObject::connect(&dialog, &TagToolDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
+        const Step step(undo.get(), dialog.windowTitle());
         presenter(&dialog);
     }
 
@@ -145,6 +179,34 @@ struct ToolsShell::Private {
         const QList<qint64> ids = selectedIds();
         if (!ids.isEmpty())
             tagTool(new InferPanel(), ids);
+    }
+
+    // TS-UNDO: asks nothing. With no step, says so. Otherwise puts the step back, has the
+    // library read each restored file it knows once, and says how many went and how many not.
+    void undoLast()
+    {
+        if (!undo->canUndo()) {
+            showMessage(QCoreApplication::translate("linuxbee::ui::ToolsShell", "Nothing to undo"));
+            return;
+        }
+        const QString name = undo->name();
+        const TagUndo::Outcome outcome = undo->undo();
+        for (const QString &path : outcome.restored) {
+            if (const std::optional<LibraryTrack> track = library->trackByPath(path))
+                library->refresh(track->id);
+        }
+        const qsizetype put = outcome.restored.size();
+        QString text = put == 1
+            ? QCoreApplication::translate("linuxbee::ui::ToolsShell", "Undid %1: 1 file put back")
+                  .arg(name)
+            : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Undid %1: %2 files put back")
+                  .arg(name)
+                  .arg(put);
+        if (!outcome.failed.isEmpty())
+            text += QCoreApplication::translate(
+                "linuxbee::ui::ToolsShell", "; %1 could not be put back")
+                        .arg(outcome.failed.size());
+        showMessage(text);
     }
 
     // TS-ORGANISE: the organiser is given the selected paths and the settings.
@@ -235,12 +297,14 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
     d->library = library;
     d->libraryShell = libraryShell;
     d->settings = settings;
+    d->undo = std::make_unique<TagUndo>(d->scratch.path() + QStringLiteral("/pictures"));
     d->presenter
         = presenter ? std::move(presenter) : Presenter([](QDialog *dialog) { dialog->exec(); });
 
     // TS-COMMANDS: the shell is the context of its commands, so destroying the shell
     // frees them and the ids are free again.
     d->actions->implement(QStringLiteral("file.editTags"), this, [this] { d->editTags(); });
+    d->actions->implement(QStringLiteral("edit.undo"), this, [this] { d->undoLast(); });
     d->actions->implement(QStringLiteral("file.organise"), this, [this] { d->organise(); });
     d->actions->implement(QStringLiteral("tools.convert"), this, [this] { d->convert(); });
     d->actions->implement(QStringLiteral("edit.preferences"), this, [this] { d->preferences(); });
@@ -259,6 +323,11 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
 ToolsShell::~ToolsShell()
 {
     delete d;
+}
+
+TagUndo *ToolsShell::tagUndo() const
+{
+    return d->undo.get();
 }
 
 void ToolsShell::addPreferencesPage(PageFactory factory)

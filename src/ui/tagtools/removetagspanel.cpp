@@ -100,13 +100,17 @@ QString RemoveTagsPanel::warning(int tracks) const
         : tr("%1 files").arg(QLocale(QLocale::English).toString(tracks));
     if (all && pictures)
         return tr("Remove every tag and the embedded pictures from %1? The rating and tags that "
-                  "are not in the list go too. This cannot be undone.")
+                  "are not in the list go too. Undo brings them back, until the next tag "
+                  "change or until the program closes.")
             .arg(count);
     if (all)
         return tr("Remove every tag from %1? The rating and tags that are not in the list go "
-                  "too. Embedded pictures stay. This cannot be undone.")
+                  "too. Embedded pictures stay. Undo brings them back, until the next tag "
+                  "change or until the program closes.")
             .arg(count);
-    return tr("Remove the embedded pictures from %1? This cannot be undone.").arg(count);
+    return tr("Remove the embedded pictures from %1? Undo brings them back, until the next tag "
+              "change or until the program closes.")
+        .arg(count);
 }
 
 RemoveOptions RemoveTagsPanel::options() const

@@ -14,6 +14,10 @@ class QSettings;
 // converter and the preferences, each on the tracks selected, and brings
 // the library up to date with what they did. Contract:
 // docs/spec/tools-shell.md (TS-x). It owns no rule of its own.
+namespace linuxbee {
+class TagUndo;
+}
+
 namespace linuxbee::ui {
 
 class ActionRegistry;
@@ -42,6 +46,9 @@ public:
     QStringList preferencesPages() const; // the titles the dialog would show now
 
     QString lastMessage() const; // TS-MESSAGE: what the status bar was last told
+
+    // TS-UNDO: the shell's one step of undo for tag changes. The shell owns it.
+    TagUndo *tagUndo() const;
 
 private:
     struct Private;

@@ -35,6 +35,8 @@ The shell implements nine commands while it exists:
 | `tools.tagging.renumber` | the same dialog with the Renumber Tracks panel (TT-RENUMBER) |
 | `tools.tagging.inferFromFilename` | the same dialog with the Infer Tags From Filename panel (TT-INFER) |
 
+It also implements `edit.undo` (TS-UNDO), which opens nothing.
+
 Each creates its dialog with the main window as parent, connects to it,
 hands it to the presenter, and destroys it when the presenter returns.
 The presenter is `QDialog::exec()` unless another was given.
@@ -76,6 +78,31 @@ one picture entry, without data, for each picture the library counts
 (`LibraryTrack::pictureCount`), as a read without picture data would
 give them. The entries are for counting only; nothing writes them
 back.
+
+## TS-UNDO
+
+The shell owns one `TagUndo` (tag-undo.md), `tagUndo()`, with a
+scratch folder of its own that is removed when the shell goes.
+
+Every file the tag editor and the tagging tools save goes through it:
+the shell gives each dialog a saver that is `TagUndo::write`, with
+`begin(the dialog's window title)` before the dialog is presented and
+`end()` after. So the step is named `Edit Tags`, `Search and Replace`,
+`Remove Tags` and so on, and a dialog closed without a change leaves
+the step before it.
+
+`edit.undo` (Edit > Undo, Ctrl+Z) asks nothing:
+
+1. With no step: the message `Nothing to undo`, and nothing else.
+2. Otherwise `TagUndo::undo()`; then each restored file that the
+   library knows is read again (`Library::refresh`), once.
+3. The message: `Undid NAME: N files put back` (`1 file`), and after
+   it, when any failed, `; K could not be put back`.
+
+Because the removed pictures and tags come back, the questions of
+TT-WARN end with `Undo brings them back, until the next tag change or until the program closes.`
+and no longer say that the change cannot be undone. The questions
+stay: undo is one step, and the next change loses it.
 
 ## TS-ORGANISE
 
