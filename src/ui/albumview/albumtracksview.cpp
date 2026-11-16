@@ -1,5 +1,10 @@
 #include "albumview/albumtracksview.h"
 
+#include <QPointer>
+#include <QScrollBar>
+
+#include "covers/covercache.h"
+
 #include <algorithm>
 #include <functional>
 #include <utility>
@@ -75,6 +80,30 @@ private:
     std::function<void(QTreeWidgetItem *)> m_activate;
 };
 
+// AV-COVER: tells the view that its size or its visibility changed.
+class GeometryFilter : public QObject {
+public:
+    GeometryFilter(std::function<void()> changed, QObject *parent)
+        : QObject(parent)
+        , m_changed(std::move(changed))
+    {
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Resize || event->type() == QEvent::Show)
+            m_changed();
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::function<void()> m_changed;
+};
+
+// AV-COVER: what a heading keeps of the picture it shows (its cache key), so
+// that the same picture is not set twice.
+constexpr int PictureRole = Qt::UserRole + 1;
+
 }
 
 struct AlbumTracksView::Private {
@@ -82,6 +111,9 @@ struct AlbumTracksView::Private {
     QWidget *bar = nullptr; // jumpBar
     QTreeWidget *tree = nullptr;
     QList<AlbumGroup> groups;
+    QPointer<CoverCache> covers; // AV-COVER
+    bool askQueued = false; // AV-COVER: the run that asks for covers is already on its way
+    QList<qsizetype> firstAt; // where each group's first track stands in `shown`
     QList<LibraryTrack> shown; // the tracks the tree was filled from (shared, not copied)
     QHash<qint64, QTreeWidgetItem *> trackRows; // the rows of the albums in the tree
     QList<qint64> announced; // selectedTrackIds() as the listeners last heard it
@@ -182,6 +214,82 @@ struct AlbumTracksView::Private {
             && a.tags.format == b.tags.format && a.tags.audio.durationMs == b.tags.audio.durationMs;
     }
 
+    // AV-COVER: with a cache, every heading is as high as a cover (and its two
+    // lines of text), with or without a picture, so a cover that arrives moves
+    // no row. Without a cache, 0: the row has the height its text gives it.
+    int headingHeight(const QFont &headingFont) const
+    {
+        if (covers.isNull())
+            return 0;
+        const int margin
+            = 2 * (tree->style()->pixelMetric(QStyle::PM_FocusFrameVMargin, nullptr, tree) + 1);
+        const int text = 2 * QFontMetrics(headingFont).lineSpacing() + margin;
+        return std::max(covers->edge() + margin, text);
+    }
+
+    // AV-COVER: the run that asks the cache for the headings in view and sets
+    // the icons it gives. Asked for now, it happens at the next turn of the
+    // event loop, once, however many asks came before it.
+    void askSoon()
+    {
+        if (askQueued || covers.isNull())
+            return;
+        askQueued = true;
+        QMetaObject::invokeMethod(
+            q,
+            [this] {
+                askQueued = false;
+                askForHeadings();
+            },
+            Qt::QueuedConnection);
+    }
+
+    // The icon of one heading, from what the cache has for its album's first
+    // track. A heading keeps the picture it has until the cache has another.
+    void showCoverOf(int group)
+    {
+        QTreeWidgetItem *heading = tree->topLevelItem(group);
+        if (!heading || group >= firstAt.size())
+            return;
+        const LibraryTrack &first = shown.at(firstAt.at(group));
+        const qint64 stamp = first.modified.isValid() ? first.modified.toMSecsSinceEpoch() : 0;
+        const QImage image = covers->cover(first.path, stamp);
+        if (image.isNull()) {
+            // Looked up and has none: no icon. Not kept yet: what is there stays.
+            if (covers->has(first.path, stamp) && !heading->icon(0).isNull()) {
+                heading->setIcon(0, QIcon());
+                heading->setData(0, PictureRole, QVariant());
+            }
+            return;
+        }
+        if (heading->data(0, PictureRole).toLongLong() == image.cacheKey())
+            return;
+        heading->setIcon(0, QIcon(QPixmap::fromImage(image)));
+        heading->setData(0, PictureRole, qint64(image.cacheKey()));
+    }
+
+    // AV-COVER: from the heading at the top of the view downwards, stopping
+    // at the first heading below it. The rows of the other albums are not
+    // looked at, so this costs the same with thousands of albums.
+    void askForHeadings()
+    {
+        if (covers.isNull() || !q->isVisible())
+            return;
+        const QModelIndex top = tree->indexAt(QPoint(0, 0));
+        if (!top.isValid())
+            return;
+        const QModelIndex topLevel = top.parent().isValid() ? top.parent() : top;
+        const int bottom = tree->viewport()->height();
+        const int count = tree->topLevelItemCount();
+        for (int group = topLevel.row(); group < count; ++group) {
+            const QRect at = tree->visualItemRect(tree->topLevelItem(group));
+            if (at.top() >= bottom)
+                break;
+            if (at.bottom() >= 0)
+                showCoverOf(group);
+        }
+    }
+
     // The rows of one album: its heading with the disc and track rows under
     // it, not yet in the tree. The disc and heading rows are added to `spanned`.
     QTreeWidgetItem *albumRows(const AlbumGroup &group, const QList<LibraryTrack> &tracks,
@@ -191,6 +299,8 @@ struct AlbumTracksView::Private {
         ++built;
         heading->setText(0, albumHeading(group) + QLatin1Char('\n') + albumDetail(group));
         heading->setFont(0, headingFont);
+        if (const int height = headingHeight(headingFont))
+            heading->setSizeHint(0, QSize(0, height));
 
         // The rows of the album are made apart and handed over in one call.
         QList<QTreeWidgetItem *> children;
@@ -238,6 +348,7 @@ struct AlbumTracksView::Private {
         };
         const QList<qsizetype> oldAt = starts(oldGroups);
         const QList<qsizetype> newAt = starts(groups);
+        firstAt = newAt;
         const auto same = [&](qsizetype o, qsizetype n) {
             if (oldGroups.at(o) != groups.at(n))
                 return false;
@@ -354,6 +465,14 @@ AlbumTracksView::AlbumTracksView(QWidget *parent)
             d->announce();
     });
 
+    // AV-COVER: the covers are asked for again when the view is scrolled,
+    // resized or shown.
+    connect(
+        d->tree->verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() { d->askSoon(); });
+    auto *geometry = new GeometryFilter([this]() { d->askSoon(); }, this);
+    d->tree->viewport()->installEventFilter(geometry);
+    installEventFilter(geometry);
+
     // AV-ACTIVATE: a double click, or Return or Enter on the current row.
     auto *filter
         = new ActivationFilter(d->tree, [this](QTreeWidgetItem *item) { d->activate(item); }, this);
@@ -401,6 +520,35 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
     d->tree->scrollToTop();
     d->quiet = false;
     d->announce();
+    d->askSoon(); // AV-COVER: at the next turn of the event loop, not here
+}
+
+void AlbumTracksView::setCoverCache(CoverCache *cache)
+{
+    if (d->covers.data() == cache)
+        return;
+    if (d->covers)
+        QObject::disconnect(d->covers.data(), nullptr, this, nullptr);
+    d->covers = cache;
+    if (!cache) {
+        d->tree->setIconSize(QSize());
+        return;
+    }
+    d->tree->setIconSize(QSize(cache->edge(), cache->edge()));
+    // The headings that are there are made as high as a cover (a one-off walk).
+    QFont headingFont = d->tree->font();
+    headingFont.setBold(true);
+    const int height = d->headingHeight(headingFont);
+    for (int g = 0; g < d->tree->topLevelItemCount(); ++g)
+        d->tree->topLevelItem(g)->setSizeHint(0, QSize(0, height));
+    // AV-COVER: a file the cache has now kept: the headings are looked at again.
+    connect(cache, &CoverCache::loaded, this, [this]() { d->askSoon(); });
+    d->askSoon();
+}
+
+CoverCache *AlbumTracksView::coverCache() const
+{
+    return d->covers.data();
 }
 
 QList<AlbumGroup> AlbumTracksView::groups() const

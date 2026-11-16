@@ -12,6 +12,7 @@
 #include <QTreeView>
 
 #include "albumview/albumtracksview.h"
+#include "covers/covercache.h"
 #include "library/albumgroups.h"
 #include "shell/libraryshell.h"
 #include "tracklist/tracklistmodel.h"
@@ -245,6 +246,8 @@ AlbumViewing::AlbumViewing(LibraryShell *shell, QSettings *settings, QObject *pa
     // AV-SHELL: the view and the combo box go into the page: the combo box at
     // the top, the view directly after the plain list.
     d->view = new AlbumTracksView(d->page);
+    // AV-COVER: a cache of its own, with the default edge, for as long as this lives.
+    d->view->setCoverCache(new CoverCache(64, { }, this));
     d->combo = new QComboBox(d->page);
     d->combo->setObjectName(QStringLiteral("mainViewCombo"));
     d->combo->addItem(tr("Album and Tracks"));
