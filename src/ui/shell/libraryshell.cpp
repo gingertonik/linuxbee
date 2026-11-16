@@ -173,23 +173,29 @@ QList<qint64> LibraryShell::selectedTrackIds() const
 
 QStringList LibraryShell::selectedPaths() const
 {
+    // SH-PATHS: from the held tracks, found by id; no track is read.
+    QHash<qint64, QString> pathOf;
+    pathOf.reserve(d->kept.size());
+    for (const LibraryTrack &track : std::as_const(d->kept))
+        pathOf.insert(track.id, track.path);
     QStringList out;
-    for (const qint64 id : selectedTrackIds()) {
-        const auto track = d->library->track(id);
-        out.append(track ? track->path : QString());
-    }
+    for (const qint64 id : selectedTrackIds())
+        out.append(pathOf.value(id));
     return out;
 }
 
 QStringList LibraryShell::shownPaths() const
 {
+    // SH-PATHS: from the held tracks, found by id; no track is read.
+    QHash<qint64, QString> pathOf;
+    pathOf.reserve(d->kept.size());
+    for (const LibraryTrack &track : std::as_const(d->kept))
+        pathOf.insert(track.id, track.path);
     QStringList out;
     const int rows = d->model->rowCount();
     out.reserve(rows);
-    for (int row = 0; row < rows; ++row) {
-        const auto track = d->library->track(d->model->trackId(row));
-        out.append(track ? track->path : QString());
-    }
+    for (int row = 0; row < rows; ++row)
+        out.append(pathOf.value(d->model->trackId(row)));
     return out;
 }
 
