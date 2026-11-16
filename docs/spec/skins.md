@@ -185,10 +185,102 @@ mistake: no or an unknown subcommand, no file or more than one.
   and the file's name without its folder. Later plans add lines of their
   own below it.
 
+## SC-LIST: the skins on offer
+
+`SkinChoosing(window, actions, applier, folder, hooks)` in
+`src/ui/skins/skinchoosing.h` is the place in the window to choose a
+skin. `folder` is the skins folder.
+
+`skinFiles()` is every file whose name ends in `.xml` (in any case)
+directly in the skins folder or in a folder directly in it, as an
+absolute path. Folders further down are not looked at (MusicBee's wiki,
+"Skins": folders inside the sub-folders are not allowed). Names that
+begin with a dot, files and folders alike, are left out, and so is a
+folder named like a skin. Compiled skins (`.xmlc`) are not offered:
+linuxBee cannot read them.
+
+The order is by the file's name without its ending, case ignored; of
+two with one name, the one directly in the skins folder first, then by
+path.
+
+Speed: listing reads no file. A file that is not a skin at all is
+listed; it is refused when it is chosen. A skins folder that does not
+exist gives an empty list and is not made.
+
+## SC-CHOOSE
+
+`choose()`:
+
+- with no skin on offer it asks nothing, says
+  `There are no skins yet. Add one with View > Skins > Add Skin…` and
+  returns false;
+- else it asks `chooseSkin(skinFiles(), applier->currentFile())` once. No
+  answer: false, nothing changed, the message left as it was;
+- the answer is given to `SkinApplier::apply`, once. Applied: true, and
+  the message `Skin: NAME`. Refused: false, nothing changed (SK-APPLY),
+  and the message `Could not use the skin NAME: REASON`, REASON being the
+  applier's `lastError()`.
+
+NAME is the file's name without its folder and its ending.
+
+## SC-NONE
+
+`none()` goes back to linuxBee's own look (`SkinApplier::clear`), says
+`Skin: none` and returns true. With no skin in use it does nothing and
+returns false.
+
+## SC-ADD
+
+`add()` takes a skin file from anywhere into the skins folder and uses
+it. It asks `chooseFile()`; no answer: false, nothing changed, the
+message left as it was. It refuses, with false, nothing copied, no
+folder made, the look untouched and the message
+`Could not add the skin NAME: REASON`:
+
+| When | REASON |
+|---|---|
+| the name ends in `.xmlc` (any case) | `linuxBee cannot read compiled skins (.xmlc)` |
+| the name does not end in `.xml` (any case) | `a skin file ends in .xml` |
+| the file cannot be read, or is not a skin (SK-READ) | what the reading said |
+| the skins folder, or a folder directly in it, has a file of that name (case ignored), the file itself included | `there is a skin of that name already` |
+| the copy failed | `the file could not be copied` |
+
+Otherwise the skins folder is made if it is missing and the file is
+copied into it under its own name (copied: the original stays). When
+the skin names a file it is laid over (`dependsOn`), and a file of that
+name is beside the original, and the skins folder has none of that name,
+that file is copied too, whether linuxBee can read it or not. Nothing
+else is copied. Then the skin is used as SC-CHOOSE uses it, and the
+message is `Added the skin NAME`.
+
+## SC-MESSAGE
+
+Every message goes to the window's status bar and is kept as
+`lastMessage()`.
+
+## SC-WIRING
+
+Constructing the object implements the commands `view.skins.choose`
+(`choose()`), `view.skins.add` (`add()`) and `view.skins.none`
+(`none()`), which the catalogue lists under View > Skins as
+`Choose Skin…`, `Add Skin…` and `No Skin`. Destroying it frees them.
+
+Without hooks: `chooseSkin` is a choice among the names (NAME as above,
+with the folder's name before it for a skin one folder down), the one in
+use chosen to start with; `chooseFile` is the window's file dialog.
+
+## SC-MAIN
+
+`src/app/main.cpp` additionally creates a `SkinChoosing` over the window,
+the registry and the `SkinApplier` of SK-MAIN, with the folder `skins` in
+the data folder and the default hooks. Starting makes no folder.
+(`--commands` then lists the three commands; `--parts` is unchanged.)
+
 ## Not in this version
 
-- A place in the window to choose a skin. Until there is one,
-  `appearance/skin` in `linuxbee.ini` is set by hand to the file's path.
+- A list of skins in the View menu itself, a skin chooser in the
+  preferences, `Random Skin` and `Skin Window Borders` (the owner's
+  menu, seen): choosing is a question in a dialog (SC-CHOOSE).
 - Compiled skins (`.xmlc`), and so the base of most of the skins a
   MusicBee install ships (F-DEP): of those, only what the small file on
   top says is used.
@@ -200,6 +292,12 @@ mistake: no or an unknown subcommand, no file or more than one.
 - A separate colour set per panel.
 
 ## Open parity questions
+
+| Rule | Question |
+|---|---|
+| SC-LIST | Whether MusicBee's list shows a skin by its file's name or by a name inside the file, and how it orders folders. |
+| SC-ADD | Whether MusicBee's `Add Skin...` copies the file, takes what it is laid over along, and switches to the skin at once (all three taken as yes). |
+| SC-MAIN | Where the owner's skin files are to live; MusicBee's own `Skins` folder is never read or written by linuxBee. |
 
 | Rule | Question for someone with MusicBee |
 |---|---|
