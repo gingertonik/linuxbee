@@ -58,6 +58,7 @@ struct Rig {
         , settings(dir.path() + QStringLiteral("/s.ini"), QSettings::IniFormat)
         , window(&actions, &settings)
     {
+        qputenv("XDG_DATA_HOME", QFile::encodeName(dir.path() + QStringLiteral("/xdg-data"))); // a trash of this test's own
         made(QStringLiteral("music"));
         a = put("tags/basic.flac", "music/a.flac");
         b = put("tags/basic.m4a", "music/b.m4a");
