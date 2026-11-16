@@ -82,6 +82,7 @@ struct AlbumTracksView::Private {
     QList<AlbumGroup> groups;
     QHash<qint64, QTreeWidgetItem *> trackRows; // rebuilt with the tree
     QList<qint64> announced; // selectedTrackIds() as the listeners last heard it
+    int built = 0; // AV-VIEW: the headings built
     int fills = 0; // AV-VIEW: the calls of setTracks, each of which built the rows
     // True while the view itself moves the selection, so that the tree's
     // signal is not read back as the user's choice.
@@ -182,6 +183,7 @@ struct AlbumTracksView::Private {
         for (int g = 0; g < groups.size(); ++g) {
             const AlbumGroup &group = groups.at(g);
             auto *heading = new QTreeWidgetItem(tree);
+            ++built;
             heading->setText(0, albumHeading(group) + QLatin1Char('\n') + albumDetail(group));
             heading->setFont(0, headingFont);
             heading->setData(0, ValueRole, g);
@@ -326,6 +328,11 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
 QList<AlbumGroup> AlbumTracksView::groups() const
 {
     return d->groups;
+}
+
+int AlbumTracksView::albumsBuilt() const
+{
+    return d->built;
 }
 
 int AlbumTracksView::fills() const

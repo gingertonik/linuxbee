@@ -104,6 +104,22 @@ QList<LibraryTrack> sortedForAlbums(const QList<LibraryTrack> &tracks, const Sor
     return sorted;
 }
 
+struct AlbumOrder::Private {
+    SortOptions options;
+};
+
+AlbumOrder::AlbumOrder(const SortOptions &options)
+    : d(new Private { options })
+{
+}
+
+AlbumOrder::~AlbumOrder() = default;
+
+QList<LibraryTrack> AlbumOrder::sorted(const QList<LibraryTrack> &tracks)
+{
+    return sortedForAlbums(tracks, d->options); // stub: nothing is kept
+}
+
 QList<AlbumGroup> albumGroups(const QList<LibraryTrack> &tracksInOrder)
 {
     QList<AlbumGroup> groups;

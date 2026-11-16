@@ -36,6 +36,19 @@ are the same year). Each key compares by
 track-list.md, T-COMPARE; a blank value comes last. Tracks that tie on
 every key are in order of path.
 
+`AlbumOrder` is that order, kept between calls, for a caller that asks
+again and again as tracks change. `AlbumOrder(options).sorted(tracks)`
+returns what `sortedForAlbums(tracks, options)` returns, the tracks
+as they were given in this call. It remembers, for each track id
+given, the text of each key and the path. In the next call it prepares
+values (track-list.md, T-PREPARED) only for a track that is new to it,
+or one of whose key texts or whose path is other than remembered: at
+most six values for each such track, and none for any other. A track
+that was not given in a call is forgotten. It calls
+`compareFieldValues` not once. (Not locked, and wanted: tracks that
+did not change are not sorted again among themselves; the changed ones
+are put in among them.)
+
 ## AV-GROUPS: albums
 
 `albumGroups(tracksInOrder)` cuts the list, in the order given, into
@@ -115,6 +128,22 @@ row shown, wherever the view was scrolled to before. (A view that is
 not filled, because the same tracks fill nothing (AV-FILL), keeps its
 place.)
 
+One change, one album. `setTracks` builds rows only for albums that
+differ from what the tree holds. An album is as it was when its group
+equals the old group (`AlbumGroup`, every member) and each of its
+tracks has the same id, path, tags, format and length as before; a
+change that is in none of those (a play count) leaves it as it was.
+The albums at the head of the list that are as they were, and after
+those the albums at the tail that are as they were, keep their rows:
+nothing of theirs is made again. At most the albums between are
+built. A heading that is kept still stands for its place among the
+albums now (`currentGroup`, `albumActivated`, AV-SELECT). The tree
+after the call reads, row for row, as one filled afresh with the same
+tracks, and the selection is kept as before. `albumsBuilt()` is the
+number of headings built, with their rows, since the view was made; a
+first fill of N albums adds N, and a fill with the same tracks adds 0
+(it is still a fill: `fills()` counts it, and the view shows its top).
+
 Speed. The headings and disc lines are made to span the columns in one
 pass after the last heading is in the tree, never album by album while
 the tree is still being built: done one by one, that costs more with
@@ -182,6 +211,10 @@ What the view shows, in mode `albums`: the tracks the track list's model
 holds (after the navigator's node, a browser's narrowing and the search
 box have had their say), put in order by `sortedForAlbums`. The order
 the plain list is sorted in is not touched.
+
+The order is one `AlbumOrder` that this object keeps for as long as it
+lives, so a fill after one track changed prepares that track's keys at
+most, and none when no key of it changed.
 
 **AV-FILL: one fill for many changes.** A change of the model or of the
 node's tracks does not fill the view; it makes it stale. A stale view is

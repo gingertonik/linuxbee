@@ -23,6 +23,7 @@ public:
     QList<AlbumGroup> groups() const;
     int fills() const; // AV-VIEW: how often setTracks has built the rows
 
+    int albumsBuilt() const; // AV-VIEW: the headings built, with their rows, since the view was made
     QList<qint64> selectedTrackIds() const; // AV-SELECT; in the order shown
     void selectTracks(const QList<qint64> &ids);
 
