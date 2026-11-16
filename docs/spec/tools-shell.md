@@ -21,7 +21,7 @@ tag-editor.md, organise-dialog.md, convert-dialog.md and preferences.md.
 
 ## TS-COMMANDS
 
-The shell implements four commands while it exists:
+The shell implements six commands while it exists:
 
 | Command | Opens |
 |---|---|
@@ -29,6 +29,8 @@ The shell implements four commands while it exists:
 | `file.organise` | the organiser (TS-ORGANISE) |
 | `tools.convert` | the converter (TS-CONVERT) |
 | `edit.preferences` | the preferences (TS-PREFERENCES) |
+| `tools.tagging.searchReplace` | the tagging-tool dialog with the search and replace panel (TS-TOOLS) |
+| `tools.tagging.capitalise` | the tagging-tool dialog with the capitalise panel (TS-TOOLS) |
 
 Each creates its dialog with the main window as parent, connects to it,
 hands it to the presenter, and destroys it when the presenter returns.
@@ -36,7 +38,7 @@ The presenter is `QDialog::exec()` unless another was given.
 
 ## TS-SELECTION
 
-The first three work on the library shell's selected tracks, in the order
+All but the preferences work on the library shell's selected tracks, in the order
 shown. With nothing selected no dialog is made and the message is
 `Select one or more tracks first`.
 
@@ -50,6 +52,18 @@ When the editor reports files saved, the library reads each of those
 tracks again (`Library::refresh`), and the message is
 `Saved tags of N tracks` (`1 track`). A dialog that is closed without
 saving changes nothing and gives no message.
+
+## TS-TOOLS
+
+A tagging tool is `TagToolDialog` (tag-tools-dialog.md) with that
+tool's panel, one target per selected track as TS-TAGS makes them, and
+the shell's settings, so that the options are remembered (TT-REMEMBER).
+It saves with its default saver.
+
+When the dialog reports files saved, the library reads each of those
+tracks again (`Library::refresh`), once each and no other track, and
+the message is that of TS-TAGS. A dialog that is closed without
+applying changes nothing and gives no message.
 
 ## TS-ORGANISE
 
@@ -109,7 +123,7 @@ Every message goes to the window's status bar and is kept as
 
 - Adding converted files to the library, or offering to.
 - Preferences pages other than Hotkeys (other plans add theirs).
-- The tagging tools (capitalise, search and replace, renumber, infer from
+- The other tagging tools (remove tags, renumber, infer from
   file name), auto-tagging, volume analysis and the library import
   dialog: their core parts exist as plans; their windows do not.
 - Opening the dialogs without blocking the window.
