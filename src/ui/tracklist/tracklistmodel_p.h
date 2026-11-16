@@ -1,6 +1,7 @@
 #pragma once
 
 #include "search/search.h"
+#include "sort/fieldsort.h"
 #include "tracklist/tracklistmodel.h"
 
 #include <QHash>
@@ -11,61 +12,136 @@ namespace linuxbee::ui {
 // The state behind TrackListModel, shared by tracklistmodel.cpp (changes and
 // the Qt model overrides) and tracklistorder.cpp (sorting and filtering).
 struct TrackListModel::Private {
-    QList<LibraryTrack> tracks; // every track, in the order they were given
-    QList<SearchCache> caches; // S-CACHE: one for each track, at the same index as in tracks
-    QList<int> order; // indexes into tracks: every track, in the order the keys give
-    QHash<qint64, int> positionOf; // track id -> index into tracks
+    struct SortKey {
+        QString field;
+        bool descending = false;
+    };
+
+    // One track, with what is kept beside it.
+    struct Entry {
+        LibraryTrack track;
+        SearchCache cache; // S-CACHE: emptied when the track is replaced
+        QList<PreparedValue>
+            keys; // T-ROWS: the sort keys in force, prepared; none in the given order
+        qint64 seq = 0; // the place in the order given: a replaced track keeps it
+        bool live = false; // false for a slot that is free
+        bool shown = false; // has a row
+    };
+
+    // What a comparison of two tracks reads. The pointers outlive the call.
+    struct Place {
+        const QList<PreparedValue> *keys;
+        const QString *path;
+        qint64 seq;
+    };
+
+    // Tracks live in `held` at numbers (slots) that do not change while the
+    // track is held, so a removal moves no other track's slot and rebuilds
+    // no index.
+    QList<Entry> held;
+    QList<int> freeSlots;
+    QHash<qint64, int> slotOf; // track id -> slot
+    qint64 nextSeq = 0;
     QStringList columns;
     QStringList sortFields;
-    bool givenOrder = false; // T-GIVEN: show `tracks` as they are, the keys decide nothing
+    QList<SortKey> sortKeys; // sortFields, taken apart
+    bool givenOrder = false; // T-GIVEN: show the tracks as given, the keys decide nothing
     SearchQuery filter;
-    QList<int> shown; // indexes into tracks, in the order shown
-    QHash<qint64, int> rowOf; // track id -> row in shown
+    QList<int> order; // slots: every track, in the order the keys (or the order given) give
+    QList<int> shown; // slots, in the order shown: the rows
     qint64 shownBytes = 0;
     qint64 shownMs = 0;
 
-    // Adds the track, or replaces the one with its id.
-    void put(const LibraryTrack &track)
+    const LibraryTrack &trackAt(int slot) const { return held.at(slot).track; }
+
+    void setSortFields(const QStringList &fields)
     {
-        const auto found = positionOf.constFind(track.id);
-        if (found != positionOf.constEnd()) {
-            tracks[found.value()] = track;
-            caches[found.value()] = SearchCache(); // the track changed: what was folded goes
-            return;
+        sortFields = fields;
+        sortKeys.clear();
+        for (const QString &name : std::as_const(fields)) {
+            const bool descending = name.startsWith(QLatin1Char('-'));
+            sortKeys.append(SortKey { descending ? name.mid(1) : name, descending });
         }
-        positionOf.insert(track.id, int(tracks.size()));
-        tracks.append(track);
-        caches.append(SearchCache());
     }
 
-    void removeIds(const QSet<qint64> &ids)
+    int allocate()
     {
-        QList<LibraryTrack> kept;
-        QList<SearchCache> keptCaches;
-        for (int i = 0; i < tracks.size(); ++i) {
-            if (!ids.contains(tracks.at(i).id)) {
-                kept.append(tracks.at(i));
-                keptCaches.append(std::move(caches[i])); // carried along with its track
-            }
-        }
-        tracks = kept;
-        caches = keptCaches;
-        positionOf.clear();
-        for (int i = 0; i < tracks.size(); ++i)
-            positionOf.insert(tracks.at(i).id, i);
+        if (!freeSlots.isEmpty())
+            return freeSlots.takeLast();
+        held.append(Entry());
+        return int(held.size()) - 1;
     }
 
-    // Sorts every track into order (the keys, or the order given). Defined in
-    // tracklistorder.cpp.
-    void sortAll();
-    // Filters order into shown, rowOf, shownBytes and shownMs. Sorts nothing and
-    // prepares no value; folds only what the caches do not have. Defined in
-    // tracklistorder.cpp.
+    void release(int slot)
+    {
+        slotOf.remove(held.at(slot).track.id);
+        held[slot] = Entry();
+        freeSlots.append(slot);
+    }
+
+    // The sort keys of one track, prepared. None in the given order.
+    QList<PreparedValue> prepareKeys(const LibraryTrack &track) const;
+
+    // Adds the track, or replaces the one with its id (keeping its place in
+    // the order given). Touches neither `order` nor `shown`. Returns the slot.
+    int put(const LibraryTrack &track, bool prepare)
+    {
+        const auto found = slotOf.constFind(track.id);
+        int slot = 0;
+        if (found != slotOf.constEnd()) {
+            slot = found.value();
+        } else {
+            slot = allocate();
+            slotOf.insert(track.id, slot);
+            held[slot].seq = nextSeq++;
+            held[slot].live = true;
+        }
+        Entry &entry = held[slot];
+        entry.track = track;
+        entry.cache = SearchCache(); // the track changed: what was folded goes
+        entry.keys = prepare ? prepareKeys(track) : QList<PreparedValue>();
+        return slot;
+    }
+
+    Place placeOf(int slot) const
+    {
+        const Entry &entry = held.at(slot);
+        return Place { &entry.keys, &entry.track.path, entry.seq };
+    }
+
+    // True when `a` comes before `b`: the keys, then the path, then the order given.
+    bool before(const Place &a, const Place &b) const;
+
+    // Where `place` goes in `list` (`order` or `shown`, both in order), by
+    // binary search over the kept keys. With `skip` >= 0 the entry at that
+    // index is left out, and the answer is an index in the list without it.
+    int lowerBound(const QList<int> &list, const Place &place, int skip) const;
+
+    // The index of a slot in `order`, and its row (-1 when not shown).
+    int orderIndexOf(int slot) const { return lowerBound(order, placeOf(slot), -1); }
+    int rowFor(int slot) const
+    {
+        return held.at(slot).shown ? lowerBound(shown, placeOf(slot), -1) : -1;
+    }
+
+    // Whether the filter accepts the track as it is; folds into `cache`.
+    bool accepts(const LibraryTrack &track, SearchCache *cache) const;
+
+    // Prepares the keys of every track (nothing in the given order). Defined
+    // in tracklistorder.cpp.
+    void prepareAll();
+    // Puts every track in order by the keys kept: prepares nothing, compares
+    // prepared values only. Defined in tracklistorder.cpp.
+    void sortKept();
+    // Filters order into shown, the rows' flags, shownBytes and shownMs. Sorts
+    // nothing and prepares no value; folds only what the caches do not have.
+    // Defined in tracklistorder.cpp.
     void refilter();
-    // Both, for every change but the filter's own.
+    // All three, for a change of the keys or of every track.
     void reorder()
     {
-        sortAll();
+        prepareAll();
+        sortKept();
         refilter();
     }
 };
