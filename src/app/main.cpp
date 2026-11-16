@@ -32,6 +32,7 @@
 #include "shell/playlistediting.h"
 #include "shell/toolsshell.h"
 #include "skins/skinapplier.h"
+#include "skins/skinchoosing.h"
 
 // W-MAIN (docs/spec/main-window.md): the settings file linuxbee.ini in the
 // user's configuration folder, an ActionRegistry loaded from it, a MainWindow,
@@ -136,6 +137,12 @@ int main(int argc, char *argv[])
     linuxbee::ui::SkinApplier skinApplier(&application, &settings);
 
     linuxbee::ui::MainWindow window(&registry, &settings);
+
+    // SC-MAIN (docs/spec/skins.md): View > Skins, over the window, the registry and the applier,
+    // with the folder `skins` in the data folder (made when a skin is added, not here).
+    linuxbee::ui::SkinChoosing skinChoosing(&window, &registry, &skinApplier,
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+            + QStringLiteral("/skins"));
 
     // SH-MAIN: the choosers start in the user's music folder; `now` is UTC.
     const QString startDir = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
