@@ -20,6 +20,7 @@
 #include <QMouseEvent>
 #include <QSet>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -104,6 +105,32 @@ private:
 // that the same picture is not set twice.
 constexpr int PictureRole = Qt::UserRole + 1;
 
+// AV-COVER, The cover's space: with a cache, the first column of every
+// heading (a top-level row) has a decoration as wide and as high as a cover,
+// whether or not it has a picture, so Qt lays the text out after that space
+// and draws a smaller or not square picture inside it. A heading without a
+// picture has no icon: its space stays empty (the heading's own background).
+// Without a cache (or once it is destroyed) there is no space.
+class HeadingSpaceDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void setCache(CoverCache *cache) { m_cache = cache; }
+
+protected:
+    void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const override
+    {
+        QStyledItemDelegate::initStyleOption(option, index);
+        if (m_cache.isNull() || index.column() != 0 || index.parent().isValid())
+            return;
+        option->features |= QStyleOptionViewItem::HasDecoration;
+        option->decorationSize = QSize(m_cache->edge(), m_cache->edge());
+    }
+
+private:
+    QPointer<CoverCache> m_cache;
+};
+
 }
 
 struct AlbumTracksView::Private {
@@ -112,6 +139,7 @@ struct AlbumTracksView::Private {
     QTreeWidget *tree = nullptr;
     QList<AlbumGroup> groups;
     QPointer<CoverCache> covers; // AV-COVER
+    HeadingSpaceDelegate *space = nullptr; // AV-COVER: the cover's space on every heading
     bool askQueued = false; // AV-COVER: the run that asks for covers is already on its way
     QList<qsizetype> firstAt; // where each group's first track stands in `shown`
     QList<LibraryTrack> shown; // the tracks the tree was filled from (shared, not copied)
@@ -225,6 +253,20 @@ struct AlbumTracksView::Private {
             = 2 * (tree->style()->pixelMetric(QStyle::PM_FocusFrameVMargin, nullptr, tree) + 1);
         const int text = 2 * QFontMetrics(headingFont).lineSpacing() + margin;
         return std::max(covers->edge() + margin, text);
+    }
+
+    // AV-COVER: the cache is gone: every heading loses its picture and what it
+    // remembered of it (so that a later cache giving the same picture sets it
+    // again), and the view is drawn again without the space. A one-off walk.
+    void dropCovers()
+    {
+        space->setCache(nullptr);
+        for (int g = 0; g < tree->topLevelItemCount(); ++g) {
+            QTreeWidgetItem *heading = tree->topLevelItem(g);
+            heading->setIcon(0, QIcon());
+            heading->setData(0, PictureRole, QVariant());
+        }
+        tree->viewport()->update();
     }
 
     // AV-COVER: the run that asks the cache for the headings in view and sets
@@ -423,6 +465,8 @@ AlbumTracksView::AlbumTracksView(QWidget *parent)
     d->tree->setExpandsOnDoubleClick(false);
     d->tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     d->tree->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    d->space = new HeadingSpaceDelegate(d->tree);
+    d->tree->setItemDelegate(d->space);
     QHeaderView *header = d->tree->header();
     header->setStretchLastSection(false);
     // AV-VIEW, Speed: no column is sized to its contents, because that measures
@@ -532,9 +576,13 @@ void AlbumTracksView::setCoverCache(CoverCache *cache)
     d->covers = cache;
     if (!cache) {
         d->tree->setIconSize(QSize());
+        d->dropCovers();
         return;
     }
     d->tree->setIconSize(QSize(cache->edge(), cache->edge()));
+    d->space->setCache(cache);
+    // AV-COVER: when the cache is destroyed, the headings lose their covers and the space at once.
+    connect(cache, &QObject::destroyed, this, [this]() { d->dropCovers(); });
     // The headings that are there are made as high as a cover (a one-off walk).
     QFont headingFont = d->tree->font();
     headingFont.setBold(true);
