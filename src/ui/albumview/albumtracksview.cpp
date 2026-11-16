@@ -1,5 +1,6 @@
 #include "albumview/albumtracksview.h"
 
+#include <algorithm>
 #include <functional>
 #include <utility>
 
@@ -23,8 +24,9 @@ namespace linuxbee::ui {
 
 namespace {
 
-// What a row carries in this role: a heading, the position of its group; a
-// track row, the id of its track. A disc row carries nothing.
+// What a row carries in this role: a track row, the id of its track. A
+// heading carries nothing: its place is its place in the tree. A disc row
+// carries nothing.
 constexpr int ValueRole = Qt::UserRole;
 
 QString firstValue(const LibraryTrack &track, const QString &field)
@@ -80,8 +82,10 @@ struct AlbumTracksView::Private {
     QWidget *bar = nullptr; // jumpBar
     QTreeWidget *tree = nullptr;
     QList<AlbumGroup> groups;
-    QHash<qint64, QTreeWidgetItem *> trackRows; // rebuilt with the tree
+    QList<LibraryTrack> shown; // the tracks the tree was filled from (shared, not copied)
+    QHash<qint64, QTreeWidgetItem *> trackRows; // the rows of the albums in the tree
     QList<qint64> announced; // selectedTrackIds() as the listeners last heard it
+    int built = 0; // AV-VIEW: the headings built
     int fills = 0; // AV-VIEW: the calls of setTracks, each of which built the rows
     // True while the view itself moves the selection, so that the tree's
     // signal is not read back as the user's choice.
@@ -91,11 +95,11 @@ struct AlbumTracksView::Private {
     // heading, in the order shown and each once.
     QList<qint64> selectedIds() const
     {
-        QSet<int> headings;
+        QSet<const QTreeWidgetItem *> headings;
         QSet<qint64> tracks;
         for (const QTreeWidgetItem *item : tree->selectedItems()) {
             if (!item->parent())
-                headings.insert(item->data(0, ValueRole).toInt());
+                headings.insert(item);
             else
                 tracks.insert(item->data(0, ValueRole).toLongLong());
         }
@@ -104,7 +108,7 @@ struct AlbumTracksView::Private {
             return ids;
         QSet<qint64> seen;
         for (int g = 0; g < groups.size(); ++g) {
-            const bool whole = headings.contains(g);
+            const bool whole = headings.contains(tree->topLevelItem(g));
             for (const qint64 id : groups.at(g).trackIds) {
                 if ((whole || tracks.contains(id)) && !seen.contains(id)) {
                     seen.insert(id);
@@ -130,7 +134,7 @@ struct AlbumTracksView::Private {
     void activate(QTreeWidgetItem *item)
     {
         if (!item->parent())
-            emit q->albumActivated(item->data(0, ValueRole).toInt());
+            emit q->albumActivated(tree->indexOfTopLevelItem(item));
         else if (item->flags() & Qt::ItemIsSelectable)
             emit q->trackActivated(item->data(0, ValueRole).toLongLong());
     }
@@ -168,57 +172,128 @@ struct AlbumTracksView::Private {
         return row;
     }
 
-    // AV-VIEW: the tree, from the groups of these tracks.
+    // AV-VIEW, One change, one album: what an album's rows show is the same
+    // when its group is equal and each track has the id, path, tags, format
+    // and length it had. The tags are Qt containers that share their data, so
+    // tracks that were not touched compare equal without a look at the text.
+    static bool sameRows(const LibraryTrack &a, const LibraryTrack &b)
+    {
+        return a.id == b.id && a.path == b.path && a.tags.fields == b.tags.fields
+            && a.tags.format == b.tags.format && a.tags.audio.durationMs == b.tags.audio.durationMs;
+    }
+
+    // The rows of one album: its heading with the disc and track rows under
+    // it, not yet in the tree. The disc and heading rows are added to `spanned`.
+    QTreeWidgetItem *albumRows(const AlbumGroup &group, const QList<LibraryTrack> &tracks,
+        qsizetype first, const QFont &headingFont, QList<QTreeWidgetItem *> *spanned)
+    {
+        auto *heading = new QTreeWidgetItem;
+        ++built;
+        heading->setText(0, albumHeading(group) + QLatin1Char('\n') + albumDetail(group));
+        heading->setFont(0, headingFont);
+
+        // The rows of the album are made apart and handed over in one call.
+        QList<QTreeWidgetItem *> children;
+        spanned->append(heading);
+        int nextDisc = 0;
+        for (int i = 0; i < group.trackIds.size(); ++i) {
+            const LibraryTrack &track = tracks.at(first + i);
+            if (nextDisc < group.discStarts.size() && group.discStarts.at(nextDisc) == i) {
+                auto *disc = new QTreeWidgetItem;
+                disc->setText(0,
+                    AlbumTracksView::tr("Disc %1").arg(firstValue(track, QStringLiteral("Disc#"))));
+                disc->setFlags(Qt::ItemIsEnabled); // it cannot be selected
+                children.append(disc);
+                spanned->append(disc);
+                ++nextDisc;
+            }
+            QTreeWidgetItem *row = trackRow(track);
+            trackRows.insert(track.id, row);
+            children.append(row);
+        }
+        heading->addChildren(children);
+        return heading;
+    }
+
+    // AV-VIEW: the tree, from the groups of these tracks. The albums at the
+    // head and at the tail that are as they were keep their rows; the albums
+    // between are taken out and built again.
     void fill(const QList<LibraryTrack> &tracks)
     {
-        tree->clear();
-        trackRows.clear();
+        const QList<AlbumGroup> oldGroups = groups;
+        const QList<LibraryTrack> oldTracks = shown;
         groups = albumGroups(tracks);
+        shown = tracks;
 
+        // Where each album's first track stands in the old and the new list.
+        const auto starts = [](const QList<AlbumGroup> &list) {
+            QList<qsizetype> at;
+            at.reserve(list.size());
+            qsizetype first = 0;
+            for (const AlbumGroup &group : list) {
+                at.append(first);
+                first += group.trackIds.size();
+            }
+            return at;
+        };
+        const QList<qsizetype> oldAt = starts(oldGroups);
+        const QList<qsizetype> newAt = starts(groups);
+        const auto same = [&](qsizetype o, qsizetype n) {
+            if (oldGroups.at(o) != groups.at(n))
+                return false;
+            for (qsizetype i = 0; i < groups.at(n).trackIds.size(); ++i) {
+                if (!sameRows(oldTracks.at(oldAt.at(o) + i), tracks.at(newAt.at(n) + i)))
+                    return false;
+            }
+            return true;
+        };
+        const qsizetype oldCount = oldGroups.size();
+        const qsizetype newCount = groups.size();
+        const qsizetype most = std::min(oldCount, newCount);
+        qsizetype head = 0;
+        while (head < most && same(head, head))
+            ++head;
+        qsizetype tail = 0;
+        while (head + tail < most && same(oldCount - 1 - tail, newCount - 1 - tail))
+            ++tail;
+
+        // The albums between, in the old tree, are taken out.
+        const qsizetype goneEnd = oldCount - tail;
+        if (head < goneEnd) {
+            for (qsizetype g = head; g < goneEnd; ++g) {
+                for (const qint64 id : oldGroups.at(g).trackIds)
+                    trackRows.remove(id);
+            }
+            if (head == 0 && tail == 0) {
+                tree->clear();
+            } else {
+                for (qsizetype g = goneEnd; g > head; --g)
+                    delete tree->takeTopLevelItem(int(head));
+            }
+        }
+
+        // The albums between, in the new list, are built and put in at once.
         QFont headingFont = tree->font();
         headingFont.setBold(true);
-        qsizetype first = 0; // where the group's first track stands in `tracks`
-        QList<QTreeWidgetItem *> spanned; // the headings and disc rows
-        for (int g = 0; g < groups.size(); ++g) {
-            const AlbumGroup &group = groups.at(g);
-            auto *heading = new QTreeWidgetItem(tree);
-            heading->setText(0, albumHeading(group) + QLatin1Char('\n') + albumDetail(group));
-            heading->setFont(0, headingFont);
-            heading->setData(0, ValueRole, g);
-
-            // The rows of the album are made apart and handed over in one call.
-            QList<QTreeWidgetItem *> children;
-            spanned.append(heading);
-            int nextDisc = 0;
-            for (int i = 0; i < group.trackIds.size(); ++i) {
-                const LibraryTrack &track = tracks.at(first + i);
-                if (nextDisc < group.discStarts.size() && group.discStarts.at(nextDisc) == i) {
-                    auto *disc = new QTreeWidgetItem;
-                    disc->setText(0,
-                        AlbumTracksView::tr("Disc %1").arg(
-                            firstValue(track, QStringLiteral("Disc#"))));
-                    disc->setFlags(Qt::ItemIsEnabled); // it cannot be selected
-                    children.append(disc);
-                    spanned.append(disc);
-                    ++nextDisc;
-                }
-                QTreeWidgetItem *row = trackRow(track);
-                trackRows.insert(track.id, row);
-                children.append(row);
-            }
-            heading->addChildren(children);
-            first += group.trackIds.size();
-        }
-        // AV-VIEW, Speed: every heading and disc row is made to span the
-        // columns in one pass, once the tree is built (spanning works only for
-        // items that are in the tree), and then every heading is expanded in
-        // one step, not one by one as each is added.
-        for (QTreeWidgetItem *item : spanned)
+        QList<QTreeWidgetItem *> spanned; // the headings and disc rows built
+        QList<QTreeWidgetItem *> headings;
+        for (qsizetype g = head; g < newCount - tail; ++g)
+            headings.append(albumRows(groups.at(g), tracks, newAt.at(g), headingFont, &spanned));
+        if (headings.isEmpty())
+            return;
+        tree->insertTopLevelItems(int(head), headings);
+        // AV-VIEW, Speed: every heading and disc row built is made to span the
+        // columns in one pass, once they are in the tree (spanning works only
+        // for items that are in the tree), and the headings are expanded in
+        // one step when the whole tree is new, not one by one as each is added.
+        for (QTreeWidgetItem *item : std::as_const(spanned))
             item->setFirstColumnSpanned(true);
-        tree->expandAll();
-        // AV-VIEW: the spans were set while the headings were collapsed, which
-        // capped the vertical scroll value; a fill goes back to the top.
-        tree->scrollToTop();
+        if (head == 0 && tail == 0) {
+            tree->expandAll();
+        } else {
+            for (QTreeWidgetItem *item : std::as_const(headings))
+                item->setExpanded(true);
+        }
     }
 };
 
@@ -318,7 +393,12 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
     d->quiet = true;
     d->fill(tracksInOrder);
     ++d->fills;
-    d->selectRowsOf(keep);
+    // A row that was taken out with its album takes its selection with it.
+    if (d->selectedIds() != keep)
+        d->selectRowsOf(keep);
+    // AV-VIEW: the spans were set while the headings were collapsed, which
+    // capped the vertical scroll value; a fill goes back to the top.
+    d->tree->scrollToTop();
     d->quiet = false;
     d->announce();
 }
@@ -326,6 +406,11 @@ void AlbumTracksView::setTracks(const QList<LibraryTrack> &tracksInOrder)
 QList<AlbumGroup> AlbumTracksView::groups() const
 {
     return d->groups;
+}
+
+int AlbumTracksView::albumsBuilt() const
+{
+    return d->built;
 }
 
 int AlbumTracksView::fills() const
@@ -364,7 +449,7 @@ int AlbumTracksView::currentGroup() const
         return -1;
     // A track or disc row is a child of its heading, which carries the position.
     const QTreeWidgetItem *heading = row->parent() ? row->parent() : row;
-    return heading->data(0, ValueRole).toInt();
+    return d->tree->indexOfTopLevelItem(const_cast<QTreeWidgetItem *>(heading));
 }
 
 }

@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+
 #include <QChar>
 #include <QList>
 #include <QString>
@@ -31,6 +33,22 @@ QStringList albumSortFields();
 // AV-ORDER: the tracks in the order of the view. Nothing is added or dropped.
 QList<LibraryTrack> sortedForAlbums(
     const QList<LibraryTrack> &tracks, const SortOptions &options = { });
+
+// AV-ORDER: the order of the view, kept between calls: what `sortedForAlbums`
+// gives with the options it was made with, preparing values only for tracks
+// that are new to it or whose key texts or path are other than last time.
+class AlbumOrder {
+public:
+    explicit AlbumOrder(const SortOptions &options = { });
+    ~AlbumOrder();
+    AlbumOrder(const AlbumOrder &) = delete;
+    AlbumOrder &operator=(const AlbumOrder &) = delete;
+    QList<LibraryTrack> sorted(const QList<LibraryTrack> &tracks);
+
+private:
+    struct Private;
+    std::unique_ptr<Private> d;
+};
 
 // AV-GROUPS: runs of tracks that follow one another and are of one album.
 QList<AlbumGroup> albumGroups(const QList<LibraryTrack> &tracksInOrder);
