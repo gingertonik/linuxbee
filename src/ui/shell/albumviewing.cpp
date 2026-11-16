@@ -50,6 +50,9 @@ struct AlbumViewing::Private {
     QPointer<AlbumTracksView> view;
     QPointer<QComboBox> combo; // mainViewCombo
     QString mode;
+    // AV-ORDER: the order of the view, kept for as long as this object lives,
+    // so that a fill prepares keys only for tracks that are new or changed.
+    AlbumOrder order;
     // AV-FILL: true while the view is behind what the list holds. A change
     // only sets it; one fill, at the next turn of the event loop or when the
     // view is asked for, makes the view current.
@@ -132,7 +135,7 @@ void AlbumViewing::Private::refill()
         if (found != at.cend())
             shown.append(node.at(found.value()));
     }
-    view->setTracks(sortedForAlbums(shown));
+    view->setTracks(order.sorted(shown));
 }
 
 void AlbumViewing::Private::markStale()

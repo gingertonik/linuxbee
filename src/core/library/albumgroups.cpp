@@ -1,6 +1,10 @@
 #include "library/albumgroups.h"
 
 #include <algorithm>
+#include <iterator>
+
+#include <QHash>
+#include <QMap>
 
 #include "library/artistindex.h"
 #include "search/search.h"
@@ -105,11 +109,25 @@ QList<LibraryTrack> sortedForAlbums(const QList<LibraryTrack> &tracks, const Sor
 }
 
 struct AlbumOrder::Private {
+    // What is remembered of one track: the tags it was last read from (shared,
+    // so that a track whose tags did not change compares equal at once), the
+    // key texts and the path, and the keys prepared from them.
+    struct Entry {
+        QMap<QString, QStringList> fields;
+        QString path;
+        QStringList texts;
+        QList<PreparedValue> keys;
+        quint64 seen = 0; // the call that last gave this track
+    };
+
     SortOptions options;
+    QHash<qint64, Entry> kept;
+    QList<qint64> order; // the ids, in the order the last call gave back
+    quint64 calls = 0;
 };
 
 AlbumOrder::AlbumOrder(const SortOptions &options)
-    : d(new Private { options })
+    : d(new Private { options, { }, { }, 0 })
 {
 }
 
@@ -117,7 +135,122 @@ AlbumOrder::~AlbumOrder() = default;
 
 QList<LibraryTrack> AlbumOrder::sorted(const QList<LibraryTrack> &tracks)
 {
-    return sortedForAlbums(tracks, d->options); // stub: nothing is kept
+    const QStringList fields = albumSortFields();
+    const qsizetype count = tracks.size();
+    const quint64 call = ++d->calls;
+
+    // Per track, as given: its prepared keys, and whether its place among the
+    // others may have changed (new to us, a key text or the path is other).
+    QList<QList<PreparedValue>> keys;
+    keys.reserve(count);
+    QList<char> changed(count, 0);
+    QHash<qint64, qsizetype> at;
+    at.reserve(count);
+    for (qsizetype i = 0; i < count; ++i) {
+        const LibraryTrack &track = tracks.at(i);
+        at.insert(track.id, i);
+        auto found = d->kept.find(track.id);
+        if (found == d->kept.end()) {
+            found = d->kept.insert(track.id, Private::Entry { });
+            changed[i] = 1;
+        } else if (found->seen == call) {
+            changed[i] = 1; // the id is given twice: the later one is looked at afresh
+        } else if (found->path == track.path && found->fields == track.tags.fields) {
+            // Nothing the keys are made from differs: no text is worked out.
+            found->seen = call;
+            keys.append(found->keys);
+            continue;
+        }
+        Private::Entry &entry = *found;
+        const LibraryFieldSource source(track);
+        QStringList texts;
+        texts.reserve(fields.size());
+        for (const QString &field : fields)
+            texts.append(sortKey(track, source, field));
+        if (changed[i] || texts != entry.texts || track.path != entry.path) {
+            entry.keys.clear();
+            entry.keys.reserve(fields.size());
+            for (qsizetype k = 0; k < fields.size(); ++k)
+                entry.keys.append(prepareFieldValue(fields.at(k), texts.at(k), d->options));
+            changed[i] = 1;
+        }
+        entry.texts = texts;
+        entry.path = track.path;
+        entry.fields = track.tags.fields;
+        entry.seen = call;
+        keys.append(entry.keys);
+    }
+    if (at.size() != count)
+        d->order.clear(); // an id given twice: no earlier order to lean on
+    // What was not given is forgotten.
+    if (d->kept.size() != at.size()) {
+        for (auto it = d->kept.begin(); it != d->kept.end();) {
+            if (it->seen != call)
+                it = d->kept.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    // Each key by T-COMPARE, the weightiest first; tracks alike in every key
+    // are in order of path and, failing that, as they were given.
+    const auto before = [&](qsizetype a, qsizetype b) {
+        for (qsizetype k = 0; k < fields.size(); ++k) {
+            const int c = comparePrepared(keys.at(a).at(k), keys.at(b).at(k));
+            if (c != 0)
+                return c < 0;
+        }
+        const QString &pathA = tracks.at(a).path;
+        const QString &pathB = tracks.at(b).path;
+        if (pathA != pathB)
+            return pathA < pathB;
+        return a < b;
+    };
+
+    // The tracks that did not change are in order already, from last time:
+    // only the changed ones are sorted, and put in among them.
+    QList<qsizetype> unchanged;
+    QList<qsizetype> moved;
+    unchanged.reserve(count);
+    for (qsizetype i = 0; i < count; ++i) {
+        if (changed.at(i))
+            moved.append(i);
+    }
+    for (const qint64 id : std::as_const(d->order)) {
+        const auto found = at.constFind(id);
+        if (found != at.cend() && !changed.at(found.value()))
+            unchanged.append(found.value());
+    }
+    QList<qsizetype> result;
+    result.reserve(count);
+    bool merged = unchanged.size() + moved.size() == count;
+    if (merged) {
+        std::sort(moved.begin(), moved.end(), before);
+        std::merge(unchanged.cbegin(), unchanged.cend(), moved.cbegin(), moved.cend(),
+            std::back_inserter(result), before);
+        // The order from last time is only trusted if it still holds (a tie
+        // between tracks given in another order is not one it can know of).
+        for (qsizetype i = 1; i < result.size() && merged; ++i)
+            merged = !before(result.at(i), result.at(i - 1));
+    }
+    if (!merged) {
+        result.clear();
+        for (qsizetype i = 0; i < count; ++i)
+            result.append(i);
+        std::sort(result.begin(), result.end(), before);
+    }
+
+    QList<LibraryTrack> sorted;
+    sorted.reserve(count);
+    d->order.clear();
+    d->order.reserve(count);
+    for (const qsizetype i : std::as_const(result)) {
+        sorted.append(tracks.at(i));
+        d->order.append(tracks.at(i).id);
+    }
+    if (at.size() != count)
+        d->order.clear();
+    return sorted;
 }
 
 QList<AlbumGroup> albumGroups(const QList<LibraryTrack> &tracksInOrder)
