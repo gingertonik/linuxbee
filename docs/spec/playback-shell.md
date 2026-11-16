@@ -36,6 +36,17 @@ When the library shell emits `playRequested(paths, index)`, the queue
 plays those paths now, starting at `index` (`PlayQueue::playNow`). The
 player follows the queue by itself.
 
+## PS-TRASHED
+
+When the library shell emits `filesTrashed(paths)`, those paths leave
+the queue (`PlayQueue::removePaths`). The entry that is current stays
+and the player is told nothing: the track plays to its end from the
+file the player has open, and Next goes on to what is left. A seek in
+it, or playing it again, fails as for any file that has gone
+(player.md, X-ERROR).
+
+"Remove from Library" leaves the file, and leaves the queue alone.
+
 ## PS-NODE
 
 When the navigator reports a node activated (a double-click or Return on

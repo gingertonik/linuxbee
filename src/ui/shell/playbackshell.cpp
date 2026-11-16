@@ -50,6 +50,11 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     connect(libraryShell, &LibraryShell::playRequested, this,
         [this](const QStringList &paths, int index) { d->queue->playNow(paths, index); });
 
+    // PS-TRASHED: files that went to the trash leave the queue, but the one playing. The
+    // player is told nothing.
+    connect(libraryShell, &LibraryShell::filesTrashed, this,
+        [this](const QStringList &paths) { d->queue->removePaths(paths); });
+
     // PS-NODE: a playlist the navigator reports activated is chosen first if it is
     // not on show, then played whole, from its first track, in its own order. An
     // auto-playlist is chosen the same way, and the queue plays the tracks the list
