@@ -53,6 +53,30 @@ restoring it puts it back.
 
 A refusal or a failure does not stop the rest.
 
+## FD-SEND: "it went" is said only when it went
+
+The desktop library's own answer is not enough: it has said "moved"
+for a file that stayed (a folder that cannot be written: the trash got
+a second name for the file and the first could not be taken away), and
+it has written a wrong `Path` for a file reached through a linked
+folder on another disk. So `sendToTrash`, which is what both the
+delete and the organiser call:
+
+1. answers false, and tries nothing, when the folder the file is in
+   cannot be written or cannot be found;
+2. hands the file over by the real path of its folder (every link in
+   the folder's path resolved) and the file's name, so the trash record
+   names where the file really was;
+3. answers true only when, afterwards, nothing is at the path any
+   more. A file that is still there was not moved, whatever was said:
+   the answer is false. Nothing is removed to make it true.
+
+In `moveFilesToTrash` a file whose folder cannot be written is
+`Failed` with the reason `its folder cannot be written`; any other
+false is `Failed` with `the trash did not take it`. The outcome's
+`path` stays the path as it was given (clean and absolute), links in
+it and all, so that the caller knows which of its files is meant.
+
 ## FD-CLI
 
 ```
