@@ -225,12 +225,13 @@ void LibraryShellScanTest::scanFoldersComesBackAtOnce()
     QCOMPARE(r.shown(), sorted({ r.a, r.b, r.c }));
     QTRY_VERIFY(!scanner->isRunning());
     QCOMPARE(r.shell->lastMessage(), s(u"Scan: 0 added, 0 updated, 0 missing, 1 not audio")); // of the second
+    // SR-SHELL: the shell says nothing for each file; the scan's row counts them (SP-ROW).
     QVERIFY(!whileScanning.isEmpty());
+    QVERIFY(whileScanning.contains(s(u"Scan started|4|4"))); // the first scan: what the command said stays up
     for (const QString &seen : std::as_const(whileScanning)) {
-        const QStringList parts = seen.split(QLatin1Char('|'));
-        QCOMPARE(parts.at(0), QStringLiteral("Scanning: %1 of %2 files").arg(parts.at(1), parts.at(2)));
+        const QString said = seen.split(QLatin1Char('|')).at(0);
+        QVERIFY2(said == s(u"Scan started") || said == saidAtEachEnd.value(0), qPrintable(seen));
     }
-    QVERIFY(whileScanning.contains(s(u"Scanning: 4 of 4 files|4|4")));
 
     // A stopped scan says so.
     r.folders = { r.dir.path() + s(u"/inbox") };

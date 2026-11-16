@@ -90,8 +90,9 @@ Folders" goes through it (library-shell.md, SH-COMMANDS):
 
 - the command returns as soon as the scan is asked for, with the
   message `Scan started`;
-- each `progress(done, total)` sets the message `Scanning: DONE of TOTAL
-  files`;
+- `progress` sets no message: the scan's row shows the count (SP-ROW),
+  and a status bar is not written once for every file. What was said
+  last stays up until the scan ends;
 - `finished` sets the message SH-COMMANDS gives for a scan, with
   ` (stopped)` after it when the report's `cancelled` is true.
 
