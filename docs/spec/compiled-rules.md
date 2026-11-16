@@ -47,6 +47,15 @@ asking one object about many tracks must take under a fifth of the time
 `matchesRules` takes for the same questions, for a set of six regular
 expressions. (The locked test measures exactly that.)
 
+## RC-COUNT
+
+`ruleSetsChecked()` is how often a rule set was checked since the
+program started: it rises by one for each `CompiledRules` made from a
+set (usable or not) and by one for each call of `matchesRules`. Asking
+an object, copying one, and making an empty one add nothing. It exists
+so that a test can see that a part checks its rules once; nothing in
+the program decides anything by it.
+
 ## RC-COPY
 
 Copying an object is cheap and the copies are independent of the

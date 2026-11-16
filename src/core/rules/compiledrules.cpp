@@ -28,6 +28,12 @@ void holdPatterns(const QList<Rule> &list, HeldPatterns *held)
 
 }
 
+// Stub from the seed: the builder replaces it.
+qint64 ruleSetsChecked()
+{
+    return 0;
+}
+
 CompiledRules::CompiledRules() = default;
 
 // RC-VALID: the set is checked once, here, and the answer is kept.

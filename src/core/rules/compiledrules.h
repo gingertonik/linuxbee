@@ -27,4 +27,9 @@ private:
     QSharedPointer<const Data> d; // copies share it; it never changes
 };
 
+// RC-COUNT: how often a rule set was checked since the program started: once for
+// each CompiledRules made from a set, and once for each call of matchesRules.
+// For tests of speed; nothing in the program decides anything by it.
+qint64 ruleSetsChecked();
+
 }

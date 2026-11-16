@@ -104,6 +104,15 @@ not an object or that `rulesFromJson` refuses; a `limit` that is not an
 object with a whole `amount` of 1 or more and a known `unit`; an unknown
 `selectedBy`; a `filterDuplicates` that is not true or false.
 
+## A-SPEED
+
+Speed: the rules are checked once for an evaluation, and their regular
+expressions built once, however many tracks are given
+(`CompiledRules`, compiled-rules.md): `ruleSetsChecked()` rises by
+exactly one for one call of `evaluateAutoPlaylist`, also when the set
+cannot be used. The answer is the one `matchesRules` gives for each
+track.
+
 ## Not in this version
 
 - Where auto-playlists are kept on disk and how the window refreshes them.
