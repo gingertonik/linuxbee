@@ -140,6 +140,36 @@ InferResult inferFromPath(const QString &path, const QString &pattern)
     return result;
 }
 
+// Stub from the seed: the builder replaces this block. It answers rightly and counts nothing.
+struct InferPattern::Data {
+    QString pattern;
+};
+
+InferPattern::InferPattern(const QString &pattern)
+    : d(std::make_shared<const Data>(Data { pattern }))
+{
+}
+
+QString InferPattern::problem() const
+{
+    return validateInferPattern(d->pattern);
+}
+
+InferResult InferPattern::match(const QString &path) const
+{
+    return inferFromPath(path, d->pattern);
+}
+
+TagChanges InferPattern::changes(const TrackTags &tags, const QString &path, bool blankFieldsOnly) const
+{
+    return inferTags(tags, path, d->pattern, blankFieldsOnly);
+}
+
+qint64 inferPatternsPrepared()
+{
+    return 0;
+}
+
 // G-INFER: blank fields only when asked; no match or a bad pattern gives nothing.
 TagChanges inferTags(
     const TrackTags &tags, const QString &path, const QString &pattern, bool blankFieldsOnly)

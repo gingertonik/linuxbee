@@ -219,6 +219,10 @@ A new panel has the pattern `<Track#> - <Title>` and the box ticked.
 `inferTags` for each track, with the track's path; a file whose name
 does not fit the pattern gets no changes.
 
+Speed: a preview makes the pattern ready once (tagging-tools.md,
+`InferPattern`), however many tracks are open; the preview is worked
+out at every keystroke. A pattern with a problem makes nothing ready.
+
 Remembered, in the group `tagtools/infer`: `pattern` and `blankOnly`. A
 stored pattern that is empty or only spaces means the new panel's
 pattern; any other is shown as it is, with its problem if it has one.

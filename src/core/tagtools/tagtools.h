@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <memory>
+
 #include "tags/tagreader.h"
 #include "tags/tagwriter.h"
 
@@ -65,6 +67,25 @@ QString validateInferPattern(const QString &pattern);
 InferResult inferFromPath(const QString &path, const QString &pattern);
 TagChanges inferTags(
     const TrackTags &tags, const QString &path, const QString &pattern, bool blankFieldsOnly);
+
+// G-INFER: a pattern made ready once, to be asked about many paths. It answers
+// what the three functions above answer for the same pattern. Copies share
+// what was made ready.
+class InferPattern {
+public:
+    explicit InferPattern(const QString &pattern);
+    QString problem() const; // validateInferPattern
+    InferResult match(const QString &path) const; // inferFromPath
+    TagChanges changes(const TrackTags &tags, const QString &path, bool blankFieldsOnly) const; // inferTags
+
+private:
+    struct Data;
+    std::shared_ptr<const Data> d;
+};
+// How often a pattern was made ready since the program started: once for each
+// InferPattern built from a usable pattern, and once for each call of
+// inferFromPath or inferTags with one. For tests of speed.
+qint64 inferPatternsPrepared();
 
 // G-COPY
 TagChanges copyTag(const TrackTags &tags, const QString &from, const QString &to);
