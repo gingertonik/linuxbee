@@ -8,6 +8,9 @@
 #include "preferences/hotkeyspage.h"
 #include "preferences/preferencesdialog.h"
 #include "tageditor/tageditordialog.h"
+#include "tagtools/capitalisepanel.h"
+#include "tagtools/searchreplacepanel.h"
+#include "tagtools/tagtooldialog.h"
 
 #include <QCoreApplication>
 #include <QDialog>
@@ -16,8 +19,8 @@
 
 namespace linuxbee::ui {
 
-// The state and the four commands. The helpers live here, not in the header, which
-// is fixed by the seed. Each command gets its dialog in its own task.
+// The state and the six commands. The helpers live here, not in the header, which
+// is fixed by the seed.
 struct ToolsShell::Private {
     MainWindow *window = nullptr;
     ActionRegistry *actions = nullptr;
@@ -48,11 +51,9 @@ struct ToolsShell::Private {
     }
 
     // TS-TAGS: one target per selected track, with the tags the library holds for it.
-    void editTags()
+    // The tagging tools are given the same targets (TS-TOOLS).
+    QList<EditTarget> targetsFor(const QList<qint64> &ids)
     {
-        const QList<qint64> ids = selectedIds();
-        if (ids.isEmpty())
-            return;
         QList<EditTarget> targets;
         for (const qint64 id : ids) {
             const std::optional<LibraryTrack> track = library->track(id);
@@ -64,8 +65,15 @@ struct ToolsShell::Private {
             target.tags = track->tags;
             targets.append(target);
         }
+        return targets;
+    }
 
-        TagEditorDialog dialog(targets, window);
+    void editTags()
+    {
+        const QList<qint64> ids = selectedIds();
+        if (ids.isEmpty())
+            return;
+        TagEditorDialog dialog(targetsFor(ids), window);
         QObject::connect(&dialog, &TagEditorDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
         presenter(&dialog);
@@ -83,6 +91,32 @@ struct ToolsShell::Private {
             : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Saved tags of %1 tracks")
                   .arg(saved.size());
         showMessage(text);
+    }
+
+    // TS-TOOLS: the tagging-tool dialog with the panel, on the selected tracks, with the
+    // shell's settings so that the options are remembered. The dialog takes the panel
+    // as its child.
+    void tagTool(ToolPanel *panel, const QList<qint64> &ids)
+    {
+        TagToolDialog dialog(panel, targetsFor(ids), settings, window);
+        QObject::connect(&dialog, &TagToolDialog::saved, owner,
+            [this](const QList<qint64> &saved) { tagsSaved(saved); });
+        presenter(&dialog);
+    }
+
+    // TS-TOOLS, TS-SELECTION: with nothing selected the message is given and no panel is made.
+    void searchReplace()
+    {
+        const QList<qint64> ids = selectedIds();
+        if (!ids.isEmpty())
+            tagTool(new SearchReplacePanel(), ids);
+    }
+
+    void capitalise()
+    {
+        const QList<qint64> ids = selectedIds();
+        if (!ids.isEmpty())
+            tagTool(new CapitalisePanel(), ids);
     }
 
     // TS-ORGANISE: the organiser is given the selected paths and the settings.
@@ -182,6 +216,10 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
     d->actions->implement(QStringLiteral("file.organise"), this, [this] { d->organise(); });
     d->actions->implement(QStringLiteral("tools.convert"), this, [this] { d->convert(); });
     d->actions->implement(QStringLiteral("edit.preferences"), this, [this] { d->preferences(); });
+    d->actions->implement(
+        QStringLiteral("tools.tagging.searchReplace"), this, [this] { d->searchReplace(); });
+    d->actions->implement(
+        QStringLiteral("tools.tagging.capitalise"), this, [this] { d->capitalise(); });
 }
 
 ToolsShell::~ToolsShell()
