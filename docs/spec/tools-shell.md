@@ -68,6 +68,15 @@ tracks again (`Library::refresh`), once each and no other track, and
 the message is that of TS-TAGS. A dialog that is closed without
 applying changes nothing and gives no message.
 
+**Pictures.** The library keeps how many pictures a track has and
+none of them (library.md, L-STORE), so the tags it hands out have an
+empty picture list. A tool that removes pictures must know which
+tracks have any: the targets the shell gives the tagging tools carry
+one picture entry, without data, for each picture the library counts
+(`LibraryTrack::pictureCount`), as a read without picture data would
+give them. The entries are for counting only; nothing writes them
+back.
+
 ## TS-ORGANISE
 
 The organiser is given the selected paths and the settings, and uses its
