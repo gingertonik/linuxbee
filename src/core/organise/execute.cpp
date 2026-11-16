@@ -3,9 +3,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QStandardPaths>
 
 #include "aftermath.h"
+#include "files/trash.h"
 #include "transfer.h"
 
 namespace linuxbee {
@@ -47,22 +47,6 @@ QString waitingFolder(const QString &target)
             return candidate;
     }
     return { };
-}
-
-// Sends a file to the desktop's trash, and says where it went. QFile::moveToTrash fails while the
-// trash folders are missing, as on a fresh account, so they are made first, the way a file manager
-// makes them.
-bool sendToTrash(const QString &path, QString *pathInTrash)
-{
-    const QString dataHome = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    if (dataHome.isEmpty())
-        return false;
-    const QString trash = dataHome + QStringLiteral("/Trash");
-    if (!QDir().mkpath(trash + QStringLiteral("/files"))
-        || !QDir().mkpath(trash + QStringLiteral("/info"))) {
-        return false;
-    }
-    return QFile::moveToTrash(path, pathInTrash);
 }
 
 // O-REPLACED: the trash record of a file sent from the waiting folder names
