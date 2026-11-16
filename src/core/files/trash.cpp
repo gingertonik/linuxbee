@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSet>
 #include <QStandardPaths>
 
 // Contract: docs/spec/delete-files.md.
@@ -24,9 +25,49 @@ bool sendToTrash(const QString &path, QString *pathInTrash)
     return QFile::moveToTrash(path, pathInTrash);
 }
 
-QList<TrashOutcome> moveFilesToTrash(const QStringList &)
+// FD-TRASH. A file is never opened or read to decide its outcome. Nothing here removes a file or a
+// folder: a regular file goes to sendToTrash, and every other answer leaves the path as it was.
+QList<TrashOutcome> moveFilesToTrash(const QStringList &paths)
 {
-    return { };
+    QList<TrashOutcome> outcomes;
+    QSet<QString> seen;
+    for (const QString &given : paths) {
+        if (given.isEmpty())
+            continue; // an empty path is no path
+        const QString path = QDir::cleanPath(QFileInfo(given).absoluteFilePath());
+        if (seen.contains(path))
+            continue; // however it is spelt, a path is looked at once
+        seen.insert(path);
+
+        TrashOutcome outcome;
+        outcome.path = path;
+        const QFileInfo info(path);
+        // The table's order. QFileInfo::isSymLink does not follow the link, so a link, even one
+        // that points at nothing, is seen before "not there".
+        if (info.isSymLink()) {
+            outcome.status = TrashOutcome::Status::Refused;
+            outcome.reason = QStringLiteral("a link");
+        } else if (!info.exists()) {
+            outcome.status = TrashOutcome::Status::NotThere;
+        } else if (info.isDir()) {
+            outcome.status = TrashOutcome::Status::Refused;
+            outcome.reason = QStringLiteral("a folder");
+        } else if (!info.isFile()) {
+            outcome.status = TrashOutcome::Status::Refused;
+            outcome.reason = QStringLiteral("not a regular file");
+        } else {
+            QString inTrash;
+            if (sendToTrash(path, &inTrash)) {
+                outcome.status = TrashOutcome::Status::Trashed;
+                outcome.pathInTrash = inTrash;
+            } else {
+                outcome.status = TrashOutcome::Status::Failed;
+                outcome.reason = QStringLiteral("the trash did not take it");
+            }
+        }
+        outcomes.append(outcome);
+    }
+    return outcomes;
 }
 
 }
