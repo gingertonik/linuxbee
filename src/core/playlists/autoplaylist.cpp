@@ -7,6 +7,7 @@
 #include <tuple>
 #include <utility>
 
+#include "rules/compiledrules.h"
 #include "search/search.h"
 
 namespace linuxbee {
@@ -217,11 +218,12 @@ QList<qint64> evaluateAutoPlaylist(const AutoPlaylist &playlist, const QList<Lib
 {
     // A-MATCH: a missing track never matches; the rules decide the rest. An
     // invalid rule set matches nothing (U-MATCH).
+    const CompiledRules compiled(playlist.rules);
     QList<const LibraryTrack *> candidates;
     for (const LibraryTrack &track : tracks) {
         if (track.missing)
             continue;
-        if (matchesRules(playlist.rules, LibraryFieldSource(track), context))
+        if (compiled.matches(LibraryFieldSource(track), context))
             candidates.append(&track);
     }
 

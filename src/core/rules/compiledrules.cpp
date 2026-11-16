@@ -3,6 +3,8 @@
 #include "rules/compiledrules_p.h"
 #include "rules/rules.h"
 
+#include <atomic>
+
 namespace linuxbee {
 
 namespace {
@@ -28,10 +30,19 @@ void holdPatterns(const QList<Rule> &list, HeldPatterns *held)
 
 }
 
-// Stub from the seed: the builder replaces it.
+namespace {
+std::atomic<qint64> checkedCount { 0 };
+}
+
+void countRuleSetChecked()
+{
+    checkedCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+// RC-COUNT.
 qint64 ruleSetsChecked()
 {
-    return 0;
+    return checkedCount.load(std::memory_order_relaxed);
 }
 
 CompiledRules::CompiledRules() = default;
@@ -39,6 +50,7 @@ CompiledRules::CompiledRules() = default;
 // RC-VALID: the set is checked once, here, and the answer is kept.
 CompiledRules::CompiledRules(const RuleSet &rules)
 {
+    countRuleSetChecked();
     const auto data = QSharedPointer<Data>::create();
     data->rules = rules;
     data->problems = validateRules(rules);

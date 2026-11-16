@@ -1,6 +1,7 @@
 #include "shell/autoplaylistnodes.h"
 
 #include <QAction>
+#include <QHash>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPoint>
@@ -8,7 +9,6 @@
 #include <QRandomGenerator>
 #include <QStatusBar>
 
-#include <optional>
 #include <utility>
 
 #include "library/library.h"
@@ -74,10 +74,17 @@ struct AutoPlaylistNodes::Private {
         }
         RuleContext context;
         context.now = hooks.now ? hooks.now() : QDateTime::currentDateTimeUtc();
-        const QList<qint64> ids = evaluateAutoPlaylist(playlist, library->tracks(), context, seed);
+        // AN-SPEED: the library is read once; the shown tracks come out of that answer.
+        const QList<LibraryTrack> all = library->tracks();
+        const QList<qint64> ids = evaluateAutoPlaylist(playlist, all, context, seed);
+        QHash<qint64, qsizetype> position;
+        position.reserve(all.size());
+        for (qsizetype i = 0; i < all.size(); ++i)
+            position.insert(all.at(i).id, i);
         for (const qint64 id : ids) {
-            if (const std::optional<LibraryTrack> track = library->track(id))
-                tracks->append(*track);
+            const auto found = position.constFind(id);
+            if (found != position.constEnd())
+                tracks->append(all.at(found.value()));
         }
         return true;
     }
