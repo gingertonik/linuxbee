@@ -6,14 +6,30 @@
 #include <QSet>
 #include <QStandardPaths>
 
+#include <sys/stat.h>
+#include <unistd.h>
+
 // Contract: docs/spec/delete-files.md.
 namespace linuxbee {
+
+// FD-SEND 1 and 2: the real path of the folder a file is in, or an empty string when there is none
+// or it cannot be written and searched.
+static QString usableFolder(const QString &path)
+{
+    const QString folder = QFileInfo(QFileInfo(path).absolutePath()).canonicalFilePath();
+    if (folder.isEmpty() || ::access(QFile::encodeName(folder).constData(), W_OK | X_OK) != 0)
+        return QString();
+    return folder;
+}
 
 // Sends a file to the desktop's trash, and says where it went. QFile::moveToTrash fails while the
 // trash folders are missing, as on a fresh account, so they are made first, the way a file manager
 // makes them.
 bool sendToTrash(const QString &path, QString *pathInTrash)
 {
+    const QString folder = usableFolder(path);
+    if (folder.isEmpty())
+        return false;
     const QString dataHome = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     if (dataHome.isEmpty())
         return false;
@@ -22,7 +38,12 @@ bool sendToTrash(const QString &path, QString *pathInTrash)
         || !QDir().mkpath(trash + QStringLiteral("/info"))) {
         return false;
     }
-    return QFile::moveToTrash(path, pathInTrash);
+    // The folder's real path and the file's name: the trash record names where the file was.
+    if (!QFile::moveToTrash(folder + QLatin1Char('/') + QFileInfo(path).fileName(), pathInTrash))
+        return false;
+    // FD-SEND 3: a file still at the path was not moved, whatever was said. Nothing is removed.
+    struct stat st;
+    return ::lstat(QFile::encodeName(path).constData(), &st) != 0;
 }
 
 // FD-TRASH. A file is never opened or read to decide its outcome. Nothing here removes a file or a
@@ -57,7 +78,10 @@ QList<TrashOutcome> moveFilesToTrash(const QStringList &paths)
             outcome.reason = QStringLiteral("not a regular file");
         } else {
             QString inTrash;
-            if (sendToTrash(path, &inTrash)) {
+            if (usableFolder(path).isEmpty()) {
+                outcome.status = TrashOutcome::Status::Failed;
+                outcome.reason = QStringLiteral("its folder cannot be written");
+            } else if (sendToTrash(path, &inTrash)) {
                 outcome.status = TrashOutcome::Status::Trashed;
                 outcome.pathInTrash = inTrash;
             } else {
