@@ -76,7 +76,8 @@ public:
     explicit InferPattern(const QString &pattern);
     QString problem() const; // validateInferPattern
     InferResult match(const QString &path) const; // inferFromPath
-    TagChanges changes(const TrackTags &tags, const QString &path, bool blankFieldsOnly) const; // inferTags
+    TagChanges changes(
+        const TrackTags &tags, const QString &path, bool blankFieldsOnly) const; // inferTags
 
 private:
     struct Data;

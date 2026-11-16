@@ -1,5 +1,8 @@
 #include <QRegularExpression>
 
+#include <atomic>
+#include <memory>
+
 #include "common.h"
 #include "tagtools.h"
 
@@ -101,16 +104,44 @@ QString validateInferPattern(const QString &pattern)
     return parsePattern(pattern, &tokens);
 }
 
-InferResult inferFromPath(const QString &path, const QString &pattern)
+// G-INFER, speed: how often a pattern was made ready since the program started.
+namespace {
+std::atomic<qint64> preparedCount { 0 };
+}
+
+// What is made ready from the pattern text, once, and shared between copies.
+struct InferPattern::Data {
+    QString problem;
+    QList<Token> tokens;
+    qsizetype components = 0;
+    QRegularExpression expression;
+};
+
+InferPattern::InferPattern(const QString &pattern)
+{
+    auto data = std::make_shared<Data>();
+    data->problem = parsePattern(pattern, &data->tokens);
+    if (data->problem.isEmpty()) {
+        data->components = componentsFor(data->tokens);
+        data->expression = QRegularExpression(expressionFor(data->tokens));
+        preparedCount.fetch_add(1);
+    }
+    d = data;
+}
+
+QString InferPattern::problem() const
+{
+    return d->problem;
+}
+
+InferResult InferPattern::match(const QString &path) const
 {
     InferResult result;
-    QList<Token> tokens;
-    if (!parsePattern(pattern, &tokens).isEmpty())
+    if (!d->problem.isEmpty())
         return result;
 
     QStringList parts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-    const qsizetype components = componentsFor(tokens);
-    if (parts.size() < components)
+    if (parts.size() < d->components)
         return result;
 
     // The extension goes: the text from the last dot of the file name, unless
@@ -120,18 +151,17 @@ InferResult inferFromPath(const QString &path, const QString &pattern)
     if (dot > 0)
         fileName.truncate(dot);
 
-    const QStringList window = parts.mid(parts.size() - components);
-    const QRegularExpression expression(expressionFor(tokens));
-    const QRegularExpressionMatch match = expression.match(window.join(QLatin1Char('/')));
-    if (!match.hasMatch())
+    const QStringList window = parts.mid(parts.size() - d->components);
+    const QRegularExpressionMatch found = d->expression.match(window.join(QLatin1Char('/')));
+    if (!found.hasMatch())
         return result;
 
     int group = 0;
-    for (const Token &token : tokens) {
+    for (const Token &token : d->tokens) {
         if (!token.field)
             continue;
         ++group;
-        const QString text = match.captured(group).trimmed();
+        const QString text = found.captured(group).trimmed();
         if (text.isEmpty())
             return InferResult();
         result.values.insert(token.text, text);
@@ -140,44 +170,14 @@ InferResult inferFromPath(const QString &path, const QString &pattern)
     return result;
 }
 
-// Stub from the seed: the builder replaces this block. It answers rightly and counts nothing.
-struct InferPattern::Data {
-    QString pattern;
-};
-
-InferPattern::InferPattern(const QString &pattern)
-    : d(std::make_shared<const Data>(Data { pattern }))
-{
-}
-
-QString InferPattern::problem() const
-{
-    return validateInferPattern(d->pattern);
-}
-
-InferResult InferPattern::match(const QString &path) const
-{
-    return inferFromPath(path, d->pattern);
-}
-
-TagChanges InferPattern::changes(const TrackTags &tags, const QString &path, bool blankFieldsOnly) const
-{
-    return inferTags(tags, path, d->pattern, blankFieldsOnly);
-}
-
-qint64 inferPatternsPrepared()
-{
-    return 0;
-}
-
 // G-INFER: blank fields only when asked; no match or a bad pattern gives nothing.
-TagChanges inferTags(
-    const TrackTags &tags, const QString &path, const QString &pattern, bool blankFieldsOnly)
+TagChanges InferPattern::changes(
+    const TrackTags &tags, const QString &path, bool blankFieldsOnly) const
 {
     TagChanges changes;
-    if (!validateInferPattern(pattern).isEmpty())
+    if (!d->problem.isEmpty())
         return changes;
-    const InferResult found = inferFromPath(path, pattern);
+    const InferResult found = match(path);
     if (!found.matched)
         return changes;
 
@@ -187,6 +187,22 @@ TagChanges inferTags(
         setIfChanged(&changes, tags, it.key(), { it.value() });
     }
     return changes;
+}
+
+qint64 inferPatternsPrepared()
+{
+    return preparedCount.load();
+}
+
+InferResult inferFromPath(const QString &path, const QString &pattern)
+{
+    return InferPattern(pattern).match(path);
+}
+
+TagChanges inferTags(
+    const TrackTags &tags, const QString &path, const QString &pattern, bool blankFieldsOnly)
+{
+    return InferPattern(pattern).changes(tags, path, blankFieldsOnly);
 }
 
 }
