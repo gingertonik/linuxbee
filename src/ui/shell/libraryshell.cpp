@@ -8,6 +8,7 @@
 #include "tracklist/tracklistmodel.h"
 #include "tracklist/tracklistpage.h"
 
+#include <QAction>
 #include <QHash>
 #include <QList>
 #include <QSet>
@@ -296,6 +297,11 @@ void LibraryShell::showNode()
     // replaced, the list follows, and the change is said once.
     d->kept = readNodeTracks();
     d->showKept();
+    // SH-REMOVE: the Delete key is named for what it does in the view on show.
+    if (QAction *remove = d->actions->action(QStringLiteral("file.remove"))) {
+        remove->setText(
+            playlistOf(d->node).isEmpty() ? tr("Remove from Library") : tr("Remove from Playlist"));
+    }
     emit nodeTracksChanged();
 }
 

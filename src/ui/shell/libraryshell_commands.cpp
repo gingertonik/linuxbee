@@ -110,6 +110,44 @@ void LibraryShell::removeSelected()
     const QList<qint64> ids = d->page->selectedTrackIds();
     if (ids.isEmpty())
         return;
+
+    // SH-REMOVE: in a playlist the tracks leave the playlist, in one change, and nothing is
+    // asked. The library and the files are not touched.
+    if (const QString playlist = playlistOf(d->node); !playlist.isEmpty()) {
+        QSet<QString> selected;
+        for (const qint64 id : ids) {
+            if (const std::optional<LibraryTrack> track = d->library->track(id))
+                selected.insert(track->path);
+        }
+        const QStringList entries = d->playlists->tracks(playlist);
+        QList<int> positions;
+        for (int i = 0; i < entries.size(); ++i) {
+            if (selected.contains(entries.at(i)))
+                positions.append(i);
+        }
+        if (positions.isEmpty())
+            return;
+        d->playlists->removeAt(playlist, positions);
+        const qsizetype n = selected.size();
+        showMessage(n == 1 ? tr("Removed 1 track from the playlist")
+                           : tr("Removed %1 tracks from the playlist").arg(n));
+        return;
+    }
+
+    // SH-REMOVE: anywhere else it asks first; No is the default and ends the command.
+    const QString question = ids.size() == 1
+        ? tr("Remove 1 track from the library? The file stays. Its play count and date added are "
+             "lost.")
+        : tr("Remove %1 tracks from the library? The files stay. Their play counts and dates added "
+             "are lost.")
+              .arg(ids.size());
+    const bool yes = d->hooks.confirm
+        ? d->hooks.confirm(question)
+        : QMessageBox::question(d->window, tr("Remove from Library"), question,
+              QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+            == QMessageBox::Yes;
+    if (!yes)
+        return;
     const int removed = d->library->remove(ids);
     showMessage(tr("Removed %1 from the library").arg(removed));
 }
