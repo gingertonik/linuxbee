@@ -30,6 +30,7 @@
 #include "shell/libraryshell.h"
 #include "shell/playbackshell.h"
 #include "shell/playlistediting.h"
+#include "shell/scanprogress.h"
 #include "shell/toolsshell.h"
 #include "skins/skinapplier.h"
 #include "skins/skinchoosing.h"
@@ -196,6 +197,12 @@ int main(int argc, char *argv[])
     auto playback = std::make_unique<linuxbee::ui::PlaybackShell>(
         &window, &registry, library.get(), &shell, &backend, &settings, hooks.now);
 
+    // SP-MAIN (docs/spec/scan-runner.md): the scan's row in the status bar and File > Stop Scan,
+    // with the default question; declared after the shell whose runner it watches, so it goes
+    // before it.
+    linuxbee::ui::ScanProgress scanProgress(&window, &registry);
+    scanProgress.watch(shell.scanner());
+
     if (wantCommands) {
         // TS-MAIN: every command that has its behaviour, in catalogue order, with no window.
         QTextStream out(stdout);
@@ -214,6 +221,7 @@ int main(int argc, char *argv[])
     backgroundHooks.quit = [&window] { window.close(); };
     auto background = std::make_unique<linuxbee::ui::BackgroundShell>(&window, library.get(),
         playback.get(), &settings, backgroundHooks, QDBusConnection::sessionBus());
+    scanProgress.watch(background->scanner()); // SP-MAIN: the folder monitor's scans too
 
     // LP-MAIN: the Library page joins the preferences, with the default folder chooser.
     linuxbee::ui::installLibraryPreferences(&tools, background.get(), &settings);

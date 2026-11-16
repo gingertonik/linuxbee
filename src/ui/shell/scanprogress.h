@@ -23,7 +23,8 @@ public:
     };
 
     // Nothing handed in is owned; the window and the registry must outlive this object.
-    ScanProgress(MainWindow *window, ActionRegistry *actions, Hooks hooks = { }, QObject *parent = nullptr);
+    ScanProgress(
+        MainWindow *window, ActionRegistry *actions, Hooks hooks = { }, QObject *parent = nullptr);
     ~ScanProgress() override;
 
     void watch(ScanRunner *runner); // SP-WATCH; a runner that is destroyed is forgotten
