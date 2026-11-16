@@ -113,8 +113,8 @@ The gaps a MusicBee user will notice first:
 - **Cover art in the window.** `linuxbeectl cover` reads the pictures, but no
   part of the window shows them, and pictures are not downloaded.
 - **Making or editing an auto-playlist in the window.** An auto-playlist is
-  shown, but it can only be made by putting a file in its folder, and a
-  double-click on one does not play it yet.
+  shown, and a double-click plays the tracks it shows, but it can only be
+  made by putting a file in its folder.
 - **Adding tracks to a playlist.** Playlists can be made, renamed, moved and
   deleted, but no command adds tracks to one, and there is no drag and drop.
 - **Gapless playback, crossfade and an equaliser.**
