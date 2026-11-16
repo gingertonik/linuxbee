@@ -97,13 +97,43 @@ Whoever changes the library or the playlists, what is on show follows:
 | `file.scanFolders` | asks `chooseFolders`; with an answer, a scan of those folders through the shell's scan runner (scan-runner.md, SR-SHELL: the command returns at once and the message follows the scan), new files going to the section on show (or `Music` when the node is not a library section), `now` from the hook |
 | `file.addFiles` | asks `chooseFiles`; with an answer, `Library::addFile` for each, same section rule |
 | `file.remove` | `Library::remove` of the selected tracks. No file is deleted |
+| `file.delete` | the selected tracks' files go to the trash, after a question (SH-DELETE) |
 | `track.sendToInbox`, `track.sendToMusic`, `track.sendToAudiobooks` | `Library::setCategory` of the selected tracks |
 | `view.refresh` | counts, playlists and the node's tracks are read again; the search text stays |
 | `edit.find` | puts the keyboard focus in the list's search box |
 
 A chooser that answers nothing (the user cancelled, or no hook was given)
-ends the command without a message. The three commands on the selection
+ends the command without a message. The four commands on the selection
 do nothing, without a message, when nothing is selected.
+
+## SH-DELETE: Delete Files
+
+`file.delete` works on the selected tracks, in the order shown.
+
+1. It asks `confirm(question)` (a hook of `ShellHooks`) with
+   `Move N files to the trash?` (`Move 1 file to the trash?` for one).
+   The question comes before anything else: until it is answered no
+   file and no track is touched. On "no" the command ends: no file, no
+   track, no message, and the selection is as it was. Without a hook
+   the question is a yes-or-no dialog whose default is "no".
+2. On "yes" the tracks' paths go to `moveFilesToTrash`
+   (delete-files.md, FD-TRASH).
+3. The tracks whose files are `Trashed` are taken out of the library
+   by one `Library::remove` call for all of them, so the list changes
+   once. When none is, the library is not asked at all. Every other
+   track stays in the library: one whose file was not there, was
+   refused, or was not taken by the trash.
+4. The message: `Moved T files to the trash` (`Moved 1 file to the
+   trash`; `No file was moved to the trash` for none). After it, when
+   there are any: `; M were not there` (`1 was not there`), then
+   `; K could not be moved` for the refused and the failed together.
+
+There is no permanent delete: nothing in the window removes a file in
+any other way than to the trash. "Remove from Library" (`file.remove`)
+is still the command that takes a track away and leaves its file.
+
+A file that is playing is moved like any other: the player keeps the
+file it has open and plays the track to its end.
 
 ## SH-MESSAGE
 
@@ -216,7 +246,7 @@ chosen node as `shell/node`.
   connected by a later assembly plan. `Playing Tracks` stays empty until
   the player assembly calls `setPlayingPaths`.
 - Choosing several folders at once; remembering the folders scanned.
-- Deleting files from the disk.
+- Deleting files for good. Delete from a playlist view.
 
 ## Open parity questions
 

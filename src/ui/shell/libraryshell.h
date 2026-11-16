@@ -30,6 +30,8 @@ struct ShellHooks {
     std::function<QStringList()> chooseFolders; // for "Scan Folders"; empty: the user cancelled
     std::function<QStringList()> chooseFiles; // for "Add Files"
     std::function<QDateTime()> now; // UTC
+    // SH-DELETE: a yes-or-no question before files are moved to the trash. Without it: a dialog.
+    std::function<bool(const QString &question)> confirm;
 };
 
 class ScanRunner;
