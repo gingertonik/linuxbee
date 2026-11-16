@@ -297,6 +297,11 @@ bool PlaylistEditing::run(const QString &command, const QString &rowId)
     return false;
 }
 
+bool PlaylistEditing::addSelected()
+{
+    return false; // stub
+}
+
 QString PlaylistEditing::lastMessage() const
 {
     return d->message;

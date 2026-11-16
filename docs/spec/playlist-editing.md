@@ -52,6 +52,34 @@ changes nothing, when the row does not offer that command.
 - A refusal by the store ends the command with false and its reason in
   the message.
 
+## PE-ADD
+
+`addSelected()` adds the tracks selected in the list
+(`LibraryShell::selectedPaths()`, in the order shown) to a playlist.
+
+- With nothing selected it asks nothing and returns false.
+- It asks `choosePlaylist(ids)` once, with the id of every playlist the
+  store has, in the store's order. No answer ends it: false, nothing
+  changed, the message left as it was.
+- The empty text means a new playlist: it asks
+  `askName("New Playlist", "New Playlist")` and creates that playlist at
+  the top, in no folder. No name ends it as above. A name the store
+  refuses ends it with false and the `create` message of PE-MESSAGE.
+- An id the store does not have ends it with false and the message
+  `Could not add to the playlist "ID": there is no such playlist`.
+- Then the tracks are added to the end of the playlist, in one call of
+  `PlaylistStore::append` with duplicates allowed: a track that is in
+  the playlist already is added once more (playlists.md; MusicBee's
+  List menu has "Remove Duplicates" for this). The message is
+  `Added 1 track to "ID"` or `Added N tracks to "ID"`. When the store
+  could not write, false and
+  `Could not add to the playlist "ID": the file could not be written`.
+- The navigator's choice and the selection stay as they were, also for
+  a new playlist.
+
+Speed: one write of the playlist's file for the whole selection, however
+many tracks (`PlaylistStore::tracksChanged` once).
+
 ## PE-MESSAGE
 
 Every outcome goes to the window's status bar and is kept as
@@ -74,15 +102,17 @@ could not be removed`.
 Constructing the object:
 
 - implements the command `file.playlists.new` as `run("new", "playlists")`;
+- implements the command `track.addToPlaylist` as `addSelected()` (PE-ADD);
 - listens to the navigator's `menuRequested`: for a row that offers
   commands it calls `showMenu(commands, labels, globalPos)` and runs
   what comes back (an empty text: nothing).
 
 Without hooks: `askName` is a text question in a dialog, `chooseFolder`
 a choice among the folders that can also be typed into, `confirm` a
-yes-or-no question, `showMenu` a pop-up menu.
+yes-or-no question, `showMenu` a pop-up menu, `choosePlaylist` a choice among
+`<New Playlist>` and the playlists.
 
-Destroying the object frees the command.
+Destroying the object frees the commands.
 
 ## PE-MAIN
 
@@ -105,3 +135,4 @@ default hooks, after the library shell. (`--commands` then lists
 |---|---|
 | PE-MENU | The entries of the playlist context menu and their order. |
 | PE-COMMANDS | Whether deleting a playlist asks first. |
+| PE-ADD | Whether MusicBee adds a track that the playlist has already (taken as yes), and whether its menu lists every playlist or a submenu per folder. The owner's menu reads "Include in Playlist" (seen); the wiki names it "Add to Playlist". |
