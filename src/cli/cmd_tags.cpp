@@ -64,7 +64,7 @@ void printReport(QTextStream &out, const linuxbee::TrackTags &tags)
 const char *const kWriteUsage
     = "usage: linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]... "
       "[--set-other KEY=VALUE]... [--clear-other KEY]... [--picture IMAGE | --no-pictures] "
-      "[--id3v2.4] [--no-id3v1] [--keep-mtime] FILE";
+      "[--id3v2.3 | --id3v2.4] [--no-id3v1] [--keep-mtime] FILE";
 
 // W-CLI: "NAME=VALUE" is split at the first '='. False when there is no '='.
 bool splitPair(const QString &text, QString &name, QString &value)
@@ -95,14 +95,16 @@ int runWrite(const QStringList &arguments)
         QStringLiteral("Make IMAGE the only picture, a front cover."), QStringLiteral("IMAGE"));
     QCommandLineOption noPicturesOption(
         QStringLiteral("no-pictures"), QStringLiteral("Remove every picture."));
+    QCommandLineOption id3v23Option(
+        QStringLiteral("id3v2.3"), QStringLiteral("Save ID3v2.3, whatever version the file has."));
     QCommandLineOption id3v24Option(
-        QStringLiteral("id3v2.4"), QStringLiteral("Save ID3v2.4 instead of ID3v2.3."));
+        QStringLiteral("id3v2.4"), QStringLiteral("Save ID3v2.4, whatever version the file has."));
     QCommandLineOption noId3v1Option(
         QStringLiteral("no-id3v1"), QStringLiteral("Do not keep an ID3v1 tag."));
     QCommandLineOption keepMtimeOption(
         QStringLiteral("keep-mtime"), QStringLiteral("Keep the file's modification time."));
     parser.addOptions({ setOption, clearOption, setOtherOption, clearOtherOption, pictureOption,
-        noPicturesOption, id3v24Option, noId3v1Option, keepMtimeOption });
+        noPicturesOption, id3v23Option, id3v24Option, noId3v1Option, keepMtimeOption });
 
     // parse(), not process(): a usage mistake exits 2, as R-CLI wants.
     if (!parser.parse(QStringList { QStringLiteral("linuxbeectl tags") } + arguments))
@@ -118,6 +120,12 @@ int runWrite(const QStringList &arguments)
     if (parser.isSet(pictureOption) && parser.isSet(noPicturesOption))
         return usageError(
             QStringLiteral("linuxbeectl: give --picture or --no-pictures, not both.\n%1")
+                .arg(QLatin1String(kWriteUsage)));
+
+    // W-CLI: the two version options choose V23 and V24; both is a usage mistake, and
+    // nothing is written.
+    if (parser.isSet(id3v23Option) && parser.isSet(id3v24Option))
+        return usageError(QStringLiteral("linuxbeectl: give --id3v2.3 or --id3v2.4, not both.\n%1")
                 .arg(QLatin1String(kWriteUsage)));
 
     // W-CLI: one field cannot be both set and cleared in one command, whatever
@@ -193,8 +201,13 @@ int runWrite(const QStringList &arguments)
     }
 
     linuxbee::WriteOptions options;
-    options.id3Version = parser.isSet(id3v24Option) ? linuxbee::WriteOptions::Id3Version::V24
-                                                    : linuxbee::WriteOptions::Id3Version::V23;
+    // W-ID3VER: with neither option the save keeps the file's own version.
+    if (parser.isSet(id3v23Option))
+        options.id3Version = linuxbee::WriteOptions::Id3Version::V23;
+    else if (parser.isSet(id3v24Option))
+        options.id3Version = linuxbee::WriteOptions::Id3Version::V24;
+    else
+        options.id3Version = linuxbee::WriteOptions::Id3Version::Keep;
     options.writeId3v1 = !parser.isSet(noId3v1Option);
     options.keepModificationTime = parser.isSet(keepMtimeOption);
 
@@ -205,6 +218,9 @@ int runWrite(const QStringList &arguments)
     switch (result.status) {
     case linuxbee::WriteResult::Status::Ok:
         out << "saved\n";
+        // W-ID3VER, not kept: what ID3v2.3 could not hold, one line each, on standard error.
+        for (const QString &line : result.notKept)
+            err << "not kept in ID3v2.3: " << line << '\n';
         code = 0;
         break;
     case linuxbee::WriteResult::Status::Unchanged:

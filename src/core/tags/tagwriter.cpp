@@ -17,6 +17,7 @@
 
 #include <fileref.h>
 #include <id3v2.h>
+#include <id3v2header.h>
 #include <id3v2tag.h>
 #include <mpegfile.h>
 #include <popularimeterframe.h>
@@ -112,11 +113,36 @@ void rewriteRating(TagLib::PropertyMap &map, const TrackTags &after)
     map.insert(key, tagList({ QString::number(qRound(stars * 20.0)) }));
 }
 
-// W-ID3VER: the ID3v2 version a save writes, whatever version the file had.
-TagLib::ID3v2::Version id3Version(const WriteOptions &options)
+// W-ID3VER, Keep: the major version of the ID3v2 tag the file has now, read from the
+// tag's own header before anything is changed. Only an ID3v2.3 tag gives 3; no tag, or any
+// other version, gives 4. Only MP3 and WAV are asked.
+TagLib::ID3v2::Version versionOfFile(TagLib::File *file)
 {
-    return options.id3Version == WriteOptions::Id3Version::V24 ? TagLib::ID3v2::v4
-                                                               : TagLib::ID3v2::v3;
+    const TagLib::ID3v2::Tag *tag = nullptr;
+    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
+        if (mpeg->hasID3v2Tag())
+            tag = mpeg->ID3v2Tag();
+    } else if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
+        if (wav->hasID3v2Tag())
+            tag = wav->ID3v2Tag();
+    }
+    if (tag && tag->header() && tag->header()->majorVersion() == 3)
+        return TagLib::ID3v2::v3;
+    return TagLib::ID3v2::v4;
+}
+
+// W-ID3VER: the ID3v2 version a save writes. `found` is what the file had (Keep).
+TagLib::ID3v2::Version id3Version(const WriteOptions &options, TagLib::ID3v2::Version found)
+{
+    switch (options.id3Version) {
+    case WriteOptions::Id3Version::V23:
+        return TagLib::ID3v2::v3;
+    case WriteOptions::Id3Version::V24:
+        return TagLib::ID3v2::v4;
+    case WriteOptions::Id3Version::Keep:
+        break;
+    }
+    return found;
 }
 
 // W-RATING, ID3v2: the address and counter of the first POPM frame. They are read
@@ -180,7 +206,7 @@ void rewritePopm(TagLib::ID3v2::Tag *tag, const PopmKeep &keep, const TrackTags 
 
 // W-ID3V1, W-ID3VER, W-WAV: how an ID3 file is saved. Other families use TagLib's
 // default save.
-bool saveId3(TagLib::File *file, const WriteOptions &options)
+bool saveId3(TagLib::File *file, const WriteOptions &options, TagLib::ID3v2::Version version)
 {
     if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
         int kinds = TagLib::MPEG::File::ID3v2;
@@ -189,13 +215,12 @@ bool saveId3(TagLib::File *file, const WriteOptions &options)
         // An APEv2 tag is not part of this change: it stays if the file has one.
         if (mpeg->hasAPETag())
             kinds |= TagLib::MPEG::File::APE;
-        return mpeg->save(kinds, TagLib::File::StripOthers, id3Version(options),
+        return mpeg->save(kinds, TagLib::File::StripOthers, version,
             options.writeId3v1 ? TagLib::File::Duplicate : TagLib::File::DoNotDuplicate);
     }
     if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
         // W-WAV: the ID3 chunk only. No RIFF Info chunk is created, and none is stripped.
-        return wav->save(
-            TagLib::RIFF::WAV::File::ID3v2, TagLib::File::StripNone, id3Version(options));
+        return wav->save(TagLib::RIFF::WAV::File::ID3v2, TagLib::File::StripNone, version);
     }
     return file->save();
 }
@@ -220,9 +245,11 @@ bool writePictures(TagLib::File *file, const QList<Picture> &pictures)
 
 // Step 5 of spec section 1: edits the property map, then saves. The pictures are
 // written only when the change names them.
+// `wroteV23` is set when the tag written is ID3v2.3 (W-ID3VER, not kept).
 bool saveChanges(const QString &filePath, const TrackTags &now, const tags::CheckedChanges &checked,
-    const TrackTags &after, const WriteOptions &options, bool picturesChanged)
+    const TrackTags &after, const WriteOptions &options, bool picturesChanged, bool &wroteV23)
 {
+    wroteV23 = false;
     const KeyFamily family = familyOf(now.format);
     const QByteArray name = QFile::encodeName(filePath);
     TagLib::FileRef ref(name.constData(), false);
@@ -231,6 +258,10 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     TagLib::File *file = ref.file();
 
     const bool id3 = family == KeyFamily::Id3v2;
+    // W-ID3VER: the file's own version, found before any property is set.
+    const TagLib::ID3v2::Version version
+        = id3 ? id3Version(options, versionOfFile(file)) : TagLib::ID3v2::v4;
+    wroteV23 = id3 && version == TagLib::ID3v2::v3;
     const bool ratingTouched = checked.fields.contains(QStringLiteral("Rating"));
     const PopmKeep keep = id3 && ratingTouched ? popmKeepOf(file) : PopmKeep { };
     TagLib::PropertyMap map = file->properties();
@@ -277,7 +308,37 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
         if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))
             rewritePopm(tag, keep, after);
     }
-    return id3 ? saveId3(file, options) : file->save();
+    return id3 ? saveId3(file, options, version) : file->save();
+}
+
+// W-ID3VER, not kept: the new version of the file (read once) against what the save meant
+// it to hold. One line per catalogue field, then per other tag, that differs; sorted.
+QStringList whatIsNotKept(const QString &copyPath, const TrackTags &after)
+{
+    ReadOptions readOptions;
+    readOptions.pictures = false;
+    readOptions.pictureData = false;
+    const ReadResult read = readTags(copyPath, readOptions);
+    if (read.status != ReadResult::Status::Ok)
+        return { };
+
+    QStringList lines;
+    auto compare = [&lines](const QString &name, const QStringList &meant, const QStringList &is) {
+        // A value nobody asked for is not a value that was lost.
+        if (meant.isEmpty() || meant == is)
+            return;
+        if (is.isEmpty())
+            lines.append(name);
+        else
+            lines.append(name + QStringLiteral(": ") + meant.join(QStringLiteral("; "))
+                + QStringLiteral(" became ") + is.join(QStringLiteral("; ")));
+    };
+    for (const QString &name : tagFieldNames())
+        compare(name, after.fields.value(name), read.tags.fields.value(name));
+    for (auto it = after.other.cbegin(); it != after.other.cend(); ++it)
+        compare(it.key(), it.value(), read.tags.other.value(it.key()));
+    lines.sort();
+    return lines;
 }
 
 // WS-NAME: the new version of the file sits beside it as ".lbsave-" + six
@@ -450,9 +511,10 @@ WriteResult writeTags(
     // WS-ORDER 3: the changes are saved into the copy. Nothing of the original is
     // opened for writing, so until step 6 it is byte for byte what it was.
     bool saved = false;
+    bool wroteV23 = false;
     try {
         saved = saveChanges(
-            copyPath, read.tags, checked, after, options, changes.pictures.has_value());
+            copyPath, read.tags, checked, after, options, changes.pictures.has_value(), wroteV23);
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;
@@ -462,6 +524,12 @@ WriteResult writeTags(
         result.status = WriteResult::Status::Failed;
         return result;
     }
+
+    // W-ID3VER, not kept: only an ID3v2.3 tag is read again, once, before the copy replaces
+    // the original. The lines go into the result only when the save ends Ok.
+    QStringList notKept;
+    if (wroteV23)
+        notKept = whatIsNotKept(copyPath, after);
 
     // WS-KEEP: the copy takes what the original had: permission bits, owner where
     // the system allows, extended attributes.
@@ -507,6 +575,7 @@ WriteResult writeTags(
     }
 
     result.status = WriteResult::Status::Ok;
+    result.notKept = notKept;
     return result;
 }
 
