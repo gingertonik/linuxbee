@@ -125,6 +125,7 @@ struct Rig {
             return files;
         };
         hooks.now = [this] { return now; };
+        hooks.confirm = [](const QString &) { return true; }; // SH-REMOVE: Remove from Library asks
         shell = std::make_unique<LibraryShell>(&window, &actions, library.get(), &playlists, &settings, hooks);
     }
     void run(const char16_t *id)
