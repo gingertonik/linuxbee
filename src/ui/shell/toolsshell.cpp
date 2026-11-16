@@ -66,6 +66,10 @@ struct ToolsShell::Private {
             target.id = track->id;
             target.path = track->path;
             target.tags = track->tags;
+            // TS-TOOLS, Pictures: the library keeps only a count, so each picture
+            // becomes an entry without data, as a read without picture data gives.
+            for (int i = 0; i < track->pictureCount; ++i)
+                target.tags.pictures.append(Picture());
             targets.append(target);
         }
         return targets;
