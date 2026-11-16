@@ -50,8 +50,10 @@ QList<TagChanges> renumberTracks(const QList<TrackTags> &tracks, const RenumberO
 
     const QString total = QString::number(int(tracks.size()));
     for (qsizetype i = 0; i < tracks.size(); ++i) {
+        // G-RENUMBER: an M4A file stores a number and cannot hold padding.
+        const int digits = tracks.at(i).format == QLatin1String("m4a") ? 0 : options.digits;
         const QString number = QString::number(qint64(options.start) + qint64(i))
-                                   .rightJustified(options.digits, QLatin1Char('0'));
+                                   .rightJustified(digits, QLatin1Char('0'));
         TagChanges changes;
         setIfChanged(&changes, tracks.at(i), QStringLiteral("Track#"), { number });
         if (options.writeTotal)

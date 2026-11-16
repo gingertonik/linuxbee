@@ -118,6 +118,12 @@ compared as text: `04` is not `4`. A negative `start` or `digits`, or a
 any track number has; the limit is there so that a slip of the hand
 cannot ask for a number two thousand million characters wide.)
 
+An M4A file stores its track number as a number, not as text, so
+padding cannot be held there: for a track whose `format` is exactly
+`m4a`, Track# is written without padding whatever `digits` says. (With
+padding the file would read back unpadded, and the same change would
+be offered at every run.) Track Count was never padded.
+
 The caller decides the order (for a dialog: the order shown in the list).
 
 ## G-INFER: tags from the file name
@@ -145,6 +151,16 @@ names a field twice, or has two fields with nothing between them.
 changes (G-CHANGES). With `blankFieldsOnly`, a field that has any value is
 left alone. No match, or a pattern that does not validate, gives no
 changes.
+
+`InferPattern(pattern)` is a pattern made ready once, for a caller that
+asks about many paths: `problem()`, `match(path)` and
+`changes(tags, path, blankFieldsOnly)` answer what
+`validateInferPattern`, `inferFromPath` and `inferTags` answer for that
+pattern. Speed, locked by counting: `inferPatternsPrepared()` rises by
+one when an `InferPattern` is built from a usable pattern and not at
+all when it is asked or copied; by one for each call of
+`inferFromPath` or `inferTags` with a usable pattern; never for a
+pattern that does not validate, and never for validating.
 
 ## G-COPY: copy and swap
 

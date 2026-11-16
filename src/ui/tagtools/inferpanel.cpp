@@ -65,12 +65,12 @@ QList<TagChanges> InferPanel::changes(const QList<EditTarget> &targets) const
     // so no file is opened; the pattern is checked once, not once per track.
     if (!problem().isEmpty())
         return QList<TagChanges>(targets.size());
-    const QString text = pattern();
+    const InferPattern ready(pattern());
     const bool blank = blankFieldsOnly();
     QList<TagChanges> out;
     out.reserve(targets.size());
     for (const EditTarget &target : targets)
-        out.append(inferTags(target.tags, target.path, text, blank));
+        out.append(ready.changes(target.tags, target.path, blank));
     return out;
 }
 
