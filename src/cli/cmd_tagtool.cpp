@@ -159,6 +159,11 @@ QString reasonFor(const linuxbee::WriteResult &result)
         return QStringLiteral("not writable");
     case linuxbee::WriteResult::Status::InvalidChange:
         return result.problems.join(QLatin1String("; "));
+    case linuxbee::WriteResult::Status::HardLinked:
+    case linuxbee::WriteResult::Status::ChangedOnDisk:
+        // WS-LINK, WS-SAME: the line the writer gave.
+        return result.problems.isEmpty() ? QStringLiteral("could not save")
+                                         : result.problems.first();
     case linuxbee::WriteResult::Status::Failed:
         return QStringLiteral("could not save");
     }
