@@ -314,6 +314,19 @@ is stored, the report names no track, its report says why in `refused`,
 `failed` is emitted once with the same words, and no change signal is
 sent. The same scan run again later stores what it finds then.
 
+**A refusal partway.** (Found by the review of fix 60, with a file-size
+limit standing in for a full disk: the scan's storing skipped a write
+the database refused and went on. The database had ended the
+transaction itself, so each write after that was stored on its own:
+21 tracks were stored and the report said none.) The storing of a
+scan is one change. The first write the database refuses ends it: no
+statement runs after the refusal, the transaction is given up,
+nothing of the scan is stored, the report names no track and says
+why in `refused`, `failed` is emitted once with the same words, and
+no change signal goes out. A write that had nothing to do (the track
+is gone by now) is not a refusal. The same scan made again later
+stores everything it finds.
+
 ### L-MOVED
 
 (Found by an outside review of the code, 2026-11-16: organised files
