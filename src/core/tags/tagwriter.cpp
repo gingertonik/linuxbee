@@ -335,8 +335,20 @@ QStringList whatIsNotKept(const QString &copyPath, const TrackTags &after)
     };
     for (const QString &name : tagFieldNames())
         compare(name, after.fields.value(name), read.tags.fields.value(name));
+    // Four keys with no ID3v2.3 frame are named as a person would write them.
+    auto readable = [](const QString &key) {
+        if (key == QStringLiteral("DISCSUBTITLE"))
+            return QStringLiteral("Disc Subtitle");
+        if (key == QStringLiteral("RELEASEDATE"))
+            return QStringLiteral("Release Date");
+        if (key == QStringLiteral("TAGGINGDATE"))
+            return QStringLiteral("Tagging Date");
+        if (key == QStringLiteral("PRODUCEDNOTICE"))
+            return QStringLiteral("Produced Notice");
+        return key;
+    };
     for (auto it = after.other.cbegin(); it != after.other.cend(); ++it)
-        compare(it.key(), it.value(), read.tags.other.value(it.key()));
+        compare(readable(it.key()), it.value(), read.tags.other.value(it.key()));
     lines.sort();
     return lines;
 }
