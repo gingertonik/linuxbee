@@ -202,6 +202,12 @@ To uninstall:
 sh install.sh --uninstall
 ```
 
+If you installed with the one-line command above and have no `install.sh` file, uninstall with this instead:
+
+```sh
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh -s -- --uninstall
+```
+
 ## Try it
 
 After `sh tools/check.sh` prints `rc=0`, two programs are in `build/dev`:

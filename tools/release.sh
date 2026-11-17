@@ -40,6 +40,13 @@ notes) check && notes ;;
 publish)
     commit=${3:?usage: release.sh publish <tag> <commit>}
     check
+    # R-PUBLISH, "the commit": what is published is what is checked out here (and was tested here), and
+    # what the tag names where it was pushed. An annotated tag is listed twice, its commit last.
+    head=$(git rev-parse HEAD 2> /dev/null) || die "this is not a git checkout"
+    [ "$head" = "$commit" ] || die "the commit given is $commit but $head is checked out"
+    named=$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}" 2> /dev/null | awk '{ c = $1 } END { print c }')
+    [ -n "$named" ] || die "origin has no tag $tag"
+    [ "$named" = "$commit" ] || die "at origin the tag $tag names $named, not $commit"
     out=$(mktemp -d)
     trap 'rm -rf "$out"' EXIT
     sh tools/stamp-install.sh "$tag" "$commit" < install.sh > "$out/install.sh"

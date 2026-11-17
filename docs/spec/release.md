@@ -61,7 +61,20 @@ begin by saying it is for early testing.
 
 A tag whose job failed has no Release, so "latest" stays where it was.
 
+**The commit.** (From the review of these tools: the job tested an
+installer stamped with the commit it had checked out and published one
+stamped with the commit it was told, and nothing held the two to be
+the same. Had they differed, every machine would have refused the
+installer.) `publish` refuses, publishing nothing, unless the commit it
+is given is the commit checked out, and is the commit the tag names at
+`origin` (for an annotated tag, the commit the tag's object points
+to). A tag `origin` does not have is refused.
+
 ## R-RIGHTS
+
+Releases are made one at a time, each to its end
+(`concurrency`, group `release`, never cancelled): of two tags pushed
+together the later is published last, and so is the latest.
 
 The release workflow runs on a pushed tag `v*` and on nothing else.
 Its token reads the source; the one job asks for `contents: write`,

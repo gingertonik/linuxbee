@@ -9,7 +9,8 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fail=0
 no() { echo "FAIL: $1"; fail=$((fail + 1)); }
-C=0123456789abcdef0123456789abcdef01234567
+C= # the commit of the small tree, set by tree
+GIT="git -c user.name=t -c user.email=t@example.invalid -c init.defaultBranch=main"
 
 tree() { # a fresh small tree at 1.2.3, with two lines unreleased
     rm -rf "$T/t"; mkdir -p "$T/t/tools" "$T/t/tests"
@@ -18,7 +19,13 @@ tree() { # a fresh small tree at 1.2.3, with two lines unreleased
     printf 'cmake_minimum_required(VERSION 3.25)\nproject(linuxbee VERSION 1.2.3 LANGUAGES CXX)\n' > "$T/t/CMakeLists.txt"
     printf '        QCOMPARE(linuxbee::versionString(), QStringLiteral("1.2.3"));\n' > "$T/t/tests/tst_version.cpp"
     printf '# Changelog\n\nWords.\n\n## Unreleased\n\n- A new thing.\n- Another.\n\n## 1.2.3 (2026-01-02)\n\n- The old thing.\n\n## 1.2.30 (2020-01-01)\n\n- A decoy.\n' > "$T/t/CHANGELOG.md"
+    # R-PUBLISH, "the commit": the tree is a git checkout with an origin, as the release job's is.
+    rm -rf "$T/origin.git"
+    $GIT init -q --bare "$T/origin.git" && (cd "$T/t" && $GIT init -q . && $GIT add -A && $GIT commit -qm tree \
+        && $GIT remote add origin "$T/origin.git" && $GIT push -q origin HEAD:refs/heads/main) || no "the test could not make its git tree"
+    C=$(cd "$T/t" && git rev-parse HEAD)
 }
+tagged() { (cd "$T/t" && $GIT push -q -f origin "$2:refs/tags/$1") || no "the test could not push the tag $1"; } # a plain tag at origin
 in_tree() { (cd "$T/t" && "$@"); }
 FAKE="$T/fake"; mkdir -p "$FAKE" "$T/assets"
 cat > "$FAKE/gh" << EOF
@@ -78,6 +85,7 @@ tree; in_tree sh tools/bump-version.sh 1.3.0 2026-02-03 > /dev/null 2>&1
 sed -i 's/VERSION 1.3.0 /VERSION 0.7.0 /; s/^## 1.3.0 /## 0.7.0 /' "$T/t/CMakeLists.txt" "$T/t/CHANGELOG.md"
 
 # R-PUBLISH
+tagged v0.7.0 "$C"
 pub v0.7.0 "$C" || no "publish failed: $(tail -n 2 "$T/out" | tr '\n' ' ')"
 [ "$(wc -l < "$T/gh.args" 2> /dev/null)" = 1 ] || no "publish: gh was not called exactly once"
 a=$(cat "$T/gh.args" 2> /dev/null)
@@ -96,8 +104,26 @@ pub v0.7.1 "$C" && no "publish: a tag that is not the version went out"
 pub v0.7.0 abc && no "publish: a short commit went out"
 [ -e "$T/gh.args" ] && no "publish: gh was called with a short commit"
 GH_FAIL=1 pub v0.7.0 "$C" && no "publish: gh failed and it said nothing"
+# "the commit": what is published is what is checked out, and what the tag names at origin
+O=$(cd "$T/t" && $GIT commit-tree -m other 'HEAD^{tree}') # another commit; HEAD stays
+tagged v0.7.0 "$O"
+pub v0.7.0 "$C" && no "publish: went out although the tag at origin names another commit"
+[ -e "$T/gh.args" ] && no "publish: gh was called for a tag that names another commit"
+pub v0.7.0 "$O" && no "publish: a commit that is not the one checked out went out"
+[ -e "$T/gh.args" ] && no "publish: gh was called for a commit that is not checked out"
+(cd "$T/t" && $GIT push -q origin :refs/tags/v0.7.0)
+pub v0.7.0 "$C" && no "publish: went out although origin has no such tag"
+[ -e "$T/gh.args" ] && no "publish: gh was called for a tag origin does not have"
+# an annotated tag names its commit through the tag's own object
+(cd "$T/t" && $GIT tag -f -a v0.7.0 -m v0.7.0 "$C" > /dev/null && $GIT push -q -f origin refs/tags/v0.7.0)
+[ "$(cd "$T/t" && git ls-remote origin refs/tags/v0.7.0 | cut -c1-40)" != "$C" ] || no "the test's annotated tag is not an object of its own"
+pub v0.7.0 "$C" || no "publish: an annotated tag was refused: $(tail -n 2 "$T/out" | tr '\n' ' ')"
+grep -qx "COMMIT=$C" "$T/assets/install.sh" 2> /dev/null || no "publish: an annotated tag's installer is not stamped with the commit"
+(cd "$T/t" && $GIT tag -f -a v0.7.0 -m v0.7.0 "$O" > /dev/null && $GIT push -q -f origin refs/tags/v0.7.0)
+pub v0.7.0 "$C" && no "publish: went out although the annotated tag names another commit"
 # a pre-release: marked, and not the latest; its notes may still be unreleased
 tree; sed -i 's/VERSION 1.2.3 /VERSION 2.0.0 /' "$T/t/CMakeLists.txt"
+tagged v2.0.0-rc1 "$C"
 pub v2.0.0-rc1 "$C" || no "publish: a pre-release failed: $(tail -n 2 "$T/out" | tr '\n' ' ')"
 a=$(cat "$T/gh.args" 2> /dev/null)
 case "$a" in *--prerelease*) ;; *) no "publish: a pre-release is not marked so" ;; esac
@@ -111,6 +137,8 @@ R="$SRC/README.md"
 grep -qxF 'curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh' "$R" || no "README: not the one fixed line, on a line of its own"
 grep -qF 'releases/download/<tag>/install.sh' "$R" || no "README: no form for a named release"
 grep -qF -- '--uninstall' "$R" || no "README: not how to uninstall"
+grep -qxF 'curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh -s -- --uninstall' "$R" \
+    || no "README: no way to uninstall for someone who used the one line and has no file"
 grep -qF -- '--dry-run' "$R" || no "README: not how to see what it would do"
 grep -qiE 'read (it|the script)' "$R" || no "README: not download, read, run"
 grep -q 'raw.githubusercontent\|linuxbee/main/\|blob/main/install' "$R" && no "README: the script is fetched from the main branch"

@@ -26,6 +26,8 @@ for W in "$SRC"/.github/workflows/*; do
         awk '/- name: Publish/{f=1} /github\.token/&&!f{print}' "$W" | grep . && no "$w: the token is given to a step before the last"
         [ "$(grep -c '^      - name:' "$W")" -ge 1 ] && [ "$(grep '^      - name:' "$W" | tail -n 1)" = '      - name: Publish' ] || no "$w: publishing is not the last step"
         grep -qE "^    tags: \['v\*'\]" "$W" || no "$w: not on tags v*"
+        awk '/^concurrency:/{f=1;next} f&&/^[^ ]/{f=0} f' "$W" | tr -d ' ' | sort | tr '\n' ' ' | grep -qx 'cancel-in-progress:false group:release ' \
+            || no "$w: releases are not made one at a time, each to its end"
         grep -qE '^[[:space:]]+(branches|pull_request|schedule|workflow_dispatch)' "$W" && no "$w: runs on something besides a tag"
         grep -q 'GITHUB_REF_NAME' "$W" && { grep 'GITHUB_REF_NAME' "$W" | grep -v "su ci -c '" | grep . && no "$w: the tag's name is pasted into a script"; }
         grep -n 'release.sh check' "$W" | head -n 1 | cut -d: -f1 > /dev/null
