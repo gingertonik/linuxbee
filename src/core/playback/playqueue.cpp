@@ -55,6 +55,7 @@ void PlayQueue::playNow(const QStringList &paths, int startAt)
         reshuffle();
     emit entriesChanged();
     emit currentChanged(m_current);
+    emit nextChanged();
 }
 
 // Right after the current entry, or at the remembered place with none.
@@ -75,6 +76,7 @@ void PlayQueue::queueNext(const QStringList &paths)
         m_upcoming = ids + m_upcoming;
     }
     emit entriesChanged();
+    emit nextChanged();
 }
 
 // At the end of the list. Under shuffle each track joins the round at a place
@@ -92,6 +94,7 @@ void PlayQueue::queueLast(const QStringList &paths)
         }
     }
     emit entriesChanged();
+    emit nextChanged();
 }
 
 // Positions that do not exist are ignored; the return value counts what went.
@@ -172,6 +175,7 @@ int PlayQueue::removeAt(const QList<int> &positions)
     emit entriesChanged();
     if (m_current != oldCurrent)
         emit currentChanged(m_current);
+    emit nextChanged();
     return removed;
 }
 
@@ -192,7 +196,9 @@ bool PlayQueue::move(int from, int to)
         newCurrent = m_current + 1;
     emit entriesChanged();
     if (newCurrent != m_current)
-        setCurrentInternal(newCurrent);
+        setCurrentInternal(newCurrent); // says nextChanged itself
+    else
+        emit nextChanged();
     return true;
 }
 
@@ -210,6 +216,7 @@ void PlayQueue::clear()
     emit entriesChanged();
     if (hadCurrent)
         emit currentChanged(-1);
+    emit nextChanged();
 }
 
 // A jump under shuffle: the entry left joins the way back, and the entry
@@ -243,6 +250,7 @@ void PlayQueue::setCurrentInternal(int index)
     if (index >= 0)
         m_resumeAt = index;
     emit currentChanged(index);
+    emit nextChanged();
 }
 
 // Q-RENAME: each entry is looked up once, where it is. Ids, order, the current
@@ -257,8 +265,10 @@ int PlayQueue::renamePaths(const QHash<QString, QString> &oldToNew)
         entry.path = found.value();
         ++changed;
     }
-    if (changed > 0)
+    if (changed > 0) {
         emit entriesChanged();
+        emit nextChanged();
+    }
     return changed;
 }
 
