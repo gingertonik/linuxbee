@@ -4,6 +4,11 @@ linuxBee is numbered below 1.0 until it is ready to replace MusicBee for
 daily use. Every release before 1.0 is for early testing: commands,
 settings and the library file may still change.
 
+## Unreleased
+
+- The desktop entry no longer offers linuxBee for opening audio files, which
+  it could not open yet.
+
 ## 0.6.0 (2026-11-17)
 
 The first numbered version. It marks the state of `main` once the core
