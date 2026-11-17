@@ -1,0 +1,41 @@
+# Rules: docs/spec/ci.md. This file is locked; it changes by a reviewer's commit only.
+# No action from anyone is used here, on purpose (C-NOACTIONS). Do not add `uses:`.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        step: [gate, sanitize, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    env:
+      STEP: ${{ matrix.step }}
+    steps:
+      - name: The source, at the commit that was pushed
+        run: |
+          pacman -Sy --noconfirm --needed git
+          git init -q src
+          cd src
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Packages, and an ordinary user
+        run: |
+          cd src
+          sh tools/ci.sh packages
+          sh tools/ci.sh user
+      - name: The step
+        run: |
+          cd src
+          su ci -c "sh tools/ci.sh ${STEP}"

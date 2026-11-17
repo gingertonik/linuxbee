@@ -350,25 +350,36 @@ struct ToolsShell::Private {
         presenter(&dialog);
     }
 
-    // TS-ORGANISE: a file that was moved keeps its library track, now at the new place.
-    // A copy leaves the library as it was: its source still exists. A track that held the
-    // target goes first, since its file is no longer there, so the path is free to take.
+    // TS-ORGANISE: a file that was moved keeps its library track, now at the new place. The
+    // moved outcomes go, in the report's order, to one recordMoves, which does to the tracks
+    // what was done to the files; the playlists and the queue are brought up to date once for
+    // the run (TS-ORGANISE, L-MOVED). The shell looks at nothing else.
     void organisedFiles(const OrganiseReport &report)
     {
+        QList<FileMove> moves;
         for (const MoveOutcome &outcome : report.outcomes) {
-            if (outcome.status != MoveOutcome::Status::Done || outcome.target == outcome.source
-                || QFile::exists(outcome.source))
-                continue;
-            if (const std::optional<LibraryTrack> held = library->trackByPath(outcome.target))
-                library->remove({ held->id });
-            if (const std::optional<LibraryTrack> track = library->trackByPath(outcome.source))
-                library->setPath(track->id, outcome.target);
+            if (outcome.status == MoveOutcome::Status::Done && outcome.moved
+                && outcome.target != outcome.source)
+                moves.append({ outcome.source, outcome.target });
         }
-        showMessage(QCoreApplication::translate(
+        // TS-ORGANISE: the library saying `failed` during this one call, and only then, ends the
+        // line with what the user needs to know.
+        bool refused = false;
+        if (!moves.isEmpty()) {
+            const QMetaObject::Connection listening = QObject::connect(
+                library, &Library::failed, owner, [&refused] { refused = true; });
+            library->recordMoves(moves);
+            QObject::disconnect(listening);
+        }
+        QString line = QCoreApplication::translate(
             "linuxbee::ui::ToolsShell", "Organised: %1 done, %2 skipped, %3 failed")
-                .arg(report.done)
-                .arg(report.skipped)
-                .arg(report.failed));
+                           .arg(report.done)
+                           .arg(report.skipped)
+                           .arg(report.failed);
+        if (refused)
+            line += QCoreApplication::translate("linuxbee::ui::ToolsShell",
+                "; the library could not be changed and still lists the files where they were");
+        showMessage(line);
     }
 
     // TS-CONVERT: the converter is given the selected paths and the settings.

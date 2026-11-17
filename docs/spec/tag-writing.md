@@ -61,6 +61,9 @@ An entry is refused when:
 - its field name is not in the catalogue;
 - the field is Rating and the list is not a single number from 0.5 to 5 in
   steps of 0.5;
+- the field is Love and the list is not a single `L` or `B`, in either
+  case, white space about it allowed (what is written is the letter
+  alone, in upper case);
 - the field is Track#, Track Count, Disc# or Disc Count and the list has
   more than one value or the value contains `/`;
 - an `other` key is empty, has a character outside printable ASCII
@@ -101,6 +104,7 @@ comment or atom for the format (TL).
 | Original Artist | ORIGINALARTIST | ORIGARTIST (F-V) | ORIGINALARTIST |
 | Original Album | ORIGINALALBUM | ORIGALBUM (F-V) | ORIGINALALBUM |
 | Rating | the `POPM` frame (W-RATING) | RATING | RATING |
+| Love | LOVE RATING (a `TXXX` frame) | LOVE RATING | LOVERATING |
 | every other field | the first key in its R-CATALOGUE row | the same | the same |
 
 ### W-ONEHOME

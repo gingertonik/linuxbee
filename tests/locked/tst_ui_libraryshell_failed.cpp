@@ -120,6 +120,7 @@ struct Holder {
     explicit Holder(const Rig &r)
         : name(QStringLiteral("holder-%1").arg(quintptr(this)))
     {
+        r.library->setWriteWait(std::chrono::milliseconds(50)); // L-WAIT: not the five seconds
         QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
         db.setDatabaseName(r.dir.path() + QStringLiteral("/library.db"));
         if (!db.open() || !QSqlQuery(db).exec(QStringLiteral("BEGIN IMMEDIATE")))

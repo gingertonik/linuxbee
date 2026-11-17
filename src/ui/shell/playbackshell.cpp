@@ -127,6 +127,11 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     // PS-GAIN: what the library holds for a track changed; the kept answer goes.
     connect(library, &Library::tracksUpdated, this, [this] { d->kept = false; });
 
+    // PS-MOVED: a file the library says moved is renamed in the queue and in the player,
+    // which goes on playing it.
+    connect(library, &Library::pathsMoved, this,
+        [this](const QHash<QString, QString> &oldToNew) { d->player->renamePaths(oldToNew); });
+
     // PS-PLAY: the library shell asks for a list played from a row.
     connect(libraryShell, &LibraryShell::playRequested, this,
         [this](const QStringList &paths, int index) { d->queue->playNow(paths, index); });

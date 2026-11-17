@@ -57,8 +57,9 @@ bool writeAll(const TransferIo &io, int fd, const char *data, qint64 size)
     return true;
 }
 
-// Copies the bytes of `from` to `to` and returns how many went. -1 on any failure.
-qint64 copyBytes(const TransferIo &io, int from, int to)
+// Copies the bytes of `from` to `to` and returns how many went. -1 on any failure, and
+// `why` is then the errno of the call that failed.
+qint64 copyBytes(const TransferIo &io, int from, int to, int &why)
 {
     std::vector<char> buffer(1024 * 1024);
     qint64 total = 0;
@@ -67,12 +68,15 @@ qint64 copyBytes(const TransferIo &io, int from, int to)
         if (n < 0) {
             if (errno == EINTR)
                 continue;
+            why = errno;
             return -1;
         }
         if (n == 0)
             return total;
-        if (!writeAll(io, to, buffer.data(), n))
+        if (!writeAll(io, to, buffer.data(), n)) {
+            why = errno;
             return -1;
+        }
         total += n;
     }
 }
@@ -91,10 +95,12 @@ bool sourceStillThere(const QByteArray &from)
     return ::lstat(from.constData(), &st) == 0 || errno != ENOENT;
 }
 
-// O-ACROSS, the target is on another file system. Copies, checks the size, gives the
-// copy the source's mode and time, flushes it and its folder, closes everything, and
-// only then removes the source (the last call made). The target is made here
-// (O_EXCL), so a failure removes it, and a refusal to make it removes nothing.
+// O-ACROSS, the target is on another file system. Copies, checks that the source did not
+// change and the copy has its size, gives the copy the source's mode and time, flushes it
+// and its folder, closes everything, and only then removes the source (after it only
+// descriptors are let go). The target is made here (O_EXCL), so a failure removes it,
+// and a refusal to make it removes nothing. A descriptor of the move's own stays on the
+// copy until the move returns, so the name is looked at and removed while the file is held.
 QString moveAcross(const TransferIo &io, const QString &source, const QString &target)
 {
     const QByteArray from = QFile::encodeName(source);
@@ -114,10 +120,13 @@ QString moveAcross(const TransferIo &io, const QString &source, const QString &t
     Fd out(io, ::open(to.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600));
     if (out.fd < 0)
         return couldNotCopy;
+    // The move's own descriptor on the copy, kept until the move returns: while it is open
+    // the file's number cannot pass to another file.
+    Fd held(io, ::fcntl(out.fd, F_DUPFD_CLOEXEC, 0));
     struct stat made { };
-    if (::fstat(out.fd, &made) != 0) {
-        // The file is ours, but it cannot be told from another one later: take it back
-        // only while the name still holds what was just made (nothing has been written).
+    if (held.fd < 0 || ::fstat(out.fd, &made) != 0) {
+        // The file is ours, but it cannot be held or told from another one later: nothing
+        // has been written, so take it back only while the name still holds an empty file.
         out.close();
         struct stat now { };
         if (::lstat(to.constData(), &now) == 0 && S_ISREG(now.st_mode) && now.st_size == 0)
@@ -125,25 +134,35 @@ QString moveAcross(const TransferIo &io, const QString &source, const QString &t
         return couldNotCopy;
     }
 
-    // From here the target is ours, and every failure closes and removes it. The name
-    // is removed only while it still holds the file made here.
+    // From here the target is ours, and every failure removes it. The name is looked at
+    // and removed only while `held` is open, and only while it still holds the file made
+    // here; the descriptor is let go after that.
     const auto undo = [&](const QString &said) {
         out.close();
         struct stat now { };
         if (::lstat(to.constData(), &now) == 0 && sameFile(now, made))
             io.unlink(to.constData());
+        held.close();
         return said;
     };
 
     // 1. the bytes
-    const qint64 copied = copyBytes(io, in.fd, out.fd);
+    int why = 0;
+    const qint64 copied = copyBytes(io, in.fd, out.fd, why);
     if (copied < 0)
-        return undo(couldNotCopy);
+        return undo(why == ENOSPC || why == EDQUOT
+                ? QStringLiteral("there is no room for the file at the target")
+                : couldNotCopy);
 
-    // 2. the copy has the size of the source
+    // 2. the source is as it was (size, modification and change time), and the copy has
+    // its size
     struct stat now { }, written { };
     if (::fstat(in.fd, &now) != 0 || ::fstat(out.fd, &written) != 0)
         return undo(QStringLiteral("could not read the size of the copy"));
+    if (now.st_mtim.tv_sec != before.st_mtim.tv_sec || now.st_mtim.tv_nsec != before.st_mtim.tv_nsec
+        || now.st_ctim.tv_sec != before.st_ctim.tv_sec
+        || now.st_ctim.tv_nsec != before.st_ctim.tv_nsec)
+        return undo(QStringLiteral("the file changed while it was copied"));
     if (written.st_size != now.st_size || copied != now.st_size || now.st_size != before.st_size)
         return undo(QStringLiteral("the copy is not the size of the file"));
 
@@ -173,7 +192,8 @@ QString moveAcross(const TransferIo &io, const QString &source, const QString &t
     if (!in.close())
         return undo(QStringLiteral("could not close the original"));
 
-    // 6. only now the source goes, as the very last call; if it cannot, the copy is taken back
+    // 6. only now the source goes; if it cannot, the copy is taken back (still held). After
+    // the removal only the move's own descriptor is let go.
     if (io.unlink(from.constData()) != 0) {
         if (!sourceStillThere(from))
             return { };

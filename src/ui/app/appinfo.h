@@ -9,7 +9,7 @@ namespace linuxbee::ui {
 
 QString applicationDisplayName(); // "linuxBee"
 QString applicationSettingsName(); // "linuxbee": folder names, the desktop file
-QString versionLine(); // "linuxBee 0.1.0"
+QString versionLine(); // "linuxBee 0.6.0"
 
 // Sets the application name, display name, version and desktop file name.
 void applyApplicationInfo(QCoreApplication &application);

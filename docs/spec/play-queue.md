@@ -54,6 +54,14 @@ goes to the entry that followed the removed one, Previous to the one
 before it, and `queueNext` inserts at that place. In a queue that never
 had a current entry the place is the top.
 
+## Q-RENAME
+
+`renamePaths(oldToNew)` (library.md, L-MOVED) gives each entry whose
+path is one of the old ones its new path, and returns how many
+entries changed. Nothing else changes: the entry ids, the order, the
+current entry, the shuffle round and the way back. `entriesChanged`
+is emitted once when any entry changed; `currentChanged` never.
+
 ## Q-NEXT: Next and Previous, in list order
 
 `next(automatic)` and `previous()` return the new current index, or -1
@@ -93,6 +101,34 @@ round; the method is the implementation's own.
 - `setShuffle(true, seed)` while shuffle is on starts a new round with the
   new seed. `setShuffle(false, ...)` ends shuffling: Next continues in
   list order from the current entry.
+
+## Q-PEEK: what Next would give
+
+`peekNext(automatic)` returns the entry (its id and path) that
+`next(automatic)` would make current, or nothing where it would return
+-1. It changes nothing and emits nothing: the list, the current entry,
+the round, the way back and every later Next are as if it had not been
+asked, however often it is.
+
+It holds in every mode. In particular:
+
+- under `Repeat::One`, for a track that ended by itself, it is the
+  current entry;
+- when a shuffle round is used up under `Repeat::All`, it is the entry
+  the new round will begin with, although that round is not dealt until
+  Next is called;
+- with no current entry, it is the entry at the place the queue
+  remembers (Q-EDIT).
+
+`nextChanged` is emitted during every call after which either
+`peekNext(true)` or `peekNext(false)` gives a different answer than
+before it. It may be emitted when the answer happens to be the same,
+but not by a call that changes nothing (Q-SIGNALS). `setShuffle(true,
+seed)` while shuffle is on deals a new round and emits it, although no
+other signal tells of that call.
+
+The player uses the two together to have the next file ready before
+the current one ends.
 
 ## Q-SIGNALS
 

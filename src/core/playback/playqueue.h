@@ -1,9 +1,11 @@
 #pragma once
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 
+#include <optional>
 #include <random>
 
 // The Playing Tracks list: what is playing, what comes next, and how
@@ -34,6 +36,7 @@ public:
     void queueLast(const QStringList &paths);
     int removeAt(const QList<int> &positions); // returns how many were removed
     int removePaths(const QStringList &paths); // every entry with one of them, but the current one
+    int renamePaths(const QHash<QString, QString> &oldToNew); // Q-RENAME
     bool move(int from, int to);
     void clear();
     bool setCurrent(int index);
@@ -44,6 +47,8 @@ public:
     int next(bool automatic);
     int previous();
     bool hasNext(bool automatic) const;
+    // Q-PEEK: the entry next(automatic) would make current. Changes nothing.
+    std::optional<Entry> peekNext(bool automatic) const;
 
     Repeat repeat() const;
     void setRepeat(Repeat repeat);
@@ -54,9 +59,12 @@ signals:
     void entriesChanged();
     void currentChanged(int index);
     void modeChanged();
+    void nextChanged(); // Q-PEEK: peekNext(true) or peekNext(false) may now answer differently
 
 private:
     void reshuffle();
+    QList<qint64> dealRound(
+        std::mt19937 &random) const; // every entry but the current one, shuffled
     void setCurrentInternal(int index);
 
     QList<Entry> m_entries;

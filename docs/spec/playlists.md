@@ -136,6 +136,15 @@ disk, so a file put there by hand shows up.
 - Files are written whole and then moved into place (`QSaveFile`), so a
   crash cannot leave half a playlist.
 
+### Y-RELINK
+
+`relink(oldToNew)` (library.md, L-MOVED): in every playlist of the
+store, each entry that is one of the old paths becomes its new path.
+Each entry is looked up once, in the list as it was, so two files
+that swap places swap. Position and repeats are kept. A playlist in
+which nothing changed is not written. It returns the number of
+playlists written, and `tracksChanged` is emitted for each.
+
 ### Y-NAME
 
 A playlist or folder name is refused when it: is empty or only white

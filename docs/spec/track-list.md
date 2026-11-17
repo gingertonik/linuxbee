@@ -126,7 +126,9 @@ field name in `columns()`.
 Time. `setColumns` takes any field names; it refuses an empty list, a
 blank name, and a name given twice (in any case), changing nothing. A cell
 shows what `LibraryFieldSource` gives for the field, and is empty when the
-track has no value or the field does not exist. The header shows the field
+track has no value or the field does not exist. One column shows a sign
+for its value: Love shows `♥` for `L` and `⊘` for `B`. Sorting and the
+search box go by the value, not the sign. The header shows the field
 name.
 
 **Kept between changes.** A keystroke in the search box must cost a

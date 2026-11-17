@@ -42,13 +42,55 @@ Open fails, with a message and without changing the file, when the file
 cannot be opened or created, is not an SQLite database, or has a schema
 newer than this program's (L-SCHEMA).
 
+A library whose folder cannot be written to does not open (its
+write-ahead log cannot be made), and the message says that it `cannot
+be written` to and names the file. It does not say that the file is
+not a linuxBee library.
+
+Known and not yet so (found by the review, 2026-11-17): a read-only
+*file* in a folder that can be written to opens, and every change is
+then refused and said; a read-only mount and a full disk at opening
+are still answered with "not a linuxBee library". What open says in
+each of these is a package of its own, judged by the database's error
+code and not by its words. Opening a library to read only is not in
+this version.
+
 Everything the library holds survives closing and opening again.
+
+**The file is shared.** Another program may have it open: `linuxbeectl`
+beside the window, or a second start. (Found by an outside review of
+the code, 2026-11-16, and measured before this was written.)
+
+- A library on disk keeps its journal as a write-ahead log (SQLite's
+  `journal_mode=WAL`, with the default `synchronous`), so a program
+  that is reading, however long, never holds up or fails a change.
+  While a library is open there are two more files beside it
+  (`-wal`, `-shm`); when the last program closes it, it is one file
+  again. A copy of a library is taken while it is closed. Where the
+  file system cannot do this (some network disks) the library opens
+  all the same, with the journal it had.
+- Two programs opening a library that does not exist yet both get a
+  library: the tables are made by whichever is first, under the
+  write lock, and the other looks again once it has the lock and
+  finds them made.
 
 ### L-SCHEMA
 
 The schema version is SQLite's `user_version`. This version is 1. A file
 with a lower version is brought up to date when opened; a file with a
 higher version is refused.
+
+A later version of the schema comes with its own step from the one
+before it, added with the first change that needs it. A step runs with
+the write lock held and in one transaction with the new
+`user_version`, so a file is at one version or the next, never
+between, and two programs started together do not both run it
+(L-OPEN). Nothing here needs version 2 yet, so there is no step.
+
+A step from one version to the next is added with the first version
+that needs one: it runs when the file is opened, under the write lock
+and in one transaction, so that a file is at one version or the
+other and never between. Version 1 has none to run.
 
 The table layout is the implementation's own business. Nothing outside
 `src/core/library/` may read the file directly.
@@ -257,6 +299,20 @@ makes the database end the whole transaction (a full disk, an I/O
 error) takes the batch's earlier work with it. The only batch today
 is the scan's, and it does not call these.
 
+### L-WAIT
+
+Only one program writes at a time. Every change the library makes
+takes the write lock **at its start** and waits for it up to 5
+seconds (`setWriteWait` sets another length; tests use a short one).
+It never reads first and asks for the lock afterwards: SQLite
+refuses that at once, without waiting, when another program is
+writing, which is how a change used to be refused for no reason.
+This holds for `remove`, `setCategory`, the storing step of a scan,
+and making a new library's tables. A change that is one statement
+waits by itself.
+
+A change that has waited that long is refused whole (L-FAILED).
+
 ### L-FAILED
 
 When the database refuses a `remove` or a `setCategory` (it is held
@@ -264,6 +320,106 @@ by another program, the disk is full), nothing is changed, the call
 returns 0, no change signal is sent, and `failed(what)` is emitted
 once, with the database's own words. A call that merely had nothing
 to do does not emit it.
+
+**Every change, not those two alone.** (Found by the reviews of fix 60:
+`relinkPaths` passed over a refused step and went on, and the other
+calls answered a refusal as they answer "no such track", so a play
+that could not be counted was lost without a word.) `refresh`,
+`setPath`, `relinkPaths`, `recordPlay`, `recordSkip`, `setStatistics`
+and `addFile` behave alike: when the database refuses, nothing is
+changed, the call answers as it does when it did nothing (`false`, 0;
+`addFile` 0), no change signal is sent, and `failed` is emitted once
+with the database's words. A call that had nothing to do (an unknown
+id, a file that cannot be read, a path that is another track's, a
+track already there) emits nothing, whatever an earlier call was
+refused for.
+
+**Nothing to do is found out before the lock is asked for.** (Found by
+the review of this rule's first build: a play for an unknown id
+waited out another program's lock and then said `failed`.) A call
+with nothing to do neither waits for another program nor says
+anything, whoever holds the library: an unknown id, an empty list, a
+list of ids none of which is known, tracks all in the section
+already, a move that names no track of ours. This holds for `remove`,
+`setCategory` and `recordMoves` as for the calls named above. A call
+with something to do for even one track is a change, and is refused
+whole and said when the library is held.
+
+`relinkPaths` is one change, as `recordMoves` is: it takes the write
+lock first (L-WAIT), the first refused step ends it, nothing of it is
+stored, and the same call made again later moves every track. A
+library with half a folder at the new place is what this is against.
+
+The storing step of a scan (`applyScan`, and so `scan`) is such a
+change. When it cannot begin, or cannot be committed, nothing of it
+is stored, the report names no track, its report says why in `refused`,
+`failed` is emitted once with the same words, and no change signal is
+sent. The same scan run again later stores what it finds then.
+
+**A refusal partway.** (Found by the review of fix 60, with a file-size
+limit standing in for a full disk: the scan's storing skipped a write
+the database refused and went on. The database had ended the
+transaction itself, so each write after that was stored on its own:
+21 tracks were stored and the report said none.) The storing of a
+scan is one change. The first write the database refuses ends it: no
+statement runs after the refusal, the transaction is given up,
+nothing of the scan is stored, the report names no track and says
+why in `refused`, `failed` is emitted once with the same words, and
+no change signal goes out. A write that had nothing to do (the track
+is gone by now) is not a refusal. The same scan made again later
+stores everything it finds.
+
+### L-MOVED
+
+(Found by an outside review of the code, 2026-11-16: organised files
+fell out of every playlist and the queue, and no rule said otherwise.)
+
+**A file the program moves keeps its place everywhere the program
+holds its path.** The library is where a move is recorded, so the
+library says it: `pathsMoved(oldToNew)`, old path to new path, for
+every track whose path a call changed.
+
+- `setPath` emits it for its one track, when the path changed.
+- `recordMoves(moves)` takes file moves, `{from, to}`, **in the order
+  they happened**, and does to the tracks what was done to the files,
+  one move after the other:
+  - the track that is at `to` at that moment goes (its file was
+    replaced), unless it is the very track being moved;
+  - the track that is at `from` at that moment, if there is one, is
+    at `to` from then on, with everything the library knows of it.
+  So a chain is followed: `c` to `a`, then `a` to `n`, leaves the
+  track of `c` at `n` and removes the track that was at `a`; in the
+  other order both tracks stay. A move whose `from` and `to` are the
+  same is nothing.
+  When all are done, each track that was moved is missing or not by
+  whether a file is at its path now. The call is one transaction. It
+  emits at most one `tracksRemoved`, one `tracksUpdated` and one
+  `pathsMoved`, in that order; `pathsMoved` maps the path each
+  remaining track had before the call to the one it has after, and
+  leaves out a track that ended where it began. It returns the size
+  of that map.
+  (A first version took `{id, newPath}` pairs after removing every
+  target's track; a chain then lost the moved track. It is gone.)
+  **Whole or not at all.** (Found by the review of the first version:
+  a step the database refused was skipped and the run went on, so a
+  later move took the wrong track along and its play counts ended on
+  another file.) If any step is refused (a removal, a move, the
+  beginning or the end of the transaction), the call stops at once,
+  nothing of it is stored, it returns 0, sends no change signal, and
+  emits `failed` once (L-FAILED). It does not go on after a refusal:
+  the database may have ended the transaction itself, and what
+  followed would be stored step by step. The library is then as it
+  was before the call, and the same call made again later records
+  the run.
+  Known and left: until then the library is behind the disk. The
+  moved tracks show as missing after a scan, and their files as new.
+- `relinkPaths` emits one, with every path it changed.
+
+A call that changed no path does not emit it. It comes after the
+change is stored and after `tracksUpdated`.
+
+Not covered: a file moved by another program. The scan sees a file
+that is gone and a new one.
 
 ### L-STATS
 
@@ -330,6 +486,9 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
 
   with `1 name that is` for one, and each folder indented by two spaces.
   The exit status does not change.
+- A scan that could not be stored (L-FAILED) prints no result line. On
+  standard error: `linuxbeectl: the scan was not stored: ` and the
+  database's words. Exit 3.
 - `list` prints one line per track in ascending order of path: the path,
   or with `--format` the template evaluated on the track's
   `LibraryFieldSource`.

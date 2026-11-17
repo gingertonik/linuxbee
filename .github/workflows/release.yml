@@ -1,0 +1,48 @@
+# Rules: docs/spec/release.md. This file is locked; it changes by a reviewer's commit only.
+# No action from anyone is used here, on purpose (ci.md, C-NOACTIONS). Do not add `uses:`.
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+# R-RIGHTS: one release at a time, and none is cut short: two tags pushed together are published in
+# turn, so that the later one is the latest.
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    permissions:
+      contents: write
+    steps:
+      - name: The source, at the tag
+        run: |
+          pacman -Sy --noconfirm --needed git
+          git init -q src
+          cd src
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Packages, and an ordinary user
+        run: |
+          cd src
+          sh tools/ci.sh packages
+          sh tools/ci.sh user
+      - name: The tag is the version, and the changelog has it
+        run: |
+          cd src
+          su ci -c 'sh tools/release.sh check "$GITHUB_REF_NAME"'
+      - name: The installer installs this very commit
+        run: |
+          cd src
+          su ci -c 'sh tools/ci.sh install'
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd src
+          su ci -c 'GH_REPO="$GITHUB_REPOSITORY" sh tools/release.sh publish "$GITHUB_REF_NAME" "$GITHUB_SHA"'

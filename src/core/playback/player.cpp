@@ -115,4 +115,16 @@ void Player::setStopAfterCurrent(bool on)
     d->setStopAfterCurrent(on);
 }
 
+// X-RENAME: the queue renames its entries; the track last started takes its new
+// path when it is one of the old ones. The backend is told nothing, its open file
+// is the same file, and no signal is sent.
+int Player::renamePaths(const QHash<QString, QString> &oldToNew)
+{
+    const int changed = d->queue->renamePaths(oldToNew);
+    const auto found = oldToNew.constFind(d->path);
+    if (found != oldToNew.constEnd())
+        d->path = found.value();
+    return changed;
+}
+
 }

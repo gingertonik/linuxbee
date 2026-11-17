@@ -27,7 +27,7 @@ layout are not documented.
 
 The editor shows these fields, in this order: Title, Artist, Album
 Artist, Album, Year, Track#, Track Count, Disc#, Disc Count, Genre,
-Composer, Grouping, Publisher, BPM, Rating, Comment. Each is a field of
+Composer, Grouping, Publisher, BPM, Rating, Love, Comment. Each is a field of
 the tag catalogue (tag-reading.md, R-CATALOGUE).
 
 ### E-STATE
@@ -65,6 +65,7 @@ otherwise one sentence:
 | the name is not a catalogue field | `NAME is not a tag field.` (the name as given) |
 | Track#, Track Count, Disc# or Disc Count is not blank and not a whole number from 1 to 9999 (digits only; leading zeros allowed) | `FIELD must be a whole number from 1 to 9999.` |
 | Rating is not blank and not one of 0.5, 1, 1.5 … 5 (`5.0` and `4.0` are accepted) | `Rating must be from 0.5 to 5 in steps of 0.5.` |
+| Love is not blank and not `L` or `B`, in either case | `Love must be L (loved) or B (banned).` |
 
 Blank text is always fine: it removes the field. Every other field takes
 any text.
@@ -76,8 +77,8 @@ For each edit (a field name and its typed text):
 
 - an edit E-CHECK refuses is skipped for every track;
 - the values are those of E-SPLIT, except that the four number fields are
-  written without leading zeros (`010` is `10`) and Rating without a
-  trailing zero (`5.0` is `5`);
+  written without leading zeros (`010` is `10`), Rating without a
+  trailing zero (`5.0` is `5`), and Love in upper case (`l` is `L`);
 - the field is named in a track's changes only if those values differ
   from the values the track has.
 
@@ -99,7 +100,9 @@ with an id, a path and its tags as read.
 | `buttons` | a `QDialogButtonBox` at the bottom holding `saveButton` (the default button) and `cancelButton` |
 
 **What a field shows.** Same: the text. Blank: nothing. Mixed: nothing,
-with the placeholder `<multiple values>`.
+with the placeholder `<multiple values>`. The Love field, when it is
+not Mixed, has a placeholder that says what may be typed (it names
+`L` and `B`).
 
 **What counts as an edit.** A field is edited when its text differs from
 what it showed at the start. A Mixed field is also edited once the user
@@ -137,7 +140,10 @@ not move anything; the caller acts on `saved`.
 ## Not in this version
 
 - Artwork, lyrics, the sort fields and tags outside the list above.
-- Stars for the rating; a drop-down of known genres or artists.
+- Stars for the rating; a drop-down of known genres or artists; a
+  control of its own for Love (it is a text field like the others for
+  now, and the Love command, with the rating commands, is the way to
+  love a track without opening this dialog).
 - Stepping to the previous and next track without closing.
 - Auto-completion, "copy from the first file", undo.
 - Editing in place in the track list.

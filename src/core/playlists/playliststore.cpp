@@ -443,4 +443,64 @@ QString PlaylistStore::validateName(const QString &name)
     return refuseName(name);
 }
 
+// Y-RELINK: every entry is looked up once, in the list as it was, so two files
+// that swap places swap. Only a line that names an old path is changed, and only
+// when the file has one; the bytes of every other line, its line ends, a byte
+// order mark and any blank line stay as they were, and a playlist in which
+// nothing changed is not written.
+int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
+{
+    if (oldToNew.isEmpty())
+        return 0;
+    int written = 0;
+    const QList<PlaylistInfo> lists = playlists();
+    for (const PlaylistInfo &info : lists) {
+        const QString path = fileFor(m_folder, info.id);
+        QFile in(path);
+        if (!in.open(QIODevice::ReadOnly))
+            continue;
+        const QByteArray data = in.readAll();
+        in.close();
+
+        QByteArray out;
+        out.reserve(data.size());
+        bool changed = false;
+        qsizetype start = 0;
+        if (data.startsWith(QByteArrayLiteral("\xEF\xBB\xBF"))) {
+            out.append(data.constData(), 3); // Y-DECODE: the mark is not a line
+            start = 3;
+        }
+        // A line ends at "\n" or "\r", as Y-DECODE reads them; the end is kept as it is.
+        const qsizetype size = data.size();
+        while (start < size) {
+            qsizetype end = start;
+            while (end < size && data.at(end) != '\n' && data.at(end) != '\r')
+                ++end;
+            const QByteArray line = data.mid(start, end - start);
+            const auto found = oldToNew.constFind(QString::fromUtf8(line).trimmed());
+            if (!line.isEmpty() && found != oldToNew.constEnd() && found.value().toUtf8() != line) {
+                out += found.value().toUtf8();
+                changed = true;
+            } else {
+                out += line;
+            }
+            // the line end, one byte, copied as it was
+            if (end < size)
+                out += data.at(end);
+            start = end + 1;
+        }
+        if (!changed)
+            continue;
+
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly))
+            continue;
+        if (file.write(out) != out.size() || !file.commit())
+            continue;
+        ++written;
+        emit tracksChanged(info.id);
+    }
+    return written;
+}
+
 }
