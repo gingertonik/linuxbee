@@ -6,6 +6,11 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- A change the library database refuses (a play that cannot be counted among them) stores
+  nothing, and a change with nothing to do asks for no lock. Remapping a folder is all or
+  nothing. `linuxbeectl library scan` says when it could not store, and a library in a
+  read-only folder says it cannot be written to. The window does not show these refusals yet.
+
 ## 0.7.0 (2026-11-17)
 
 - linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.

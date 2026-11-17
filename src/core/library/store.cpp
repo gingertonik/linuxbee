@@ -249,9 +249,15 @@ bool openAndCheckSchema(const QString &databasePath, const QString &connection, 
     // first statement is what says so.
     QSqlQuery version(database);
     if (!version.exec(QStringLiteral("PRAGMA user_version")) || !version.next()) {
-        setError(error,
-            QStringLiteral("That file is not a linuxBee library: %1")
-                .arg(version.lastError().text()));
+        const QString words = version.lastError().text();
+        // L-OPEN: a library that cannot be written to is not a file that is no library. The
+        // database says "readonly" in its own words.
+        if (words.contains(QLatin1String("readonly"), Qt::CaseInsensitive))
+            setError(error,
+                QStringLiteral("The library cannot be written to: %1 (%2)")
+                    .arg(databasePath, words));
+        else
+            setError(error, QStringLiteral("That file is not a linuxBee library: %1").arg(words));
         return false;
     }
     const int found = version.value(0).toInt();
@@ -778,8 +784,11 @@ bool Store::setPath(qint64 id, const QString &newPath, bool missing)
     return false;
 }
 
+// L-FAILED: false with lastError() empty means no such track (or an invalid time); with words,
+// the database refused.
 bool Store::recordPlay(qint64 id, const QDateTime &when)
 {
+    d->lastError.clear();
     if (!d->opened || !when.isValid())
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
@@ -796,21 +805,33 @@ bool Store::recordPlay(qint64 id, const QDateTime &when)
     query.bindValue(QStringLiteral(":whenFrom"), when.toSecsSinceEpoch());
     query.bindValue(QStringLiteral(":whenTo"), when.toSecsSinceEpoch());
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
+// L-FAILED: as recordPlay.
 bool Store::recordSkip(qint64 id)
 {
+    d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("UPDATE tracks SET skip_count = skip_count + 1 WHERE id = :id"));
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
+// L-FAILED: as recordPlay.
 bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
 {
+    d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
@@ -822,7 +843,11 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
     query.bindValue(QStringLiteral(":skips"), statistics.skipCount);
     query.bindValue(QStringLiteral(":last"), toSecs(statistics.lastPlayed));
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
 // L-SCAN, L-MISSING: the file is gone, or is back. Only the flag moves: tags,
