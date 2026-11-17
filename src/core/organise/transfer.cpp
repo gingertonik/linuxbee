@@ -1,4 +1,5 @@
 #include "transfer.h"
+#include "transfer_io.h"
 
 #include <QByteArray>
 #include <QFile>
@@ -187,6 +188,26 @@ QString transferFile(const QString &source, const QString &target, bool move)
         return QStringLiteral("could not keep the modification time");
     }
     return { };
+}
+
+// O-IO. (Stub: the real calls, and the calls given are not used yet.)
+TransferIo::TransferIo()
+    : renameNoReplace([](const char *from, const char *to) { return ::renameat2(AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE); })
+    , link([](const char *from, const char *to) { return ::link(from, to); })
+    , rename([](const char *from, const char *to) { return ::rename(from, to); })
+    , read([](int fd, void *buffer, size_t size) { return ::read(fd, buffer, size); })
+    , write([](int fd, const void *buffer, size_t size) { return ::write(fd, buffer, size); })
+    , fchmod([](int fd, mode_t mode) { return ::fchmod(fd, mode); })
+    , futimens([](int fd, const struct timespec times[2]) { return ::futimens(fd, times); })
+    , fsync([](int fd) { return ::fsync(fd); })
+    , close([](int fd) { return ::close(fd); })
+    , unlink([](const char *path) { return ::unlink(path); })
+{
+}
+
+QString transferFileWith(const TransferIo &, const QString &source, const QString &target, bool move)
+{
+    return transferFile(source, target, move);
 }
 
 }
