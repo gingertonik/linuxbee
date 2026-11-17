@@ -467,6 +467,23 @@ that is gone and a new one.
 to the skip count and changes nothing else. Both return false, changing
 nothing, for an unknown id or an invalid time.
 
+`mergeStatistics(list)` is how an import is stored: for each entry (an
+id and four values) the date added becomes the one given, when it is
+valid; each count becomes the larger of the one given and the one
+held (a negative one is no count); last played becomes the later of
+the two. The comparing is done by the database inside the change, on
+what the library holds at that moment, so a play counted since the
+caller looked is not lost. **One change, all or none**, under the
+write lock (L-WAIT, the long wait: someone asked). It returns how many
+tracks it changed; an entry whose id the library does not have, or
+that would change nothing, is not counted. One `tracksUpdated` names
+the tracks changed, and none goes out when none was. Refused (the
+lock, or any statement): nothing is stored, `failed` is said once,
+and it returns -1. An empty list asks nothing of the library and
+returns 0. (Unlike other changes, a list that would change nothing is
+found out only under the lock; the import command gives it only what
+its plan says would change.)
+
 `setStatistics(id, statistics)` replaces date added, play count, skip
 count and last played in one go (an invalid last played means never
 played). It is for imports. It returns false, changing nothing, for an
