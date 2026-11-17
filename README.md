@@ -1,3 +1,4 @@
+```text
             . - ~ ~ - .
                    >-)))'>
 ██     ██████ ██  ██ ██  ██ ██  ██ █████  ██████ ██████
@@ -5,6 +6,7 @@
 ██       ██   ██ ███ ██  ██   ██   █████  █████  █████
 ██       ██   ██  ██ ██  ██  ████  ██  ██ ██     ██
 ██████ ██████ ██  ██  ████  ██  ██ █████  ██████ ██████
+```
 
   A music manager for the rest of us.
   Version pre-1.0 | November 2026
@@ -35,7 +37,7 @@ This page is the short version.
 ┌─ At a glance ────────────────────────────────────────────────────────────┐
 │ Built from : C++20, Qt 6, TagLib, ffmpeg                                 │
 │ Needs      : Linux, a sound card, a music folder                         │
-│ Status     : usable for early testing. Unreleased.                       │
+│ Status     : early testing. Releases below 1.0 may still change.         │
 │ Licence    : GPL-3.0-or-later. Built clean-room from public specs.       │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
