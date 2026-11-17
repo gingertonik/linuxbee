@@ -93,6 +93,9 @@ the step before it.
 
 `edit.undo` (Edit > Undo, Ctrl+Z) asks nothing:
 
+0. While a change is open (between `begin` and `end` of a dialog the
+   shell presented): the message `Undo is not available while a change
+   is being made`, and nothing else. The step before it is not touched.
 1. With no step: the message `Nothing to undo`, and nothing else.
 2. Otherwise `TagUndo::undo()`; then each restored file that the
    library knows is read again (`Library::refresh`), once.
@@ -103,6 +106,45 @@ Because the removed pictures and tags come back, the questions of
 TT-WARN end with `Undo brings them back, until the next tag change or until the program closes.`
 and no longer say that the change cannot be undone. The questions
 stay: undo is one step, and the next change loses it.
+
+### The run folder
+
+The undo keeps removed pictures in files (tag-undo.md). Where:
+
+- The root is `linuxbee/undo` under the user's cache folder
+  (`QStandardPaths::GenericCacheLocation`), never the temporary
+  folder and never a music folder.
+- Each shell makes one run folder there when it starts, `run-` and
+  six characters, open to the user alone (mode 0700). It holds
+  `lock`, a `QLockFile` the shell holds for as long as it lives, and
+  `pictures`, the folder the `TagUndo` is given.
+- When the shell goes, the lock is let go and the run folder is
+  removed with what is in it.
+
+A run that was killed, or ended by a signal, leaves its folder and
+the covers in it. So at start, before its own folder is made, the
+shell tidies the root. For every entry whose name begins `run-`:
+
+| The entry is | Then |
+|---|---|
+| a link, or anything that is not a folder | removed itself; a link is never followed |
+| a folder whose `lock` can be taken at once | its run is dead: the folder is removed with what is in it |
+| a folder whose `lock` is held | left exactly as it is |
+
+Whether a lock is held is judged by its holder being alive, never by
+the age of the file (`setStaleLockTime(0)`): a program left open for
+a week still holds its folder. Entries with other names are not
+touched. Nothing outside the root is removed.
+
+When the run folder cannot be made (the cache folder cannot be
+written), the shell still starts and no other place is used
+instead: the `TagUndo` is given a path inside the root that does
+not exist, so a change that would need a picture kept is refused
+(tag-undo.md), and every other change is saved and undone as usual.
+
+A program ended by a signal does not tidy up after itself; the next
+start does. (Ending cleanly on SIGTERM is the application's matter
+and not part of this rule.)
 
 ## TS-ORGANISE
 
