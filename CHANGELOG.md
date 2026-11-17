@@ -6,6 +6,7 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.
 - Organise says when the library could not record its moves, and then records none of the run.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
