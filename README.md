@@ -6,7 +6,6 @@
 ██       ██   ██ ███ ██  ██   ██   █████  █████  █████
 ██       ██   ██  ██ ██  ██  ████  ██  ██ ██     ██
 ██████ ██████ ██  ██  ████  ██  ██ █████  ██████ ██████
-```
 
   A music manager for the rest of us.
   Version pre-1.0 | November 2026
@@ -14,6 +13,7 @@
   THE MUSIC STAYS. THE HABITS COME WITH.
 
   by gingertonik
+```
 
 [![Licence: GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-blue)](LICENSE)
 [![Language: C++20](https://img.shields.io/badge/language-C%2B%2B20-blue)](docs/spec/)
