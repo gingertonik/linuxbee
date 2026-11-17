@@ -5,6 +5,33 @@ set -u
 cd "$(dirname "$0")/.." || exit 2
 mkdir -p build
 
+# What each failed test printed, from ctest's log (the preset keeps the output of a failed test): its
+# first 40 lines, its last 120, and every line between that says what failed; 1500 lines in all. So
+# that the log of a run somewhere else says why.
+failed_output() {
+    awk '
+        function flush(   i, cut) {
+            if (!show) return
+            print "---- what it printed: " title
+            for (i = 1; i <= n; ++i) {
+                # The first 40 lines, the last 120, and between them every line that says what failed.
+                if (i <= 40 || i > n - 120 || (line[i] ~ /^(FAIL!|XPASS|QFATAL|   Loc: |   Actual|   Expected|Totals:|Received signal)/ && ++kept <= 100)) {
+                    if (cut) print "  (" cut " lines are not shown)"
+                    cut = 0; print line[i]
+                } else ++cut
+            }
+            show = 0
+        }
+        /^ *[0-9]+\/[0-9]+ Test +#[0-9]+:/ {
+            flush(); show = ($0 ~ /\*\*\*|Not Run/) && ($0 !~ /\*\*\*Skipped/); n = 0; kept = 0; title = $0
+            next
+        }
+        /^ +Start +[0-9]+:/ || /^[0-9]+% tests passed/ || /^The following tests/ { flush() }
+        show { line[++n] = $0 }
+        END { flush() }
+    ' "$1" | head -n 1500
+}
+
 if ! sh tools/lint-tree.sh; then
     echo "rc=1 (tree lint failed)"
     exit 1
@@ -55,6 +82,7 @@ if [ -n "$strays" ]; then
     echo "rc=1 (a test sent files to a trash it did not name: $strays)"
     exit 1
 fi
-grep -E "tests passed|\*\*\*Failed|Not Run|No tests" build/ctest.log
+grep -E "tests passed|\*\*\*Failed|\*\*\*Timeout|\*\*\*Exception|Not Run|No tests" build/ctest.log
+[ "$rc" = 0 ] || failed_output build/ctest.log
 echo "rc=$rc"
 exit $rc

@@ -46,7 +46,29 @@ sanitize) # C-SANITIZE: every test again, built with the address and undefined-b
         UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
         dbus-run-session -- ctest --timeout 900 --output-on-failure > ../asan-ctest.log 2>&1) || rc=$?
     rm -rf "$box"
-    grep -E 'tests passed|\*\*\*Failed|Not Run|Timeout' build/asan-ctest.log || true
+    grep -E 'tests passed|\*\*\*Failed|\*\*\*Exception|Not Run|Timeout' build/asan-ctest.log || true
+    # What each failed test printed, as the gate prints it (check.sh, failed_output).
+    [ "$rc" = 0 ] || awk '
+        function flush(   i, cut) {
+            if (!show) return
+            print "---- what it printed: " title
+            for (i = 1; i <= n; ++i) {
+                # The first 40 lines, the last 120, and between them every line that says what failed.
+                if (i <= 40 || i > n - 120 || (line[i] ~ /^(FAIL!|XPASS|QFATAL|   Loc: |   Actual|   Expected|Totals:|Received signal)/ && ++kept <= 100)) {
+                    if (cut) print "  (" cut " lines are not shown)"
+                    cut = 0; print line[i]
+                } else ++cut
+            }
+            show = 0
+        }
+        /^ *[0-9]+\/[0-9]+ Test +#[0-9]+:/ {
+            flush(); show = ($0 ~ /\*\*\*|Not Run/) && ($0 !~ /\*\*\*Skipped/); n = 0; kept = 0; title = $0
+            next
+        }
+        /^ +Start +[0-9]+:/ || /^[0-9]+% tests passed/ || /^The following tests/ { flush() }
+        show { line[++n] = $0 }
+        END { flush() }
+    ' build/asan-ctest.log | head -n 1500
     if grep -qE 'ERROR: AddressSanitizer|runtime error:' build/asan-ctest.log; then
         grep -E -A 12 'ERROR: AddressSanitizer|runtime error:' build/asan-ctest.log | head -n 80
         rc=1

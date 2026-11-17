@@ -244,6 +244,11 @@ int runWrite(const QStringList &arguments)
     case linuxbee::WriteResult::Status::Failed:
         err << "could not save: " << path << '\n';
         break;
+    case linuxbee::WriteResult::Status::HardLinked:
+    case linuxbee::WriteResult::Status::ChangedOnDisk:
+        // WS-LINK, WS-SAME: nothing on standard output; the one line says why.
+        err << "not saved: " << path << ": " << result.problems.value(0) << '\n';
+        break;
     }
     out.flush();
     err.flush();

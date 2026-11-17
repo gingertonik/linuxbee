@@ -2,6 +2,7 @@
 // The library's own state, shared by the two files that implement it
 // (library.cpp and scan.cpp). Not a public header: nothing includes it from
 // outside src/core/library/.
+#include <chrono>
 #include <memory>
 
 #include <QDir>
@@ -28,6 +29,10 @@ struct Library::Private {
     library::Store store;
     // L-COUNT: every track this object has handed out since it was opened.
     qint64 tracksHandedOut = 0;
+    // L-WAIT: how long a command waits (5 seconds until set), and how long a play or a skip
+    // waits (a quarter of a second until set). The store holds one at a time.
+    std::chrono::milliseconds writeWait { 5000 };
+    std::chrono::milliseconds quickWait { 250 };
 };
 
 } // namespace linuxbee

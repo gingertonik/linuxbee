@@ -1,3 +1,4 @@
+```text
             . - ~ ~ - .
                    >-)))'>
 ██     ██████ ██  ██ ██  ██ ██  ██ █████  ██████ ██████
@@ -12,6 +13,7 @@
   THE MUSIC STAYS. THE HABITS COME WITH.
 
   by gingertonik
+```
 
 [![Licence: GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-blue)](LICENSE)
 [![Language: C++20](https://img.shields.io/badge/language-C%2B%2B20-blue)](docs/spec/)
@@ -35,7 +37,7 @@ This page is the short version.
 ┌─ At a glance ────────────────────────────────────────────────────────────┐
 │ Built from : C++20, Qt 6, TagLib, ffmpeg                                 │
 │ Needs      : Linux, a sound card, a music folder                         │
-│ Status     : usable for early testing. Unreleased.                       │
+│ Status     : early testing. Releases below 1.0 may still change.         │
 │ Licence    : GPL-3.0-or-later. Built clean-room from public specs.       │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -144,6 +146,14 @@ would take, `--apply --to INI` writes it.
 **Can I import my MusicBee library?** Not yet. The settings file, yes: hotkeys
 and the naming template. The import code is in the core, with no command or
 window running it yet.
+
+**Can it tag files that are hard-linked from a seeding folder?** No. A file with
+more than one name is not saved, because a save would replace one name and leave
+the others with the old tags. Keep the library as plain files (copy, do not
+link, from a download or seeding folder). To tag one such file, make it a file
+of its own first: `cp -p FILE FILE.new && mv FILE.new FILE`. `find FOLDER
+-samefile FILE` lists a file's other names. Playing, browsing and scanning such
+files work as ever.
 
 **Does it undo?** One step, tag changes only, from the editor or the tools.
 Organise cannot be undone.

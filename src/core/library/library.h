@@ -161,6 +161,7 @@ public:
     bool refresh(qint64 id); // read the file's tags again
     bool setPath(qint64 id, const QString &newPath); // the file was moved
     void setWriteWait(std::chrono::milliseconds wait); // L-WAIT
+    void setQuickWait(std::chrono::milliseconds wait); // L-WAIT: for a play or a skip
     int recordMoves(const QList<FileMove> &moves); // L-MOVED
     int relinkPaths(const QString &oldPrefix, const QString &newPrefix);
 

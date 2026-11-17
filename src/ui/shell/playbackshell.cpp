@@ -10,6 +10,7 @@
 #include "navigator/navigatorpanel.h"
 #include "playerbar/playerbar.h"
 #include "shell/libraryshell.h"
+#include "shell/pendingplays.h"
 #include "sound/replaygain.h"
 
 namespace linuxbee::ui {
@@ -24,6 +25,7 @@ struct PlaybackShell::Private {
     PlayQueue *queue = nullptr;
     Player *player = nullptr;
     PlayerBar *bar = nullptr;
+    PendingPlays *pending = nullptr;
     QString lastMessage;
     GainOptions::Mode gainMode = GainOptions::Mode::Off;
     // PS-GAIN speed: the factor last worked out, for the path it was worked out for.
@@ -46,6 +48,13 @@ struct PlaybackShell::Private {
         keptPath = path;
         keptFactor = factor;
         return factor;
+    }
+
+    // PS-COUNT: the status bar and lastMessage() say the same line.
+    void say(const QString &message)
+    {
+        lastMessage = message;
+        window->statusBar()->showMessage(message);
     }
 
     // PS-GAIN: the one checked command is the mode; the player is given the function again.
@@ -233,13 +242,31 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
 
     // PS-COUNT: a play or a skip the player counts goes to the library, at
     // the shell's clock. A path the library does not know is ignored.
+    // One the library refused is kept and offered again (PendingPlays).
+    d->pending = new PendingPlays(library, this);
     connect(d->player, &Player::playCounted, this, [this](const QString &path) {
         if (const auto track = d->library->trackByPath(path))
-            d->library->recordPlay(track->id, d->now());
+            d->pending->play(track->id, d->now());
     });
     connect(d->player, &Player::skipCounted, this, [this](const QString &path) {
         if (const auto track = d->library->trackByPath(path))
-            d->library->recordSkip(track->id, d->now());
+            d->pending->skip(track->id, d->now());
+    });
+    connect(d->pending, &PendingPlays::keptChanged, this, [this](int kept) {
+        if (kept == 0)
+            d->say(tr("The plays and skips that were waiting are counted"));
+        else if (kept == 1)
+            d->say(tr("The library could not be changed: 1 play or skip is not counted yet and "
+                      "will be tried again"));
+        else
+            d->say(tr("The library could not be changed: %1 plays or skips are not counted yet "
+                      "and will be tried again")
+                    .arg(kept));
+    });
+    connect(d->pending, &PendingPlays::oldestDropped, this, [this] {
+        d->say(tr("The library could not be changed: more than %1 plays or skips are waiting, "
+                  "and the oldest are no longer kept")
+                .arg(PendingPlays::kMost));
     });
 
     // PS-ERROR: the status bar says which file failed and why. Nothing is counted.
@@ -299,6 +326,8 @@ void PlaybackShell::saveState()
 {
     // PS-STORE: the bar's state (PB-STORE). The queue is not remembered.
     d->bar->saveState(*d->settings);
+    // PS-COUNT: what is kept is offered once more on the way out.
+    d->pending->retry();
 }
 
 }

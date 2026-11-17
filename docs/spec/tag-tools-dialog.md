@@ -81,7 +81,9 @@ there is a problem or nothing to change. Otherwise:
    their new tags, so the preview shows only what is still to do, and
    `summaryLabel` says `Could not save F of T: NAMES` (F the number of
    failures, T the tracks open, NAMES the file names with `, ` between).
-   Applying again writes only what is still to do.
+   Applying again writes only what is still to do. A file refused
+   as `HardLinked` or `ChangedOnDisk` is named with its reason, as in
+   the tag editor (tag-editor.md).
 
 The saver is `writeTags` with default options unless `setSaver` replaced
 it. The dialog reads no file and does not touch the library; the caller

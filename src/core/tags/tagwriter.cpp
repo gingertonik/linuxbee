@@ -12,6 +12,7 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
 #include <unistd.h>
@@ -649,11 +650,65 @@ void giveWhatTheOriginalHad(const QString &copyPath, const QString &original)
     }
 }
 
+// WS-SAME: the file is held with flock(2), exclusive, for the whole of a save. Closing the
+// descriptor lets go, so every way out of the save releases it.
+class FileHold {
+public:
+    FileHold() = default;
+    FileHold(const FileHold &) = delete;
+    FileHold &operator=(const FileHold &) = delete;
+    ~FileHold()
+    {
+        if (m_fd >= 0)
+            ::close(m_fd);
+    }
+
+    // False only when another holds the file. A file that cannot be opened for it, or a file
+    // system with no such locks, is not a refusal: the save goes on without.
+    bool take(const QString &path)
+    {
+        const int fd = ::open(QFile::encodeName(path).constData(), O_RDONLY | O_CLOEXEC);
+        if (fd < 0)
+            return true;
+        if (::flock(fd, LOCK_EX | LOCK_NB) != 0 && errno == EWOULDBLOCK) {
+            ::close(fd);
+            return false;
+        }
+        m_fd = fd;
+        return true;
+    }
+
+private:
+    int m_fd = -1;
+};
+
+// WS-SAME: what the system says of a file: which file it is, its size, when its contents and
+// when its record were last changed.
+bool sameFile(const struct stat &a, const struct stat &b)
+{
+    return a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_size == b.st_size
+        && a.st_mtim.tv_sec == b.st_mtim.tv_sec && a.st_mtim.tv_nsec == b.st_mtim.tv_nsec
+        && a.st_ctim.tv_sec == b.st_ctim.tv_sec && a.st_ctim.tv_nsec == b.st_ctim.tv_nsec;
+}
+
+WriteResult refusal(WriteResult::Status status, const QString &line)
+{
+    WriteResult result;
+    result.status = status;
+    result.problems = { line };
+    return result;
+}
+
 }
 
 WriteResult writeTags(
     const QString &filePath, const TagChanges &changes, const WriteOptions &options)
 {
+    // WS-SAME: the first look at the file, before it is read. stat follows a symbolic link,
+    // so it is the file the path leads to.
+    struct stat firstLook { };
+    const bool looked = ::stat(QFile::encodeName(filePath).constData(), &firstLook) == 0;
+
     // W-STATUS: the read readTags does.
     const ReadResult read = readTags(filePath);
     WriteResult result;
@@ -681,6 +736,21 @@ WriteResult writeTags(
         return result;
     }
 
+    // WS-LINK: a file with more than one name is not saved; a save would replace one name
+    // and leave the others with the old version. A file that could not be looked at is not
+    // saved either.
+    if (!looked) {
+        result.status = WriteResult::Status::Failed;
+        return result;
+    }
+    if (firstLook.st_nlink > 1) {
+        return refusal(WriteResult::Status::HardLinked,
+            QStringLiteral("the file has %1 names (hard links), and linuxBee does not change the "
+                           "tags of such a file; to tag it here, make it a file of its own "
+                           "first: cp -p FILE FILE.new && mv FILE.new FILE")
+                .arg(qlonglong(firstLook.st_nlink)));
+    }
+
     // WS-REFUSED: the file itself may not be written, though replacing it would be
     // possible: a file marked read-only is to be left alone.
     if (!QFileInfo(filePath).isWritable()) {
@@ -702,6 +772,15 @@ WriteResult writeTags(
     if (!QFileInfo(folder).isWritable()) {
         result.status = WriteResult::Status::NotWritable;
         return result;
+    }
+
+    // WS-SAME: for the whole of the save the file is held; a save that finds it held does not
+    // wait. The hold ends with this function, however it ends.
+    FileHold hold;
+    if (!hold.take(target)) {
+        return refusal(WriteResult::Status::ChangedOnDisk,
+            QStringLiteral("another save of this file is under way; nothing was written, try "
+                           "again"));
     }
 
     const QDateTime modified = targetInfo.lastModified();
@@ -769,6 +848,18 @@ WriteResult writeTags(
         QFile::remove(copyPath);
         result.status = WriteResult::Status::Failed;
         return result;
+    }
+
+    // WS-SAME: the second look, immediately before the swap and after the hook. The file that
+    // is replaced is the file that was read: if it is gone, or anything the system says of it
+    // differs from the first look, the copy goes and the other program's change stays.
+    struct stat secondLook { };
+    if (::stat(QFile::encodeName(target).constData(), &secondLook) != 0
+        || !sameFile(firstLook, secondLook)) {
+        QFile::remove(copyPath);
+        return refusal(WriteResult::Status::ChangedOnDisk,
+            QStringLiteral("the file was changed by another program while it was being saved; "
+                           "nothing was written, try again"));
     }
 
     // WS-ORDER 6: rename(2) puts the copy in the original's place in one step, so

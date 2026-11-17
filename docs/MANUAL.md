@@ -105,6 +105,19 @@ command-line tool, or both.
   value, the save still goes ahead, and standard error gets one line for each
   value that was not kept.
 - Edit Tags (File menu) edits the tags of one track or of many at once.
+- linuxBee does not change the tags of a file that has hard links (more than one
+  name). A save would replace one name and leave the others with the old tags, so
+  it is refused, before anything is written, and the message says how many
+  names the file has. To tag in linuxBee, keep the library as plain files: copy,
+  do not link, from a download or seeding folder. To tag one such file, make it a
+  file of its own first, with `cp -p FILE FILE.new && mv FILE.new FILE` (not
+  `cp --remove-destination FILE FILE`, which answers "are the same file" and does
+  nothing). The other names keep the old tags. linuxBee gives the count of names
+  and does not search for them; `find FOLDER -samefile FILE` lists them. Playing,
+  browsing and scanning such files work as ever.
+- A save is also refused, with a message to try again, when another program
+  changed the file while linuxBee was saving it, or when another save of the same
+  file is under way. The file is then as the other program left it.
 - Edit > Undo (Ctrl+Z) takes back the last tag change, whether it came from the
   tag editor or from one of the tagging tools. It is one step: the next tag
   change, or closing linuxBee, makes the change final. Pictures that a tool

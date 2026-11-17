@@ -314,3 +314,11 @@ linuxbeectl convert [--preset ID | --format F] [--bitrate K] [--quality Q]
 | C-EXISTS | When the output exists and "skip and sync tags" is off, does MusicBee overwrite, rename or skip? linuxBee: skip. |
 | C-TAGS | Does a converted file keep the source's ReplayGain tags? linuxBee: yes. |
 | C-DEPTH | Does MusicBee keep 24-bit when converting FLAC to FLAC or ALAC? linuxBee: yes. |
+
+### C-TAGS and a file that is not saved
+
+When the file the tags go to is refused as `HardLinked` or
+`ChangedOnDisk` (tag-safe-save.md), C-TAGS answers
+`the tags could not be written: <the line>`, and the file is as it
+was. This is reached by "update tags" on an output file that has
+another name.
