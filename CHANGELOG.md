@@ -13,6 +13,7 @@ settings and the library file may still change.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
 - Love (a track marked loved or banned in its tags) is read from and written to files as a field, and can be used in templates and auto-playlist rules.
+- Love can be set in the tag editor (L or B) and shows as a heart in a Love column.
 
 ## 0.6.0 (2026-11-17)
 
