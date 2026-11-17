@@ -296,6 +296,19 @@ every track whose path a call changed.
   of that map.
   (A first version took `{id, newPath}` pairs after removing every
   target's track; a chain then lost the moved track. It is gone.)
+  **Whole or not at all.** (Found by the review of the first version:
+  a step the database refused was skipped and the run went on, so a
+  later move took the wrong track along and its play counts ended on
+  another file.) If any step is refused (a removal, a move, the
+  beginning or the end of the transaction), the call stops at once,
+  nothing of it is stored, it returns 0, sends no change signal, and
+  emits `failed` once (L-FAILED). It does not go on after a refusal:
+  the database may have ended the transaction itself, and what
+  followed would be stored step by step. The library is then as it
+  was before the call, and the same call made again later records
+  the run.
+  Known and left: until then the library is behind the disk. The
+  moved tracks show as missing after a scan, and their files as new.
 - `relinkPaths` emits one, with every path it changed.
 
 A call that changed no path does not emit it. It comes after the

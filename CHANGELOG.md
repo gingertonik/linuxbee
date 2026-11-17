@@ -4,6 +4,10 @@ linuxBee is numbered below 1.0 until it is ready to replace MusicBee for
 daily use. Every release before 1.0 is for early testing: commands,
 settings and the library file may still change.
 
+## Unreleased
+
+- Organise says when the library could not record its moves, and then records none of the run.
+
 ## 0.6.0 (2026-11-17)
 
 The first numbered version. It marks the state of `main` once the core

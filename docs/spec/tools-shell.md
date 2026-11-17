@@ -203,6 +203,11 @@ target}`, in the report's order. The shell decides nothing else: not
 by looking at the disk, and not which track goes. So the playlists
 and the queue are brought up to date once for the run.
 
+When the library emits `failed` during that call (library.md,
+L-FAILED), the files are where Organise put them and the library is
+as it was. The line is then the usual one followed by `; the library
+could not be changed and still lists the files where they were`.
+
 ## TS-CONVERT
 
 The converter is given the selected paths and the settings. When it
