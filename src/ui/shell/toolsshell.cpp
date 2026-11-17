@@ -18,10 +18,14 @@
 
 #include <QCoreApplication>
 #include <QDialog>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QLockFile>
+#include <QStandardPaths>
 #include <QStatusBar>
-#include <QTemporaryDir>
 
+#include <cstdlib>
 #include <memory>
 
 namespace linuxbee::ui {
@@ -39,21 +43,106 @@ struct ToolsShell::Private {
     QString message;
     ToolsShell *owner = nullptr; // the context of the dialogs' connections
 
-    // TS-UNDO: the scratch folder, then the undo that keeps pictures in it. Members go in
-    // reverse order, so the undo removes its files before the folder is removed.
-    QTemporaryDir scratch;
+    // TS-UNDO, the run folder: this shell's folder under the cache folder, `run-` and six
+    // characters, with the lock it holds while it lives. When the shell goes, the lock is
+    // let go and the folder removed with what is in it. Nothing else is ever removed here.
+    struct RunFolder {
+        QString root;
+        QString path; // empty when no folder could be made
+        std::unique_ptr<QLockFile> lock;
+
+        // TS-UNDO: the folders of dead runs go; a held one, and any other name, stay.
+        // A link is removed itself and never followed (isSymLink before isDir).
+        static void tidy(const QString &root)
+        {
+            const QDir dir(root);
+            const QFileInfoList entries = dir.entryInfoList({ QStringLiteral("run-*") },
+                QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+            for (const QFileInfo &entry : entries) {
+                if (!entry.fileName().startsWith(QLatin1String("run-")))
+                    continue;
+                if (entry.isSymLink() || !entry.isDir()) {
+                    QFile::remove(entry.absoluteFilePath());
+                    continue;
+                }
+                // Judged by the holder being alive, never by the age of the file.
+                QLockFile held(entry.absoluteFilePath() + QStringLiteral("/lock"));
+                held.setStaleLockTime(0);
+                if (!held.tryLock(0))
+                    continue;
+                held.unlock();
+                QDir(entry.absoluteFilePath()).removeRecursively();
+            }
+        }
+
+        RunFolder()
+            : root(QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)
+                  + QStringLiteral("/linuxbee/undo"))
+        {
+            // The last name of the root must be a folder, not a link; judged before and
+            // after it is made. Folders above it may be links.
+            if (QFileInfo(root).isSymLink() || !QDir().mkpath(root) || QFileInfo(root).isSymLink())
+                return;
+            // One start at a time: tidying and making the folder happen under this lock,
+            // let go on every way out (it goes out of scope with the constructor).
+            QLockFile start(root + QStringLiteral("/start.lock"));
+            start.setStaleLockTime(0);
+            if (!start.tryLock(2000))
+                return;
+            tidy(root);
+            // mkdtemp makes the folder with mode 0700 at once.
+            QByteArray name = QFile::encodeName(root + QStringLiteral("/run-XXXXXX"));
+            if (!mkdtemp(name.data()))
+                return;
+            const QString made = QFile::decodeName(name);
+            auto held = std::make_unique<QLockFile>(made + QStringLiteral("/lock"));
+            held->setStaleLockTime(0);
+            if (!held->tryLock(0)) {
+                QDir(made).removeRecursively();
+                return;
+            }
+            lock = std::move(held);
+            path = made;
+        }
+
+        ~RunFolder()
+        {
+            if (path.isEmpty())
+                return;
+            lock->unlock();
+            lock.reset();
+            QDir(path).removeRecursively();
+        }
+
+        // Where the undo keeps pictures. With no folder, an empty text: the undo then keeps
+        // no picture at all, and no stand-in path is used.
+        QString pictures() const
+        {
+            return path.isEmpty() ? QString() : path + QStringLiteral("/pictures");
+        }
+    };
+
+    // The folder is declared before the undo: members go in reverse order, so the undo
+    // removes its files first, then the lock is let go, then the folder is removed.
+    RunFolder house;
     std::unique_ptr<TagUndo> undo;
+    bool changeOpen = false; // between begin and end of a dialog the shell presented
 
     // TS-UNDO: begin(the dialog's title) before the presenter, end() after it, however
     // the presenter is left.
     struct Step {
-        TagUndo *undo;
-        Step(TagUndo *u, const QString &name)
-            : undo(u)
+        Private *p;
+        Step(Private *owner, const QString &name)
+            : p(owner)
         {
-            undo->begin(name);
+            p->changeOpen = true;
+            p->undo->begin(name);
         }
-        ~Step() { undo->end(); }
+        ~Step()
+        {
+            p->undo->end();
+            p->changeOpen = false;
+        }
         Step(const Step &) = delete;
         Step &operator=(const Step &) = delete;
     };
@@ -114,7 +203,7 @@ struct ToolsShell::Private {
         dialog.setSaver(saver());
         QObject::connect(&dialog, &TagEditorDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
-        const Step step(undo.get(), dialog.windowTitle());
+        const Step step(this, dialog.windowTitle());
         presenter(&dialog);
     }
 
@@ -141,7 +230,7 @@ struct ToolsShell::Private {
         dialog.setSaver(saver());
         QObject::connect(&dialog, &TagToolDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
-        const Step step(undo.get(), dialog.windowTitle());
+        const Step step(this, dialog.windowTitle());
         presenter(&dialog);
     }
 
@@ -185,6 +274,11 @@ struct ToolsShell::Private {
     // library read each restored file it knows once, and says how many went and how many not.
     void undoLast()
     {
+        if (changeOpen) {
+            showMessage(QCoreApplication::translate(
+                "linuxbee::ui::ToolsShell", "Undo is not available while a change is being made"));
+            return;
+        }
         if (!undo->canUndo()) {
             showMessage(QCoreApplication::translate("linuxbee::ui::ToolsShell", "Nothing to undo"));
             return;
@@ -297,7 +391,7 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
     d->library = library;
     d->libraryShell = libraryShell;
     d->settings = settings;
-    d->undo = std::make_unique<TagUndo>(d->scratch.path() + QStringLiteral("/pictures"));
+    d->undo = std::make_unique<TagUndo>(d->house.pictures());
     d->presenter
         = presenter ? std::move(presenter) : Presenter([](QDialog *dialog) { dialog->exec(); });
 
