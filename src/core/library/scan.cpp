@@ -443,9 +443,14 @@ qint64 Library::addFile(const QString &path, const QString &category, const QDat
     track.category = category;
     track.dateAdded = now;
     const qint64 id = d->store.insert(track);
+    if (id <= 0) {
+        // L-FAILED: the store's words are asked for only here, right after its failed call.
+        if (const QString why = d->store.lastError(); !why.isEmpty())
+            emit failed(why);
+        return 0;
+    }
     // L-SIGNALS: one signal, after the change is stored.
-    if (id > 0)
-        emit tracksAdded(QList<qint64> { id });
+    emit tracksAdded(QList<qint64> { id });
     return id;
 }
 

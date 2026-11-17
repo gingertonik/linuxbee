@@ -129,6 +129,15 @@ int runLibrary(const QStringList &arguments)
         options.category = category;
         options.now = now;
         const linuxbee::ScanReport report = library->scan(positional.mid(1), options);
+        // L-CLI, L-FAILED: a scan that could not be stored prints no result line, which would
+        // say "added 0" for what did not happen; the words go to standard error, exit 3.
+        if (!report.refused.isEmpty()) {
+            QTextStream err(stderr);
+            err << QStringLiteral("linuxbeectl: the scan was not stored: %1").arg(report.refused)
+                << '\n';
+            err.flush();
+            return 3;
+        }
         // L-CLI: the one line, in the spec's words and order.
         out << QStringLiteral("added %1, updated %2, unchanged %3, missing %4, found again %5, "
                               "not music %6")
