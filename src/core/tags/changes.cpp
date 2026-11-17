@@ -36,6 +36,13 @@ bool isRatingValue(const QString &text)
     return parsed && linuxbee::popmFromRating(stars) != 0;
 }
 
+// W-INVALID for Love: one letter, L or B, in either case.
+bool isLoveLetter(const QString &text)
+{
+    const QString letter = text.trimmed().toUpper();
+    return letter == QLatin1String("L") || letter == QLatin1String("B");
+}
+
 // Empty removes the field and is always allowed. Returns "" when the values are fine.
 QString fieldProblem(const QString &field, const QStringList &values)
 {
@@ -45,6 +52,11 @@ QString fieldProblem(const QString &field, const QStringList &values)
         if (values.size() == 1 && isRatingValue(values.first()))
             return { };
         return QStringLiteral("a rating is one number from 0.5 to 5 in steps of 0.5");
+    }
+    if (field == QLatin1String("Love")) {
+        if (values.size() == 1 && isLoveLetter(values.first()))
+            return { };
+        return QStringLiteral("a Love is one letter, L or B");
     }
     const bool singleNumber = field == QLatin1String("Track#")
         || field == QLatin1String("Track Count") || field == QLatin1String("Disc#")
@@ -96,7 +108,11 @@ CheckedChanges checkChanges(const TagChanges &changes)
             out.problems.append(it.key() + QStringLiteral(": ") + problem);
             continue;
         }
-        out.fields.insert(field, values);
+        // W-INVALID: Love is stored in upper case.
+        if (field == QLatin1String("Love") && !values.isEmpty())
+            out.fields.insert(field, { values.first().trimmed().toUpper() });
+        else
+            out.fields.insert(field, values);
     }
 
     for (auto it = changes.other.cbegin(); it != changes.other.cend(); ++it) {

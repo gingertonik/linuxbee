@@ -86,7 +86,7 @@ void TagReaderTest::catalogue()
         s(u"Copyright"), s(u"ISRC"), s(u"Sort Title"), s(u"Sort Artist"), s(u"Sort Album"),
         s(u"Sort Album Artist"), s(u"Sort Composer"), s(u"Original Year"), s(u"Original Artist"),
         s(u"Original Album"), s(u"Subtitle"), s(u"Language"), s(u"Initial Key"), s(u"Encoded By"),
-        s(u"Mix Artist") };
+        s(u"Mix Artist"), s(u"Love") };
     QCOMPARE(linuxbee::tagFieldNames(), expected);
 }
 
