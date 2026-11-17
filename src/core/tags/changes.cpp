@@ -110,7 +110,7 @@ CheckedChanges checkChanges(const TagChanges &changes)
         }
         // W-INVALID: Love is stored in upper case.
         if (field == QLatin1String("Love") && !values.isEmpty())
-            out.fields.insert(field, { values.first().toUpper() });
+            out.fields.insert(field, { values.first().trimmed().toUpper() });
         else
             out.fields.insert(field, values);
     }
