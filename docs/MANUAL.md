@@ -1,3 +1,5 @@
+The full manual for linuxBee. The landing page is [../README.md](../README.md).
+
 # linuxBee
 
 A music manager and player for Linux, built for people who are moving from
@@ -7,7 +9,7 @@ tools, and, in time, their library data carried across.
 
 linuxBee is an independent project. It is not affiliated with or endorsed by
 MusicBee or its author, and it contains no MusicBee code or artwork. How
-that is kept true is written down in [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md).
+that is kept true is written down in [docs/CLEAN-ROOM.md](CLEAN-ROOM.md).
 
 ## Status
 
@@ -237,14 +239,14 @@ The last line it prints is `rc=0` when the tree lints, builds and passes
 every test.
 
 At run time the programs need Qt 6 (Core, Sql, Widgets and Multimedia), TagLib 2
-and the `ffmpeg` program. [packaging/README.md](packaging/README.md) lists what the
+and the `ffmpeg` program. [packaging/README.md](../packaging/README.md) lists what the
 install puts where.
 
 ## Contributing
 
-Read [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md) before changing code. Each part of
+Read [docs/CLEAN-ROOM.md](CLEAN-ROOM.md) before changing code. Each part of
 linuxBee is built and tested against the specification in `docs/spec/`.
 
 ## Licence
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+GPL-3.0-or-later. See [LICENSE](../LICENSE).
