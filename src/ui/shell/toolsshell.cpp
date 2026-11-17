@@ -23,6 +23,7 @@
 #include <QFileInfo>
 #include <QLockFile>
 #include <QStandardPaths>
+#include <QSet>
 #include <QStatusBar>
 
 #include <cstdlib>
@@ -136,6 +137,8 @@ struct ToolsShell::Private {
             : p(owner)
         {
             p->changeOpen = true;
+            p->notKeptNames.clear(); // a dialog closed without a message tells nothing later
+            p->notKeptFiles = 0;
             p->undo->begin(name);
         }
         ~Step()
@@ -147,11 +150,44 @@ struct ToolsShell::Private {
         Step &operator=(const Step &) = delete;
     };
 
+    // TS-TAGS, not kept: what the saves since the last message could not keep in ID3v2.3,
+    // the names once each and the number of files that had any. Told once, then forgotten.
+    QSet<QString> notKeptNames;
+    int notKeptFiles = 0;
+
     TagUndo::Writer saver()
     {
         return [this](const QString &path, const TagChanges &changes) {
-            return undo->write(path, changes);
+            const WriteResult result = undo->write(path, changes);
+            if (result.status == WriteResult::Status::Ok && !result.notKept.isEmpty()) {
+                ++notKeptFiles;
+                for (const QString &line : result.notKept) {
+                    const qsizetype colon = line.indexOf(QStringLiteral(": "));
+                    notKeptNames.insert(colon < 0 ? line : line.left(colon));
+                }
+            }
+            return result;
         };
+    }
+
+    // The text that goes on a save message, empty when nothing was lost; forgets it.
+    QString takeNotKept()
+    {
+        QString text;
+        if (notKeptFiles > 0) {
+            QStringList names(notKeptNames.cbegin(), notKeptNames.cend());
+            names.sort();
+            text = QCoreApplication::translate(
+                "linuxbee::ui::ToolsShell", "; not kept in ID3v2.3: %1 (%2)")
+                       .arg(names.join(QStringLiteral(", ")),
+                           notKeptFiles == 1
+                               ? QCoreApplication::translate("linuxbee::ui::ToolsShell", "1 file")
+                               : QCoreApplication::translate("linuxbee::ui::ToolsShell", "%1 files")
+                                     .arg(notKeptFiles));
+        }
+        notKeptNames.clear();
+        notKeptFiles = 0;
+        return text;
     }
 
     // TS-MESSAGE: one line in the window's status bar, kept as lastMessage().
@@ -218,7 +254,7 @@ struct ToolsShell::Private {
             ? QCoreApplication::translate("linuxbee::ui::ToolsShell", "Saved tags of 1 track")
             : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Saved tags of %1 tracks")
                   .arg(saved.size());
-        showMessage(text);
+        showMessage(text + takeNotKept());
     }
 
     // TS-TOOLS: the tagging-tool dialog with the panel, on the selected tracks, with the
