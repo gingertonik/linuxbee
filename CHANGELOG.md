@@ -6,7 +6,11 @@ settings and the library file may still change.
 
 ## Unreleased
 
+## 0.7.1 (2026-11-17)
+
 - A tag save with no room left (a full disk, a quota, a size limit) no longer replaces the song with a cut-off file and says saved; it now fails and leaves the song as it was.
+- Still known: a save that changes one field can rewrite other MP3 frames (lyrics, comments,
+  label and publisher values can be merged or lost). Keep a backup of music you tag.
 
 ## 0.7.0 (2026-11-17)
 
