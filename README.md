@@ -16,8 +16,8 @@
 [![Licence: GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-blue)](LICENSE)
 [![Language: C++20](https://img.shields.io/badge/language-C%2B%2B20-blue)](docs/spec/)
 
-The full manual, every feature and command:
-**[docs/MANUAL.md](docs/MANUAL.md)**. Everything below is the short version.
+**[docs/MANUAL.md](docs/MANUAL.md)** has everything.
+This page is the short version.
 
 ```
 ───────────────────────────────── CONTENTS ─────────────────────────────────
@@ -35,44 +35,43 @@ The full manual, every feature and command:
 ┌─ At a glance ────────────────────────────────────────────────────────────┐
 │ Built from : C++20, Qt 6, TagLib, ffmpeg                                 │
 │ Needs      : Linux, a sound card, a music folder                         │
-│ Status     : usable for early testing. Unreleased. Expect changes.       │
+│ Status     : usable for early testing. Unreleased.                       │
 │ Licence    : GPL-3.0-or-later. Built clean-room from public specs.       │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 1. What is this?
 
-You know how you keep your music. The naming templates, the auto-playlists,
-the tag editor you reach for every day. linuxBee is that, on Linux, built for
-people moving off MusicBee on Windows so their habits keep working. Usable for
-early testing. Not released. Expect changes to commands, settings and the
-library file.
+linuxBee is a music manager for Linux, built for people leaving MusicBee on
+Windows. The same tag editor, the same naming templates, the same organise and
+convert tools, so a MusicBee user can sit down and work. It is early testing,
+not a release. Expect the commands, settings and library file to change.
 
 ## 2. What you get
 
-- Scan folders into the library on a thread of its own. The window stays
-  usable, the bar counts `120 of 800 files`, and Stop keeps what it found.
-- The navigator carries the library sections, the playlists, and Playing Tracks.
+- Scan folders while you keep working. The window stays usable, the bar counts
+  `120 of 800 files`, and Stop keeps what it found.
+- The navigator holds the library sections, the playlists and Playing Tracks.
 - One row per track. Sort by column, narrow with the search box.
-- The Album and Tracks view shows albums in order, covers read from the files,
-  and a letter jump bar. Click an album heading and the album plays.
+- Albums in order, covers read from the files, a letter jump bar. Click an
+  album heading and it plays.
 - The artist browser browses by Album Artist, Artist, Album, Composer, Genre,
   Grouping, Year.
-- Playlists, and auto-playlists that keep their rows filled from rules as the
+- Playlists, and auto-playlists that refill their rows from rules as the
   library changes.
 - Play, queue, shuffle, repeat, volume, mute. Files decode with `ffmpeg` to
   your default audio device.
-- A tag editor, five tagging tools with previews, undo for tag changes, and the
-  same bulk tools on the command line: replace, case, remove, renumber, infer,
-  copy, swap, plus ReplayGain measurement and cover extraction.
+- A tag editor, five tagging tools with previews, one step of undo for tag
+  changes. The same bulk tools on the command line: replace, case, remove,
+  renumber, infer, copy, swap. ReplayGain tags and cover extraction too.
 - Organise Files: naming templates, with a preview before anything moves.
   Convert with presets. `Delete Files` goes to the desktop trash, not for
   good.
-- Preferences, remembered sidebars, skin files, and `settings import` carries
-  your MusicBee hotkeys and naming template over.
+- Preferences, remembered sidebars, skin files. `settings import` carries your
+  MusicBee hotkeys and naming template over.
 - An MPRIS player on the session bus, so desktop media keys work.
 
-The complete, checked list is in [docs/MANUAL.md](docs/MANUAL.md).
+The whole list is in the [manual](docs/MANUAL.md).
 
 ## 3. Getting started
 
@@ -95,12 +94,12 @@ linuxbeectl path build --field "Album Artist=Adele" --field "Album=21" \
 
 The last line prints `Adele/21/Someone like You.mp3`. Settings live in
 `~/.config/linuxbee/linuxbee/linuxbee.ini`, the library in
-`~/.local/share/linuxbee/linuxbee/library.db`, playlists beside it. Yes, the
-name `linuxbee` appears twice in each path; the manual says why. To carry
-over from a MusicBee 3 settings file: `linuxbeectl settings import FILE`
-prints what it would take, `--apply --to INI` writes it.
+`~/.local/share/linuxbee/linuxbee/library.db`, playlists beside it. Yes,
+`linuxbee` appears twice in each path; the manual says why. To carry over from
+a MusicBee 3 settings file: `linuxbeectl settings import FILE` prints what it
+would take, `--apply --to INI` writes it.
 
-`linuxbeectl --help` lists every command; the manual documents them all.
+`linuxbeectl --help` lists every command.
 
 ## 4. Frequently asked
 
@@ -111,14 +110,14 @@ window running it yet.
 **Does it undo?** One step, tag changes only, from the editor or the tools.
 Organise cannot be undone.
 
-**Covers everywhere, downloading art?** Covers show in the album headings, read
-from the files. Nothing downloads.
+**Can it download cover art?** No. Covers are read from the files, and only
+the album headings show them.
 
 **Gapless, crossfade, equaliser?** Not built. ReplayGain tags get written; the
 player does not apply them yet.
 
-**Drag and drop?** Not yet. Auto-playlists are shown and playable; you make one
-by dropping a `.lbauto` file in its folder, not in the window.
+**Drag and drop?** Not yet. Tracks cannot be dragged onto a playlist, and an
+auto-playlist is made by dropping a `.lbauto` file in its folder.
 
 **Compiled skins, plugins?** Plain `.xml` skins use their colours. No `.xmlc`,
 no skin pictures, no plugins.
@@ -131,24 +130,23 @@ linuxBee is an independent project. It is not affiliated with or endorsed by
 MusicBee or its author, and it contains no MusicBee code or artwork. How
 that is kept true is written down in [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md).
 
-Read [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md) before changing code. Each part
-of linuxBee is built and tested against the specification in `docs/spec/`.
+Read [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md) before changing code.
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 
 ## 6. Where the real details are
 
-- **[docs/MANUAL.md](docs/MANUAL.md)**: the full manual. Every feature,
-  command, path and setting, checked line by line against the specs.
-- [docs/spec/](docs/spec/): the specifications the code is tested against.
+- [docs/MANUAL.md](docs/MANUAL.md): the full manual. Every feature, command,
+  path and setting.
+- [docs/spec/](docs/spec/): the specifications.
 - [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md): how the clean-room rule is kept.
 - [packaging/README.md](packaging/README.md): what the install puts where.
 
 ```
 ────────────────────────────────────────────────────────────────────────────
 
-  Questions, fixes, and the whole list of what is left:
-  the repo's Issues page, and the manual's "Not yet".
+  Questions and fixes go to the Issues page.
+  The list of what is not built is the manual's "Not yet".
 
                                     - gingertonik
 
