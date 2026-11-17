@@ -126,8 +126,9 @@ void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &ta
                 if (letter == QLatin1String("L") || letter == QLatin1String("B")) {
                     tags.fields.insert(entry.field, { letter });
                     claimed.insert(key);
+                    break;
                 }
-                break;
+                continue;
             }
             tags.fields.insert(entry.field, values);
             claimed.insert(key);
