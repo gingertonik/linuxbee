@@ -1,5 +1,6 @@
 #include "shell/playbackshell.h"
 
+#include <QAction>
 #include <QFileInfo>
 #include <QSettings>
 #include <QStatusBar>
@@ -9,6 +10,7 @@
 #include "navigator/navigatorpanel.h"
 #include "playerbar/playerbar.h"
 #include "shell/libraryshell.h"
+#include "sound/replaygain.h"
 
 namespace linuxbee::ui {
 
@@ -23,6 +25,52 @@ struct PlaybackShell::Private {
     Player *player = nullptr;
     PlayerBar *bar = nullptr;
     QString lastMessage;
+    GainOptions::Mode gainMode = GainOptions::Mode::Off;
+    // PS-GAIN speed: the factor last worked out, for the path it was worked out for.
+    bool kept = false;
+    QString keptPath;
+    double keptFactor = 1.0;
+
+    // PS-GAIN: the factor for a path under the mode; the library is asked once per path and mode.
+    double factorFor(const QString &path)
+    {
+        if (kept && keptPath == path)
+            return keptFactor;
+        double factor = 1.0;
+        if (const auto track = library->trackByPath(path)) {
+            GainOptions options;
+            options.mode = gainMode;
+            factor = gainFactor(gainFromTags(track->tags), options);
+        }
+        kept = true;
+        keptPath = path;
+        keptFactor = factor;
+        return factor;
+    }
+
+    // PS-GAIN: the one checked command is the mode; the player is given the function again.
+    void showGainMode()
+    {
+        const struct {
+            const char16_t *id;
+            GainOptions::Mode mode;
+        } modes[] = {
+            { u"controls.gain.off", GainOptions::Mode::Off },
+            { u"controls.gain.track", GainOptions::Mode::Track },
+            { u"controls.gain.album", GainOptions::Mode::Album },
+        };
+        for (const auto &entry : modes) {
+            if (QAction *action = actions->action(QString::fromUtf16(entry.id)))
+                action->setChecked(entry.mode == gainMode);
+        }
+    }
+
+    // PS-GAIN: a new mode drops the kept answer and the player is given the function again.
+    void applyGainMode()
+    {
+        kept = false;
+        player->setTrackVolume([this](const QString &path) { return factorFor(path); });
+    }
 };
 
 PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Library *library,
@@ -45,6 +93,39 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     d->bar = new PlayerBar(d->player, d->queue, actions);
     window->setPanelWidget(MainWindow::Panel::PlayerBar, d->bar);
     d->bar->restoreState(*settings); // PB-STORE, at once
+
+    // PS-GAIN: the stored mode, or Off for no value or any other.
+    const QString storedGain = settings->value(QStringLiteral("playback/gain")).toString();
+    if (storedGain == QStringLiteral("track"))
+        d->gainMode = GainOptions::Mode::Track;
+    else if (storedGain == QStringLiteral("album"))
+        d->gainMode = GainOptions::Mode::Album;
+    const struct {
+        const char16_t *id;
+        GainOptions::Mode mode;
+        const char *text;
+    } gainCommands[] = {
+        { u"controls.gain.off", GainOptions::Mode::Off, "off" },
+        { u"controls.gain.track", GainOptions::Mode::Track, "track" },
+        { u"controls.gain.album", GainOptions::Mode::Album, "album" },
+    };
+    for (const auto &command : gainCommands) {
+        const GainOptions::Mode mode = command.mode;
+        const QString text = QString::fromLatin1(command.text);
+        actions->implement(QString::fromUtf16(command.id), this, [this, mode, text] {
+            // Choosing the mode that is on changes nothing but its tick, which the click toggled.
+            if (mode != d->gainMode) {
+                d->gainMode = mode;
+                d->settings->setValue(QStringLiteral("playback/gain"), text);
+                d->applyGainMode();
+            }
+            d->showGainMode();
+        });
+    }
+    d->showGainMode();
+    d->applyGainMode();
+    // PS-GAIN: what the library holds for a track changed; the kept answer goes.
+    connect(library, &Library::tracksUpdated, this, [this] { d->kept = false; });
 
     // PS-PLAY: the library shell asks for a list played from a row.
     connect(libraryShell, &LibraryShell::playRequested, this,
