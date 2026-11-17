@@ -69,6 +69,31 @@ The destructor has the inner backend destroyed on the audio thread
 and the audio thread ended before it returns. Nothing is emitted
 afterwards. Calls still on their way are not promised to arrive.
 
+**A backend that is stuck.** `load` reads a file, and a file on a
+mount that has died may never be read. The destructor therefore waits
+for the audio thread no longer than the end wait (`setEndWait`; three
+seconds unless set). When the audio thread has not ended by then:
+
+- the destructor returns all the same, and says so once, as a warning
+  through Qt's logging that contains the words `audio thread`;
+- nothing the inner backend does afterwards reaches the object that
+  was destroyed, or anything else of the caller's: its reports go
+  nowhere, and the calls that were on their way may still be made on
+  it;
+- if the stuck call does come back, the inner backend is destroyed on
+  the audio thread and the thread ends, by themselves;
+- what had to be left behind for that (the thread, and a little
+  beside) is not freed. It is small, and happens once for each
+  backend left.
+
+(Tried before it was written: a program whose worker thread sits in a
+read that never returns, and in `pause()`, ends with status 0 by
+returning from `main`, by `exit` and by `_exit`, a second after it
+gave up waiting.)
+
+A thread cannot be stopped from outside without risking whatever it
+holds, so it is not tried.
+
 ## Not in this version
 
 - The program using it (the next package: the device sink and the
@@ -80,5 +105,4 @@ afterwards. Calls still on their way are not promised to arrive.
 
 | Rule | Question |
 |---|---|
-| AT-END | An inner backend that never returns from a call holds the destructor. The engine has no such call; a watchdog would be guessing. |
 | AT-OWN | The device sink on a thread that is not the window's: by ear, on the owner's sound card, with the next package. |
