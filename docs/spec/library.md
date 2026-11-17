@@ -276,10 +276,26 @@ library says it: `pathsMoved(oldToNew)`, old path to new path, for
 every track whose path a call changed.
 
 - `setPath` emits it for its one track, when the path changed.
-- `setPaths(moves)` is `setPath` for each `{id, newPath}` in order,
-  with the same refusals (an unknown id, a path another track has by
-  then), and returns how many paths changed. The call emits one
-  `tracksUpdated` and one `pathsMoved` for all of them.
+- `recordMoves(moves)` takes file moves, `{from, to}`, **in the order
+  they happened**, and does to the tracks what was done to the files,
+  one move after the other:
+  - the track that is at `to` at that moment goes (its file was
+    replaced), unless it is the very track being moved;
+  - the track that is at `from` at that moment, if there is one, is
+    at `to` from then on, with everything the library knows of it.
+  So a chain is followed: `c` to `a`, then `a` to `n`, leaves the
+  track of `c` at `n` and removes the track that was at `a`; in the
+  other order both tracks stay. A move whose `from` and `to` are the
+  same is nothing.
+  When all are done, each track that was moved is missing or not by
+  whether a file is at its path now. The call is one transaction. It
+  emits at most one `tracksRemoved`, one `tracksUpdated` and one
+  `pathsMoved`, in that order; `pathsMoved` maps the path each
+  remaining track had before the call to the one it has after, and
+  leaves out a track that ended where it began. It returns the size
+  of that map.
+  (A first version took `{id, newPath}` pairs after removing every
+  target's track; a chain then lost the moved track. It is gone.)
 - `relinkPaths` emits one, with every path it changed.
 
 A call that changed no path does not emit it. It comes after the

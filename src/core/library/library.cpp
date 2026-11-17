@@ -322,4 +322,10 @@ int Library::setPaths(const QList<PathMove> &moves)
     return changed;
 }
 
+// L-MOVED. (Stub.)
+int Library::recordMoves(const QList<FileMove> &)
+{
+    return 0;
+}
+
 } // namespace linuxbee

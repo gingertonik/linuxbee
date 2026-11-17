@@ -117,6 +117,12 @@ struct ScanReport;
 ScanReport addedUp(const ScanReport &a, const ScanReport &b);
 
 // L-MOVED: one track's new path.
+// L-MOVED: one file that was moved.
+struct FileMove {
+    QString from;
+    QString to;
+};
+
 struct PathMove {
     qint64 id = 0;
     QString newPath;
@@ -158,6 +164,7 @@ public:
     bool refresh(qint64 id); // read the file's tags again
     bool setPath(qint64 id, const QString &newPath); // the file was moved
     int setPaths(const QList<PathMove> &moves); // L-MOVED
+    int recordMoves(const QList<FileMove> &moves); // L-MOVED
     int relinkPaths(const QString &oldPrefix, const QString &newPrefix);
 
     // L-STATS

@@ -194,6 +194,10 @@ fail, and the rule it checks is the one above: whichever call
 fails, the source is as it was and nothing is left at the target.
 Nothing else in the program uses it.
 
+`moved` is set on an outcome when its file was moved away from its
+source, and not when it was copied. The report's outcomes are in the
+order the moves were made.
+
 `done`, `skipped` and `failed` count the outcomes, O-OTHER files included.
 
 ### O-REPLACED

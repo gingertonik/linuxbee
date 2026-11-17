@@ -134,6 +134,9 @@ class ToolsShellMovedTest : public QObject {
     Q_OBJECT
 private slots:
     void organisedFilesStayInTheirPlaylists();
+    void aChainThroughTheShell();
+    void theOtherOrderThroughTheShell();
+    void aCopyIsNotAMove();
 };
 
 void ToolsShellMovedTest::organisedFilesStayInTheirPlaylists()
@@ -174,6 +177,99 @@ void ToolsShellMovedTest::organisedFilesStayInTheirPlaylists()
     QCOMPARE(r.lib->shownPaths().size(), 3); // a, tone, b: a track is shown once
     QVERIFY(r.lib->shownPaths().contains(movedA));
     QVERIFY(r.lib->shownPaths().contains(movedB));
+}
+
+// The organiser's report of moves that happened, given to the shell as the dialog gives it.
+static void tell(Rig &r, const QList<QPair<QString, QString>> &moves)
+{
+    r.select({ r.b });
+    r.work = [&](QDialog *dialog) {
+        auto *organiser = qobject_cast<OrganiseDialog *>(dialog);
+        QVERIFY(organiser);
+        OrganiseReport report;
+        for (const auto &move : moves) {
+            MoveOutcome outcome;
+            outcome.status = MoveOutcome::Status::Done;
+            outcome.source = move.first;
+            outcome.target = move.second;
+            outcome.moved = true;
+            report.outcomes.append(outcome);
+        }
+        report.done = int(moves.size());
+        emit organiser->organised(report);
+    };
+    r.run(u"file.organise");
+}
+
+void ToolsShellMovedTest::aChainThroughTheShell()
+{
+    // TS-ORGANISE: tone takes a's place (replacing it), then the file at a goes on to n. The review's case.
+    Rig r;
+    const QString n = r.made(s(u"sorted")) + s(u"/n.flac");
+    const QString mix = r.playlists.create(s(u"Mix"));
+    QVERIFY(r.playlists.setTracks(mix, { r.tone, r.a, r.b, r.tone }));
+    const qint64 idTone = r.library->trackByPath(r.tone)->id;
+    QVERIFY(QFile::remove(r.a));
+    QVERIFY(QFile::rename(r.tone, r.a));
+    QVERIFY(QFile::rename(r.a, n));
+    QSignalSpy moved(r.library.get(), &Library::pathsMoved);
+    tell(r, { { r.tone, r.a }, { r.a, n } });
+    QCOMPARE(r.library->count(), 2);
+    QVERIFY(r.library->trackByPath(n).has_value());
+    QCOMPARE(r.library->trackByPath(n)->id, idTone);
+    QVERIFY(!r.library->trackByPath(n)->missing);
+    QVERIFY(!r.library->trackByPath(r.a).has_value());
+    QVERIFY(!r.library->trackByPath(r.tone).has_value());
+    // The playlist follows the file that is still there. The entry of the replaced file names it as before.
+    QCOMPARE(r.playlists.tracks(mix), QStringList({ n, r.a, r.b, n }));
+    QCOMPARE(moved.count(), 1);
+    QCOMPARE(r.tools->lastMessage(), s(u"Organised: 2 done, 0 skipped, 0 failed"));
+}
+
+void ToolsShellMovedTest::theOtherOrderThroughTheShell()
+{
+    // TS-ORGANISE: a goes to n, then tone takes the place a left. A file is at a afterwards, and still a moved.
+    Rig r;
+    const QString n = r.made(s(u"sorted")) + s(u"/n.flac");
+    const QString mix = r.playlists.create(s(u"Mix"));
+    QVERIFY(r.playlists.setTracks(mix, { r.tone, r.a, r.b }));
+    const qint64 idA = r.library->trackByPath(r.a)->id;
+    const qint64 idTone = r.library->trackByPath(r.tone)->id;
+    QVERIFY(QFile::rename(r.a, n));
+    QVERIFY(QFile::rename(r.tone, r.a));
+    tell(r, { { r.a, n }, { r.tone, r.a } });
+    QCOMPARE(r.library->count(), 3);
+    QCOMPARE(r.library->track(idA)->path, n);
+    QCOMPARE(r.library->track(idTone)->path, r.a);
+    QVERIFY(!r.library->track(idA)->missing);
+    QVERIFY(!r.library->track(idTone)->missing);
+    QCOMPARE(r.playlists.tracks(mix), QStringList({ r.a, n, r.b }));
+}
+
+void ToolsShellMovedTest::aCopyIsNotAMove()
+{
+    // TS-ORGANISE: what was copied, the report says (`moved` is false). The library stays, whatever is on the disk.
+    Rig r;
+    const QString out = r.made(s(u"copies")) + s(u"/a.flac");
+    QVERIFY(QFile::rename(r.a, out)); // the source is not there any more: that alone decides nothing
+    r.select({ r.b });
+    r.work = [&](QDialog *dialog) {
+        auto *organiser = qobject_cast<OrganiseDialog *>(dialog);
+        QVERIFY(organiser);
+        OrganiseReport report;
+        MoveOutcome outcome;
+        outcome.status = MoveOutcome::Status::Done;
+        outcome.source = r.a;
+        outcome.target = out;
+        report.outcomes.append(outcome);
+        report.done = 1;
+        emit organiser->organised(report);
+    };
+    QSignalSpy moved(r.library.get(), &Library::pathsMoved);
+    r.run(u"file.organise");
+    QVERIFY(r.library->trackByPath(r.a).has_value());
+    QVERIFY(!r.library->trackByPath(out).has_value());
+    QCOMPARE(moved.count(), 0);
 }
 
 QTEST_MAIN(ToolsShellMovedTest)

@@ -72,6 +72,7 @@ struct MoveOutcome {
     QString target;
     QString message; // Failed: why. Skipped: the plan's status in words.
     bool otherFile = false; // an O-OTHER file, not one of the planned tracks
+    bool moved = false; // Done: the file was moved away from its source, not copied
     // O-REPLACED: a file that was at `target` made way for this one, and
     // where that file is now: its path in the trash, or empty when it was
     // deleted.

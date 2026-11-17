@@ -78,6 +78,9 @@ class LibraryMovedTest : public QObject {
 private slots:
     void theLibrarySaysWhatMoved();
     void manyAtOnceIsOneSignal();
+    void aChainOfMoves();
+    void theChainTheOtherWayRound();
+    void whatAMoveReplaces();
     void aRemappedFolder();
     void playlistsFollow();
     void theQueueFollows();
@@ -101,32 +104,126 @@ void LibraryMovedTest::theLibrarySaysWhatMoved()
 
 void LibraryMovedTest::manyAtOnceIsOneSignal()
 {
-    // L-MOVED: setPaths is setPath for each, with one tracksUpdated and one pathsMoved for the call.
+    // L-MOVED: recordMoves takes file moves in the order they happened, with one signal of each kind for the call.
     Box box;
     QSignalSpy moved(box.library.get(), &Library::pathsMoved);
     QSignalSpy updated(box.library.get(), &Library::tracksUpdated);
+    QSignalSpy removed(box.library.get(), &Library::tracksRemoved);
     QVERIFY(QFile::rename(box.a, box.at("music/a2.flac")));
     QVERIFY(QFile::rename(box.c, box.at("music/c2.ogg")));
-    const int n = box.library->setPaths({
-        { box.ia, box.at("music/a2.flac") },
-        { box.ib, box.at("music/a2.flac") }, // taken by the one before: left alone
-        { 987654, box.at("music/x.flac") }, // unknown
-        { box.ic, box.at("music/c2.ogg") },
+    const int n = box.library->recordMoves({
+        { box.a, box.at("music/a2.flac") },
+        { box.at("music/nothing.flac"), box.at("music/x.flac") }, // no track was there, and none is at the target
+        { box.c, box.at("music/c2.ogg") },
+        { box.b, box.b }, // not a move
     });
     QCOMPARE(n, 2);
     QCOMPARE(moved.count(), 1);
     QCOMPARE(movesOf(moved, 0), Moves({ { box.a, box.at("music/a2.flac") }, { box.c, box.at("music/c2.ogg") } }));
     QCOMPARE(updated.count(), 1);
     QCOMPARE(updated.at(0).at(0).value<QList<qint64>>().size(), 2);
+    QCOMPARE(removed.count(), 0);
     QCOMPARE(box.library->track(box.ia)->path, box.at("music/a2.flac"));
     QCOMPARE(box.library->track(box.ib)->path, box.b);
     QCOMPARE(box.library->track(box.ic)->path, box.at("music/c2.ogg"));
     QVERIFY(!box.library->track(box.ic)->missing);
     // Nothing to do: no signal.
-    QCOMPARE(box.library->setPaths({ }), 0);
-    QCOMPARE(box.library->setPaths({ { box.ia, box.at("music/a2.flac") } }), 0);
+    QCOMPARE(box.library->recordMoves({ }), 0);
+    QCOMPARE(box.library->recordMoves({ { box.at("music/nothing.flac"), box.at("music/x.flac") } }), 0);
     QCOMPARE(moved.count(), 1);
     QCOMPARE(updated.count(), 1);
+    QCOMPARE(removed.count(), 0);
+}
+
+void LibraryMovedTest::aChainOfMoves()
+{
+    // L-MOVED: c takes a's place (a's file was replaced), and then the file at a goes on to n.
+    // The track of c is at n, with its history. The track of a is gone: its file is.
+    Box box;
+    const QString n = box.at("music/n.flac");
+    QVERIFY(QFile::remove(box.a)); // replaced
+    QVERIFY(QFile::rename(box.c, box.a));
+    QVERIFY(QFile::rename(box.a, n));
+    QSignalSpy moved(box.library.get(), &Library::pathsMoved);
+    QSignalSpy updated(box.library.get(), &Library::tracksUpdated);
+    QSignalSpy removed(box.library.get(), &Library::tracksRemoved);
+    QCOMPARE(box.library->recordMoves({ { box.c, box.a }, { box.a, n } }), 1);
+    QCOMPARE(box.library->count(), 2);
+    QVERIFY(!box.library->track(box.ia).has_value());
+    QCOMPARE(box.library->track(box.ic)->path, n);
+    QVERIFY(!box.library->track(box.ic)->missing);
+    QVERIFY(!box.library->trackByPath(box.a).has_value());
+    QVERIFY(!box.library->trackByPath(box.c).has_value());
+    QCOMPARE(removed.count(), 1);
+    QCOMPARE(removed.at(0).at(0).value<QList<qint64>>(), QList<qint64>({ box.ia }));
+    QCOMPARE(updated.count(), 1);
+    QCOMPARE(updated.at(0).at(0).value<QList<qint64>>(), QList<qint64>({ box.ic }));
+    QCOMPARE(moved.count(), 1);
+    QCOMPARE(movesOf(moved, 0), Moves({ { box.c, n } })); // from where it was to where it is: no stop on the way
+}
+
+void LibraryMovedTest::theChainTheOtherWayRound()
+{
+    // L-MOVED: a goes to n first, and then c takes the place a left. Nothing was replaced: both tracks stay.
+    Box box;
+    const QString n = box.at("music/n.flac");
+    QVERIFY(QFile::rename(box.a, n));
+    QVERIFY(QFile::rename(box.c, box.a));
+    QSignalSpy moved(box.library.get(), &Library::pathsMoved);
+    QSignalSpy removed(box.library.get(), &Library::tracksRemoved);
+    QCOMPARE(box.library->recordMoves({ { box.a, n }, { box.c, box.a } }), 2);
+    QCOMPARE(box.library->count(), 3);
+    QCOMPARE(box.library->track(box.ia)->path, n);
+    QCOMPARE(box.library->track(box.ic)->path, box.a);
+    QVERIFY(!box.library->track(box.ia)->missing);
+    QVERIFY(!box.library->track(box.ic)->missing);
+    QCOMPARE(removed.count(), 0);
+    QCOMPARE(moved.count(), 1);
+    QCOMPARE(movesOf(moved, 0), Moves({ { box.a, n }, { box.c, box.a } }));
+}
+
+void LibraryMovedTest::whatAMoveReplaces()
+{
+    // L-MOVED: the track that held a target goes when a file is moved onto it, whoever the newcomer is.
+    Box box;
+    QSignalSpy moved(box.library.get(), &Library::pathsMoved);
+    QSignalSpy removed(box.library.get(), &Library::tracksRemoved);
+    // Two tracks onto one place, one after the other: the first to arrive is replaced by the second.
+    QVERIFY(QFile::remove(box.b));
+    QVERIFY(QFile::rename(box.a, box.b));
+    QVERIFY(QFile::remove(box.b));
+    QVERIFY(QFile::rename(box.c, box.b));
+    QCOMPARE(box.library->recordMoves({ { box.a, box.b }, { box.c, box.b } }), 1);
+    QCOMPARE(box.library->count(), 1);
+    QCOMPARE(box.library->track(box.ic)->path, box.b);
+    QCOMPARE(removed.count(), 1);
+    QList<qint64> gone = removed.at(0).at(0).value<QList<qint64>>();
+    std::sort(gone.begin(), gone.end());
+    QList<qint64> both { box.ia, box.ib };
+    std::sort(both.begin(), both.end());
+    QCOMPARE(gone, both);
+    QCOMPARE(movesOf(moved, 0), Moves({ { box.c, box.b } }));
+    // A file the library does not know, moved onto a track's place: that track goes too.
+    QCOMPARE(box.library->recordMoves({ { box.at("music/cover.jpg"), box.b } }), 0);
+    QCOMPARE(box.library->count(), 0);
+    QCOMPARE(removed.count(), 2);
+    QCOMPARE(moved.count(), 1);
+    // A file that went away and came back to where it was has not moved.
+    Box two;
+    QSignalSpy movedTwo(two.library.get(), &Library::pathsMoved);
+    QCOMPARE(two.library->recordMoves({ { two.a, two.at("music/t.flac") }, { two.at("music/t.flac"), two.a } }), 0);
+    QCOMPARE(two.library->track(two.ia)->path, two.a);
+    QVERIFY(!two.library->track(two.ia)->missing);
+    QCOMPARE(movedTwo.count(), 0);
+    // Missing or not is by the file at the track's path when all the moves are done (L-MISSING).
+    Box three;
+    QVERIFY(QFile::rename(three.c, three.at("music/c2.ogg")));
+    QCOMPARE(three.library->recordMoves({ { three.a, three.at("music/not-there.flac") }, { three.c, three.at("music/c2.ogg") } }), 2);
+    QVERIFY(three.library->track(three.ia)->missing); // nothing is at that path
+    QVERIFY(!three.library->track(three.ic)->missing);
+    QVERIFY(QFile::rename(three.a, three.at("music/back.flac")));
+    QCOMPARE(three.library->recordMoves({ { three.at("music/not-there.flac"), three.at("music/back.flac") } }), 1);
+    QVERIFY(!three.library->track(three.ia)->missing); // found again
 }
 
 void LibraryMovedTest::aRemappedFolder()
