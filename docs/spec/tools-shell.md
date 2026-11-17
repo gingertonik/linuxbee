@@ -136,11 +136,33 @@ the age of the file (`setStaleLockTime(0)`): a program left open for
 a week still holds its folder. Entries with other names are not
 touched. Nothing outside the root is removed.
 
-When the run folder cannot be made (the cache folder cannot be
-written), the shell still starts and no other place is used
-instead: the `TagUndo` is given a path inside the root that does
-not exist, so a change that would need a picture kept is refused
-(tag-undo.md), and every other change is saved and undone as usual.
+**The root is a real folder.** `undo` itself, the last name of the
+root, must be a folder and not a link. When it is a link it is not
+followed: nothing is tidied through it, no run folder is made through
+it, and the link is left as it is. The shell then has no run folder.
+A folder above it may be a link (a cache kept on another disk).
+
+**One start at a time.** Tidying the root and making the run folder
+(with its lock taken) happen while the shell holds `start.lock`, a
+`QLockFile` in the root, judged by its holder being alive like the
+others. It is let go as soon as the start is done. So one program's
+tidying never meets a run folder another has made and not yet
+locked. A shell that cannot have `start.lock` within two seconds
+tidies nothing and has no run folder. `start.lock` is not a run
+folder and is never removed as one.
+
+**No run folder means no picture kept.** When the shell has no run
+folder (the cache folder cannot be written, the root is a link, the
+start lock could not be had), it still starts, and the `TagUndo` is
+made with no folder at all (tag-undo.md, UN-NOKEEP): a change that
+would need a picture kept is refused, for as long as this shell
+lives, whatever becomes of the disk meanwhile. No other place is
+used instead. Every other change is saved and undone as usual.
+
+Known and left: a run folder whose `lock` cannot be read or taken
+for a reason other than a live holder (its permissions were changed)
+is taken for live and stays until the user removes it. It holds
+nothing but kept covers.
 
 A program ended by a signal does not tidy up after itself; the next
 start does. (Ending cleanly on SIGTERM is the application's matter

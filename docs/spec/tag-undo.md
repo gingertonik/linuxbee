@@ -79,6 +79,16 @@ When the object goes, the step is forgotten and its picture files are
 removed. Only files this object made are ever removed from the scratch
 folder; the folder itself is left.
 
+## UN-NOKEEP: made with no folder
+
+(Stated here because the tools shell now leans on it; the code already
+did this.)
+
+A `TagUndo` made with an empty folder name keeps no picture, in no
+place: an empty name is not the current folder. A change that would
+need a picture kept is refused as in UN-RECORD (the file is not
+written). Changes that need none are recorded and undone as usual.
+
 ## Not in this version
 
 - More than one step; redo.
