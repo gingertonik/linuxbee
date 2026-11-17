@@ -160,6 +160,8 @@ QString reasonFor(const linuxbee::WriteResult &result)
     case linuxbee::WriteResult::Status::InvalidChange:
         return result.problems.join(QLatin1String("; "));
     case linuxbee::WriteResult::Status::Failed:
+    case linuxbee::WriteResult::Status::HardLinked:
+    case linuxbee::WriteResult::Status::ChangedOnDisk:
         return QStringLiteral("could not save");
     }
     return QStringLiteral("could not save");

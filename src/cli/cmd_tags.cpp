@@ -242,6 +242,8 @@ int runWrite(const QStringList &arguments)
         err << "not writable: " << path << '\n';
         break;
     case linuxbee::WriteResult::Status::Failed:
+    case linuxbee::WriteResult::Status::HardLinked:
+    case linuxbee::WriteResult::Status::ChangedOnDisk:
         err << "could not save: " << path << '\n';
         break;
     }
