@@ -176,7 +176,8 @@ void LibraryShellFailedTest::deleteFilesSaysTheLibraryStillListsThem()
     QStringList both { r.a, r.b };
     both.sort();
     QCOMPARE(told, both);
-    // With the library free again the same command clears them: their files are not there.
+    // With the library free again the same command finds their files not there, and the tracks stay
+    // (SH-DELETE step 3). Remove from Library is what takes them out.
     r.select({ r.a, r.b });
     r.run();
     QCOMPARE(r.shell->lastMessage(), s(u"No file was moved to the trash; 2 were not there"));
