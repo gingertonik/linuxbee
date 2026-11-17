@@ -11,7 +11,7 @@ trap 'rm -rf "$work"' EXIT
 export QT_QPA_PLATFORM=offscreen XDG_CONFIG_HOME="$work/config" XDG_DATA_HOME="$work/data" XDG_CACHE_HOME="$work/cache"
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
-ini="$work/config/linuxbee/linuxbee/linuxbee.ini"
+ini="$work/config/linuxbee/linuxbee.ini"
 
 timeout 20 "$app" --screenshot "$work/window.png" > /dev/null 2>&1; rc=$?
 [ "$rc" = 0 ] && pass start-exit || fail "start-exit rc=$rc"

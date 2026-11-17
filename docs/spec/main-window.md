@@ -183,11 +183,66 @@ shown. `saveLayout()` writes it; closing the window calls it.
   below the minimum or above 16384, or a width list that is not three
   numbers from 0 to 16383, is ignored in favour of the default.
 
+### W-PLACES
+
+The application keeps its files in three folders, each named `linuxbee`
+once:
+
+| What | Where | Default |
+|---|---|---|
+| settings (`linuxbee.ini`) | `$XDG_CONFIG_HOME/linuxbee/` | `~/.config/linuxbee/` |
+| the library (`library.db`), `playlists/`, `auto-playlists/`, `skins/` | `$XDG_DATA_HOME/linuxbee/` | `~/.local/share/linuxbee/` |
+| what may be thrown away (the undo's pictures) | `$XDG_CACHE_HOME/linuxbee/` | `~/.cache/linuxbee/` |
+
+It writes nowhere else of its own accord. `--version` writes nothing.
+
+### W-ADOPT
+
+Builds before 0.8 had the name twice (`.../linuxbee/linuxbee/`). At a
+start, for the settings folder and for the data folder alike, what is
+in that inner folder is taken into the folder above it:
+
+- each entry is moved by renaming it, whole, and only where the folder
+  above has nothing of that name; a folder is never merged into another;
+- an entry whose name is taken is left exactly as it is, and named on
+  standard error with the place it was left in;
+- the inner folder is removed once it is empty;
+- an inner `linuxbee` that is a link is not followed and not touched.
+
+So a library made by an older build is there at the first start of
+this one, and when both places hold a library, the one in the new
+place is used and the other is not lost.
+
+This happens before the library is opened, and under W-ONE's lock.
+
+### W-ONE
+
+One program uses a profile at a time. Every start that opens the
+library (all but `--version`) first takes a lock in the data folder.
+When another program holds it, the start ends with status 5 and a
+line on standard error containing `already running`; it opens
+nothing, changes nothing, prints nothing on standard output and shows
+no dialog.
+
+The lock goes when the program ends, however it ends: a program that
+was killed does not hold the profile afterwards. A profile in another
+place (another `XDG_DATA_HOME`) is another profile.
+
+Two starts at the same moment on a profile with nothing in it: one of
+them runs, or both in turn; neither fails to open the library.
+
+Why: two windows over one library each hold their own picture of it,
+and each saves its settings over the other's on the way out.
+`linuxbeectl` takes no such lock; it and a running window share the
+library file by the library's own rules (library.md, L-OPEN, L-WAIT).
+
+Not in this version: bringing the running window to the front, and
+handing it the files the second start was given.
+
 ### W-MAIN
 
 `src/app/main.cpp` builds the application: the settings file
-`linuxbee.ini` in the user's configuration folder for the application
-(`QStandardPaths::AppConfigLocation`), an `ActionRegistry` loaded from it,
+`linuxbee.ini` in the settings folder (W-PLACES), an `ActionRegistry` loaded from it,
 a `MainWindow`, and on exit the hotkeys saved. `--version` still prints
 the version line and exits without opening a window or writing a file.
 

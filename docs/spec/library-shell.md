@@ -319,9 +319,9 @@ chosen node as `shell/node`.
 
 `src/app/main.cpp`, after `--version` has been dealt with:
 
-- Configuration is `linuxbee.ini` in `QStandardPaths::AppConfigLocation`.
-  The library is `library.db` in `QStandardPaths::AppDataLocation`, and
-  the playlists are in the folder `playlists` beside it. Missing folders
+- Configuration is `linuxbee.ini` in the settings folder and the library
+  is `library.db` in the data folder (main-window.md, W-PLACES); the
+  playlists are in the folder `playlists` beside it. Missing folders
   are created.
 - A library that cannot be opened: the reason goes to standard error in a
   line containing `library cannot be opened`, a message box says the same

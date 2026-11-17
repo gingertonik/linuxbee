@@ -19,9 +19,9 @@ timeout 20 "$app" --screenshot "$work/window.png" > /dev/null 2>&1; rc=$?
 [ "$rc" = 0 ] && pass start-exit || fail "start-exit rc=$rc"
 db=$(find "$work/data" -name library.db 2>/dev/null | head -n 1)
 [ -n "$db" ] && [ -s "$db" ] && pass library-file || fail library-file
-[ "$(dirname "$db")" = "$work/data/linuxbee/linuxbee" ] && pass library-place || fail "library-place [$db]"
-[ -d "$work/data/linuxbee/linuxbee/playlists" ] && pass playlist-folder || fail playlist-folder
-grep -q '^node=library:Music$' "$work/config/linuxbee/linuxbee/linuxbee.ini" 2>/dev/null \
+[ "$(dirname "$db")" = "$work/data/linuxbee" ] && pass library-place || fail "library-place [$db]"
+[ -d "$work/data/linuxbee/playlists" ] && pass playlist-folder || fail playlist-folder
+grep -q '^node=library:Music$' "$work/config/linuxbee/linuxbee.ini" 2>/dev/null \
     && pass node-stored || fail node-stored
 
 # A second start finds everything there.

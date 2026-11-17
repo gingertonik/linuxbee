@@ -21,7 +21,7 @@ printf '%s\n' "$out" | grep -qx 'main-view=albums' && pass albums-by-default || 
 printf '%s\n' "$out" | grep -qx 'artist-browser=shown' && pass earlier-lines-stay || fail "earlier-lines-stay [$out]"
 
 # The setting is read.
-ini="$work/config/linuxbee/linuxbee/linuxbee.ini"
+ini="$work/config/linuxbee/linuxbee.ini"
 mkdir -p "$(dirname "$ini")"
 printf '\n[view]\nmainPanel=tracks\n' >> "$ini"
 out=$(timeout 8 "$app" --parts 2> /dev/null)
