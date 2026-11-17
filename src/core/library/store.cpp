@@ -519,8 +519,10 @@ void Store::rollbackBatch()
     QSqlDatabase::database(d->connection).rollback();
 }
 
+// L-FAILED: -1 with lastError() empty means nothing was done; with words, the database refused.
 qint64 Store::insert(const LibraryTrack &track)
 {
+    d->lastError.clear();
     if (!d->opened)
         return -1;
     QSqlQuery query(QSqlDatabase::database(d->connection));
@@ -536,8 +538,10 @@ qint64 Store::insert(const LibraryTrack &track)
     query.bindValue(QStringLiteral(":missing"), track.missing);
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
-    if (!query.exec())
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
         return -1;
+    }
     return query.lastInsertId().toLongLong();
 }
 
@@ -734,8 +738,10 @@ QString Store::lastError() const
     return d->lastError;
 }
 
+// L-FAILED: false with lastError() empty means no such track; with words, the database refused.
 bool Store::updateReading(qint64 id, const LibraryTrack &track)
 {
+    d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
@@ -746,7 +752,11 @@ bool Store::updateReading(qint64 id, const LibraryTrack &track)
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
 bool Store::setPath(qint64 id, const QString &newPath, bool missing)
@@ -817,15 +827,21 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
 
 // L-SCAN, L-MISSING: the file is gone, or is back. Only the flag moves: tags,
 // statistics and id stay, which is what a missing track keeps.
+// L-FAILED: as updateReading.
 bool Store::setMissing(qint64 id, bool missing)
 {
+    d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("UPDATE tracks SET missing = :missing WHERE id = :id"));
     query.bindValue(QStringLiteral(":missing"), missing);
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
 } // namespace linuxbee::library

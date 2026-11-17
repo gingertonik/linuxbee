@@ -360,6 +360,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     for (const qint64 id : findings.found) {
         if (stillFits(id) && d->store.setMissing(id, false))
             report.found.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse(); // L-FAILED: a refused write ends the storing
     }
     // L-PARTS: a file the library holds by now is left alone.
     for (const LibraryTrack &reading : findings.fresh) {
@@ -371,6 +373,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         const qint64 id = d->store.insert(track);
         if (id > 0)
             report.added.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
     }
     // L-SCAN: a known file that differs is read again. Its id, category, date
     // added and statistics stay, which is what updateReading leaves. One that
@@ -379,10 +383,14 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         if (stillFits(again.id) && d->store.updateReading(again.id, again.reading)
             && !again.wasMissing)
             report.updated.append(again.id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
     }
     for (const qint64 id : findings.nowMissing) {
         if (stillFits(id) && d->store.setMissing(id, true))
             report.nowMissing.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
     }
     report.unchanged = findings.unchanged;
     report.notAudio = findings.notAudio;
