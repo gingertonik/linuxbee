@@ -139,6 +139,34 @@ fallback, the file's name.
 time from `now`. `Player::skipCounted(path)`: `Library::recordSkip`. A
 path the library does not know is ignored.
 
+**Through `PendingPlays`** (`shell/pendingplays.h`), one, the shell's
+child. A play count is the one thing in the library a scan cannot
+bring back, and the library waits only a quarter second for it
+(library.md, L-WAIT), so:
+
+- a play or skip the library **refused** (it said `failed` during the
+  call) is kept, with the time it happened. One it had nothing to do
+  for (a track it does not have) is not;
+- what is kept is offered again, **oldest first**, before the next
+  play or skip is recorded, and once more when the program saves its
+  state on the way out (PS-STORE). The offering stops at the first
+  refusal, and then what is new joins the kept untried: one call asks
+  the library to wait at most once;
+- **one track refused twice is two plays**; nothing is merged;
+- no more than 1,000 are kept. With that many, the oldest is let go
+  for each new one, and `oldestDropped` says so the first time;
+- they are kept in memory: a crash loses them, as it loses the play
+  that was sounding.
+
+The status bar (`lastMessage()` too), when a call leaves another
+number kept:
+
+| | Line |
+|---|---|
+| some are kept | `The library could not be changed: N plays or skips are not counted yet and will be tried again` (`1 play or skip is`) |
+| none any more | `The plays and skips that were waiting are counted` |
+| the first time one is let go | `The library could not be changed: more than 1000 plays or skips are waiting, and the oldest are no longer kept` |
+
 ## PS-ERROR
 
 `Player::playbackError(path, message)`: the status bar shows

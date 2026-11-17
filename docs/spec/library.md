@@ -313,6 +313,14 @@ waits by itself.
 
 A change that has waited that long is refused whole (L-FAILED).
 
+**A change nobody is waiting for.** (Found by the review of the
+status-bar notice: a play that could not be counted held the window
+for the whole five seconds.) `recordPlay` and `recordSkip` come from
+no command: a track ended. They wait the short wait, a quarter of a
+second (`setQuickWait` sets another length), and are then refused as
+any change is. The caller keeps what was refused and offers it again
+(playback-shell.md, PS-COUNT). Every other change waits as above.
+
 ### L-FAILED
 
 When the database refuses a `remove` or a `setCategory` (it is held
