@@ -305,8 +305,11 @@ void LibraryShell::showNode()
     d->showKept();
     // SH-REMOVE: the Delete key is named for what it does in the view on show.
     if (QAction *remove = d->actions->action(QStringLiteral("file.remove"))) {
-        remove->setText(
-            playlistOf(d->node).isEmpty() ? tr("Remove from Library") : tr("Remove from Playlist"));
+        if (d->node == QStringLiteral("playing"))
+            remove->setText(tr("Remove from Queue"));
+        else
+            remove->setText(playlistOf(d->node).isEmpty() ? tr("Remove from Library")
+                                                          : tr("Remove from Playlist"));
     }
     emit nodeTracksChanged();
 }

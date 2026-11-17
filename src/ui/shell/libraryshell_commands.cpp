@@ -111,6 +111,13 @@ void LibraryShell::removeSelected()
     if (ids.isEmpty())
         return;
 
+    // SH-REMOVE: in Playing Tracks the playback shell is asked to take the tracks out of the
+    // queue, once, with their paths in the order shown. Nothing is asked, said or removed here.
+    if (d->node == QStringLiteral("playing")) {
+        emit queueRemovalRequested(selectedPaths());
+        return;
+    }
+
     // SH-REMOVE: in a playlist the tracks leave the playlist, in one change, and nothing is
     // asked. The library and the files are not touched.
     if (const QString playlist = playlistOf(d->node); !playlist.isEmpty()) {

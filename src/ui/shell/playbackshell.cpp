@@ -55,6 +55,30 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     connect(libraryShell, &LibraryShell::filesTrashed, this,
         [this](const QStringList &paths) { d->queue->removePaths(paths); });
 
+    // PS-UNQUEUE: the Delete key in Playing Tracks takes the tracks out of the queue, but the
+    // playing one, in one change. The player is told nothing.
+    connect(
+        libraryShell, &LibraryShell::queueRemovalRequested, this, [this](const QStringList &paths) {
+            // Found before the removal: removePaths leaves the current entry where it is.
+            const QList<PlayQueue::Entry> before = d->queue->entries();
+            const int at = d->queue->currentIndex();
+            const bool currentNamed
+                = at >= 0 && at < before.size() && paths.contains(before.at(at).path);
+            const int n = d->queue->removePaths(paths);
+            QString message;
+            if (n > 0 && !currentNamed)
+                message = QStringLiteral("Removed %1 from the queue").arg(n);
+            else if (n > 0)
+                message
+                    = QStringLiteral("Removed %1 from the queue; the playing track stays").arg(n);
+            else if (currentNamed)
+                message = QStringLiteral("The playing track stays in the queue");
+            else
+                return;
+            d->lastMessage = message;
+            d->window->statusBar()->showMessage(message);
+        });
+
     // PS-NODE: a playlist the navigator reports activated is chosen first if it is
     // not on show, then played whole, from its first track, in its own order. An
     // auto-playlist is chosen the same way, and the queue plays the tracks the list
