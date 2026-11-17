@@ -190,7 +190,7 @@ main() {
     trap 'rm -rf "$work"' EXIT
     trap 'exit 1' INT TERM HUP
     fetch; build; place
-    say "Installed linuxBee $TAG. To remove it: sh install.sh --uninstall"
+    say "Installed linuxBee $TAG. To remove it: curl -fsSL https://github.com/gingertonik/linuxbee/releases/download/$TAG/install.sh | sh -s -- --uninstall"
     case ":${PATH:-}:" in *":$bin:"*) ;; *) say "Note: $bin is not on your PATH, so add it to run linuxbee from a shell." ;; esac
 }
 

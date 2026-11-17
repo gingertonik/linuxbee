@@ -122,6 +122,14 @@ temporary name is left beside a file by a run that ended well.
 
 If the folder for the programs is not on `PATH`, it says so at the end.
 
+### The last word
+
+An install ends by saying how to remove it, in a form that works for
+someone who piped the script and has no file:
+`curl -fsSL https://github.com/gingertonik/linuxbee/releases/download/<its tag>/install.sh | sh -s -- --uninstall`.
+It does not tell the user to run `sh install.sh`. The README gives the
+same with `latest`.
+
 ## I-UNINSTALL
 
 `--uninstall` removes the files on the list, then the list. It needs no

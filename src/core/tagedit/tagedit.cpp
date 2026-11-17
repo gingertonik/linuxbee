@@ -39,6 +39,7 @@ QStringList tagEditorFields()
         QStringLiteral("Publisher"),
         QStringLiteral("BPM"),
         QStringLiteral("Rating"),
+        QStringLiteral("Love"),
         QStringLiteral("Comment"),
     };
 }
@@ -161,6 +162,11 @@ QString editProblem(const QString &fieldName, const QString &text)
     }
     if (name == QLatin1String("Rating") && !isRatingStep(value))
         return QStringLiteral("Rating must be from 0.5 to 5 in steps of 0.5.");
+    if (name == QLatin1String("Love")) {
+        const QString letter = value.toUpper();
+        if (letter != QLatin1String("L") && letter != QLatin1String("B"))
+            return QStringLiteral("Love must be L (loved) or B (banned).");
+    }
     return { };
 }
 
@@ -180,6 +186,9 @@ QList<TagChanges> buildEdits(const QList<TrackTags> &tracks, const QMap<QString,
         } else if (name == QLatin1String("Rating")) {
             for (QString &value : values)
                 value = ratingToString(value.toDouble());
+        } else if (name == QLatin1String("Love")) {
+            for (QString &value : values)
+                value = value.toUpper();
         }
         wanted.insert(name, values);
     }

@@ -2,10 +2,10 @@
 # LOCKED. Written by the reviewer. docs/spec/ci.md.
 # What each CI job runs, one step a call, so that the same can be run by hand in the same container:
 #   as root:  sh tools/ci.sh packages && sh tools/ci.sh user
-#   as ci:    sh tools/ci.sh gate | sanitize | release
+#   as ci:    sh tools/ci.sh gate | sanitize | release | install
 set -eu
 cd "$(dirname "$0")/.."
-step=${1:?usage: ci.sh packages|user|gate|sanitize|release}
+step=${1:?usage: ci.sh packages|user|gate|sanitize|release|install}
 jobs=${CI_JOBS:-$(nproc)}
 
 throwaway() { # these two steps change the system they run on
@@ -17,7 +17,7 @@ packages) # C-CONTAINER: everything a build and the tests need, from the distrib
     throwaway
     # ttf-dejavu: the image has no font at all, and the window's layout is measured in two tests.
     pacman -Syu --noconfirm --needed git cmake ninja gcc clang pkgconf qt6-base qt6-multimedia qt6-svg taglib \
-        ffmpeg sqlite dbus desktop-file-utils appstream shellcheck ttf-dejavu
+        ffmpeg sqlite dbus desktop-file-utils appstream shellcheck ttf-dejavu github-cli
     ;;
 user) # C-USER: the tests run as an ordinary user; some of them rely on a file they may not read
     throwaway
@@ -61,6 +61,26 @@ release) # C-RELEASE: the build that is installed builds, with no test library, 
     cmake --build --preset release -j "$jobs"
     build/release/src/cli/linuxbeectl --version
     QT_QPA_PLATFORM=offscreen build/release/src/app/linuxbee --version
+    ;;
+install) # R-INSTALLS: the installer, stamped for this very commit, installs it into a home of its own and removes it
+    [ "$(id -u)" != 0 ] || { echo "ci.sh: the installer does not run as root" >&2; exit 2; }
+    work=$(mktemp -d)
+    trap 'rm -rf "$work"' EXIT
+    version=$(sed -n 's/^project(linuxbee VERSION \([0-9][0-9.]*\).*/\1/p' CMakeLists.txt)
+    git clone -q "file://$PWD" "$work/repo"
+    commit=$(git -C "$work/repo" rev-parse HEAD)
+    git -C "$work/repo" -c user.name=ci -c user.email=ci@example.invalid tag -f -a "v$version" -m "v$version" > /dev/null
+    sh tools/stamp-install.sh "v$version" "$commit" < install.sh > "$work/install.sh"
+    mkdir -p "$work/user" "$work/tmp"
+    run() { env -i HOME="$work/user" PATH="$PATH" TMPDIR="$work/tmp" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" LINUXBEE_REPO="file://$work/repo" "$@"; }
+    run sh "$work/install.sh"
+    [ "$(run "$work/user/.local/bin/linuxbeectl" --version)" = "linuxbeectl $version" ] || { echo "ci.sh: the installed linuxbeectl is not $version" >&2; exit 1; }
+    [ "$(run env QT_QPA_PLATFORM=offscreen "$work/user/.local/bin/linuxbee" --version)" = "linuxBee $version" ] || { echo "ci.sh: the installed linuxbee is not $version" >&2; exit 1; }
+    run sh "$work/install.sh" --uninstall
+    left=$(find "$work/user" -type f | head -n 5)
+    [ -z "$left" ] || { echo "ci.sh: the uninstall left: $left" >&2; exit 1; }
+    [ -z "$(ls -A "$work/tmp")" ] || { echo "ci.sh: the installer left its build folder" >&2; exit 1; }
+    echo "installed, ran and removed linuxBee $version ($commit)"
     ;;
 *)
     echo "ci.sh: no such step: $step" >&2

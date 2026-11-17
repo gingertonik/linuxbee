@@ -11,8 +11,8 @@ that is kept true is written down in [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md).
 
 ## Status
 
-linuxBee is usable for early testing. It is not released, and expect
-changes to commands, settings and the library file.
+linuxBee is usable for early testing. Releases before 1.0 are for early
+testing, and expect changes to commands, settings and the library file.
 
 ## What works now
 
@@ -170,6 +170,43 @@ The gaps a MusicBee user will notice first:
   services is not built. Copy and Swap are on the command line only.
 - **Compiled skins, and plugins.** Compiled skins (`.xmlc`), and a skin's
   pictures and layout, are not used. Plugins are not built.
+
+## Install
+
+The install script is for Arch-family systems. It builds linuxBee from source
+and installs it under `~/.local` for your user alone. Run it as yourself, never
+as root and never with `sudo`.
+
+To install the latest release in one line:
+
+```sh
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh
+```
+
+That line downloads the script and runs it at once. To read it first, download
+the script, read it, try a dry run that changes nothing, and then run it:
+
+```sh
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh -o install.sh
+less install.sh
+sh install.sh --dry-run
+sh install.sh
+```
+
+To install a named release, use the same script from that release's page, at
+`https://github.com/gingertonik/linuxbee/releases/download/<tag>/install.sh`.
+
+To uninstall:
+
+```sh
+sh install.sh --uninstall
+```
+
+If you installed with the one-line command above and have no `install.sh` file, uninstall with this instead:
+
+```sh
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh -s -- --uninstall
+```
 
 ## Try it
 

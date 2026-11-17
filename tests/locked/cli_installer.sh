@@ -224,6 +224,9 @@ samefiles "a partway install, run again, then an uninstall"
 
 # The install (I-INSTALL).
 run "$T/one.sh" || no "the install failed: $(tail -n 3 "$T/out" | tr '\n' ' ')"
+# I-SAYS: someone who used the one line has no file called install.sh; the last word says how to remove it all the same.
+grep -q 'releases/download/.*/install.sh | sh -s -- --uninstall' "$T/out" || no "the install does not end by saying how to remove it without a file: $(tail -n 2 "$T/out" | tr '\n' ' ')"
+grep -q 'sh install.sh --uninstall' "$T/out" && no "the install tells the user to run a file they may not have"
 [ "$("$B/linuxbee" 2> /dev/null)" = one ] || no "linuxbee is not installed"
 [ "$("$B/linuxbeectl" 2> /dev/null)" = ctl ] || no "linuxbeectl is not installed"
 [ -f "$D/applications/x.desktop" ] && [ -f "$D/icons/hicolor/scalable/apps/x.svg" ] || no "the desktop files are not installed"

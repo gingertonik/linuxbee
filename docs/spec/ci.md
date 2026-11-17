@@ -15,8 +15,9 @@ a stranger's code).
 
 The workflow's token can read the source and nothing else:
 `permissions: contents: read` at the top, and no job asks for more. It
-uses no secret. This holds for every workflow in the folder, until the
-release job's rule says otherwise for its one job.
+uses no secret. This holds for every workflow in the folder but one:
+the release workflow's one job may write a Release (release.md,
+R-RIGHTS).
 
 ## C-NOACTIONS
 
@@ -77,4 +78,3 @@ run as root.
   A real race would be lost among them. It needs a Qt built for it.
 - **Leaks.** Qt's own at exit drown the program's.
 - **Another compiler, another distribution.**
-- **The release job** (on a tag): its own rules, with the installer.

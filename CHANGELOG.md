@@ -6,6 +6,8 @@ settings and the library file may still change.
 
 ## Unreleased
 
+## 0.7.0 (2026-11-17)
+
 - linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.
 - A change made while another program has the library open waits for it. A scan that cannot
   store stores nothing (the window and `linuxbeectl` do not yet say so).
@@ -15,6 +17,10 @@ settings and the library file may still change.
   cannot be written to says so, and `linuxbeectl library scan` says when it could not store.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
+- Love (a track marked loved or banned in its tags) is read from and written to files as a field, and can be used in templates and auto-playlist rules.
+- Love can be set in the tag editor (L or B), and a Love column shows it as a heart. The window
+  cannot add the column yet, and a library scanned before this version shows Love only once
+  its files are read again.
 
 ## 0.6.0 (2026-11-17)
 
