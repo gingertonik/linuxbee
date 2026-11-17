@@ -306,10 +306,28 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     if (!options.now.isValid() || !categories().contains(options.category))
         return report;
 
+    // L-WAIT, L-FAILED: the storing step takes the write lock first, and waits for it. A scan
+    // that cannot begin, or cannot commit, stores nothing: its report names no track and says
+    // why, `failed` goes out once and no change signal does.
+    const auto refuse = [this]() {
+        const QString why = d->store.lastError().isEmpty()
+            ? QStringLiteral("the database refused the change")
+            : d->store.lastError();
+        d->store.rollbackBatch();
+        ScanReport refused;
+        refused.refused = why;
+        emit failed(why);
+        return refused;
+    };
+    if (!d->store.beginBatch())
+        return refuse();
+
     // L-PARTS: a finding is acted on only while the library still holds the
     // track as it was when it was looked at. The four values are asked for by
     // id, once, for the ids in `judged` that a finding names: one light query
-    // that reads no track and not the rest of the library.
+    // that reads no track and not the rest of the library. L-WAIT: this is the
+    // last look, and it is taken with the lock held, so no other program can
+    // change a track between the look and the storing.
     QSet<qint64> named;
     for (const qint64 id : findings.found)
         named.insert(id);
@@ -337,12 +355,13 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         return fits;
     };
 
-    d->store.beginBatch();
     // L-SCAN: a track that was marked missing and whose file is there is
     // found. L-MISSING keeps its tags, its statistics and its id.
     for (const qint64 id : findings.found) {
         if (stillFits(id) && d->store.setMissing(id, false))
             report.found.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse(); // L-FAILED: a refused write ends the storing
     }
     // L-PARTS: a file the library holds by now is left alone.
     for (const LibraryTrack &reading : findings.fresh) {
@@ -354,6 +373,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         const qint64 id = d->store.insert(track);
         if (id > 0)
             report.added.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
     }
     // L-SCAN: a known file that differs is read again. Its id, category, date
     // added and statistics stay, which is what updateReading leaves. One that
@@ -362,10 +383,14 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         if (stillFits(again.id) && d->store.updateReading(again.id, again.reading)
             && !again.wasMissing)
             report.updated.append(again.id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
     }
     for (const qint64 id : findings.nowMissing) {
         if (stillFits(id) && d->store.setMissing(id, true))
             report.nowMissing.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
     }
     report.unchanged = findings.unchanged;
     report.notAudio = findings.notAudio;
@@ -373,7 +398,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     report.unreadableIn = findings.unreadableIn;
     report.cancelled = findings.cancelled;
     report.passedOver = int(passed.size());
-    d->store.commitBatch();
+    if (!d->store.commitBatch())
+        return refuse(); // nothing was stored, so nothing is announced
 
     // L-SIGNALS: at most one signal of each kind, after the changes are
     // stored: one for what was added, one for everything else that changed

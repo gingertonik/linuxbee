@@ -102,6 +102,34 @@ round; the method is the implementation's own.
   new seed. `setShuffle(false, ...)` ends shuffling: Next continues in
   list order from the current entry.
 
+## Q-PEEK: what Next would give
+
+`peekNext(automatic)` returns the entry (its id and path) that
+`next(automatic)` would make current, or nothing where it would return
+-1. It changes nothing and emits nothing: the list, the current entry,
+the round, the way back and every later Next are as if it had not been
+asked, however often it is.
+
+It holds in every mode. In particular:
+
+- under `Repeat::One`, for a track that ended by itself, it is the
+  current entry;
+- when a shuffle round is used up under `Repeat::All`, it is the entry
+  the new round will begin with, although that round is not dealt until
+  Next is called;
+- with no current entry, it is the entry at the place the queue
+  remembers (Q-EDIT).
+
+`nextChanged` is emitted during every call after which either
+`peekNext(true)` or `peekNext(false)` gives a different answer than
+before it. It may be emitted when the answer happens to be the same,
+but not by a call that changes nothing (Q-SIGNALS). `setShuffle(true,
+seed)` while shuffle is on deals a new round and emits it, although no
+other signal tells of that call.
+
+The player uses the two together to have the next file ready before
+the current one ends.
+
 ## Q-SIGNALS
 
 `entriesChanged` after the list changed. `currentChanged(index)` after the

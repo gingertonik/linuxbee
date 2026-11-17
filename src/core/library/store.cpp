@@ -177,15 +177,26 @@ LibraryTrack rowFromRead(const QSqlQuery &query)
 
 // L-SCHEMA: create what a version-0 file has no rows for. All of it is this
 // program's own text: nothing here carries a path, a tag or any other data.
+// L-WAIT, L-OPEN: the write lock is taken first and waited for. Another start may have made the
+// tables while this one waited, so the version is looked at again once the lock is held; then
+// there is nothing to make and this succeeds.
 bool createSchema(QSqlDatabase &database, QString *error)
 {
-    if (!database.transaction()) {
+    QSqlQuery query(database);
+    if (!query.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
         setError(error,
-            QStringLiteral("Cannot start writing a new library: %1")
-                .arg(database.lastError().text()));
+            QStringLiteral("Cannot start writing a new library: %1").arg(query.lastError().text()));
         return false;
     }
-    QSqlQuery query(database);
+    {
+        QSqlQuery again(database);
+        if (again.exec(QStringLiteral("PRAGMA user_version")) && again.next()
+            && again.value(0).toInt() >= kSchemaVersionValue) {
+            again.finish();
+            database.rollback();
+            return true;
+        }
+    }
     const QString statements[] = {
         QStringLiteral("CREATE TABLE tracks ("
                        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -244,6 +255,8 @@ bool openAndCheckSchema(const QString &databasePath, const QString &connection, 
         return false;
     }
     const int found = version.value(0).toInt();
+    // A statement left open on the connection stops the switch to a write-ahead log below.
+    version.finish();
     if (found > kSchemaVersionValue) {
         setError(error,
             QStringLiteral("That library was written by a newer linuxBee: schema %1, "
@@ -251,6 +264,15 @@ bool openAndCheckSchema(const QString &databasePath, const QString &connection, 
                 .arg(found)
                 .arg(kSchemaVersionValue));
         return false;
+    }
+    // L-OPEN: a library on disk keeps a write-ahead log, at the default synchronous. Where the
+    // file system cannot (a network disk) SQLite answers with the journal it has, and the
+    // library opens all the same, so the answer is not checked. A library in memory has none.
+    if (!databasePath.isEmpty() && databasePath != QLatin1String(":memory:")) {
+        QSqlQuery wal(database);
+        if (wal.exec(QStringLiteral("PRAGMA journal_mode=WAL")))
+            while (wal.next()) { }
+        wal.finish();
     }
     if (found < kSchemaVersionValue && !createSchema(database, error))
         return false;
@@ -448,13 +470,25 @@ bool Store::beginBatch()
         d->refused(QString());
         return false;
     }
-    QSqlDatabase database = QSqlDatabase::database(d->connection);
-    if (!database.transaction()) {
-        d->refused(database.lastError().text());
+    // L-WAIT: the write lock is taken here, at the start, so the wait applies; a transaction that
+    // reads first and writes after is refused by SQLite at once.
+    QSqlQuery begin(QSqlDatabase::database(d->connection));
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
+        d->refused(begin.lastError().text());
         return false;
     }
     d->inBatch = true;
     return true;
+}
+
+// L-WAIT: the busy wait of this connection, which every statement that has to wait for another
+// program's lock uses.
+void Store::setWriteWait(std::chrono::milliseconds wait)
+{
+    if (!d->opened)
+        return;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.exec(QStringLiteral("PRAGMA busy_timeout = %1").arg(qint64(wait.count())));
 }
 
 // L-MOVED: a commit that fails leaves no transaction open, so the next call finds nothing in its
@@ -485,8 +519,10 @@ void Store::rollbackBatch()
     QSqlDatabase::database(d->connection).rollback();
 }
 
+// L-FAILED: -1 with lastError() empty means nothing was done; with words, the database refused.
 qint64 Store::insert(const LibraryTrack &track)
 {
+    d->lastError.clear();
     if (!d->opened)
         return -1;
     QSqlQuery query(QSqlDatabase::database(d->connection));
@@ -502,8 +538,10 @@ qint64 Store::insert(const LibraryTrack &track)
     query.bindValue(QStringLiteral(":missing"), track.missing);
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
-    if (!query.exec())
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
         return -1;
+    }
     return query.lastInsertId().toLongLong();
 }
 
@@ -528,9 +566,11 @@ public:
             if (!m_open)
                 m_error = begin.lastError().text();
         } else {
-            m_open = m_database.transaction();
+            // L-WAIT: the write lock first, so the wait applies (not Qt's deferred BEGIN).
+            QSqlQuery begin(m_database);
+            m_open = begin.exec(QStringLiteral("BEGIN IMMEDIATE"));
             if (!m_open)
-                m_error = m_database.lastError().text();
+                m_error = begin.lastError().text();
         }
     }
     ~EditScope() { rollBack(); }
@@ -698,8 +738,10 @@ QString Store::lastError() const
     return d->lastError;
 }
 
+// L-FAILED: false with lastError() empty means no such track; with words, the database refused.
 bool Store::updateReading(qint64 id, const LibraryTrack &track)
 {
+    d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
@@ -710,7 +752,11 @@ bool Store::updateReading(qint64 id, const LibraryTrack &track)
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
 bool Store::setPath(qint64 id, const QString &newPath, bool missing)
@@ -781,15 +827,21 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
 
 // L-SCAN, L-MISSING: the file is gone, or is back. Only the flag moves: tags,
 // statistics and id stay, which is what a missing track keeps.
+// L-FAILED: as updateReading.
 bool Store::setMissing(qint64 id, bool missing)
 {
+    d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("UPDATE tracks SET missing = :missing WHERE id = :id"));
     query.bindValue(QStringLiteral(":missing"), missing);
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
 }
 
 } // namespace linuxbee::library

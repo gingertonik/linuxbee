@@ -362,4 +362,10 @@ int Library::recordMoves(const QList<FileMove> &moves)
     return static_cast<int>(oldToNew.size());
 }
 
+// L-WAIT: how long a change waits for another program's write lock.
+void Library::setWriteWait(std::chrono::milliseconds wait)
+{
+    d->store.setWriteWait(wait);
+}
+
 } // namespace linuxbee

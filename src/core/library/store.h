@@ -3,6 +3,7 @@
 #include <QMap>
 #include <QString>
 
+#include <chrono>
 #include <memory>
 #include <optional>
 
@@ -56,8 +57,13 @@ public:
     // Every track in ascending order of path. An empty category means all.
     QList<LibraryTrack> all(const QString &category) const;
 
+    // L-WAIT: how long a change waits for another program's write lock (5 seconds until set).
+    // Sets the busy wait of this library's connection; does nothing while closed.
+    void setWriteWait(std::chrono::milliseconds wait);
+
     // L-SCAN: a whole scan is one transaction. SQLite writes a journal per
     // statement otherwise, which costs a hundred times over a folder.
+    // L-WAIT: takes the write lock at once (BEGIN IMMEDIATE) and waits for it.
     bool beginBatch();
     bool commitBatch();
     // L-MOVED: gives the batch up, storing none of it. Nothing is open afterwards, also when the
