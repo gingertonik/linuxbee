@@ -89,6 +89,27 @@ Not covered: a tag library that writes every byte it means to and
 means the wrong ones. Nothing here reads the audio of the copy
 again.
 
+## WS-REST
+
+(Found by the review of WS-WRITTEN: three wrong ways of moving the
+rest of a file passed every tag test, because the test files were
+smaller than one step of the move and a save was compared only with
+another save of the same build.)
+
+A save that makes the tag larger or smaller moves what follows it.
+What follows the tag is, after the save, **byte for byte what it
+was**: for an MP3 everything after the ID3v2 tag, for a FLAC
+everything after the last metadata block, for an M4A whose tags come
+before the sound the contents of `mdat`. (After the sound of an MP3
+there may be an ID3v1 tag, which the writer adds.) This holds for sound of
+several mebibytes, for a move of less than a step of the writer and
+of more, for sizes that are a whole number of steps and that are not,
+growing and shrinking, save after save on one file.
+
+The locked test makes its own sound, bytes of which no stretch is
+like another, and compares with those bytes as it made them, never
+with the result of another save.
+
 ## WS-NAME
 
 The copy is in the folder of the file itself and is called
