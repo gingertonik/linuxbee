@@ -6,6 +6,8 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- A change made while another program has the library open waits for it, and a scan that cannot
+  store says so and stores nothing.
 - Organise says when the library could not record its moves, and then records none of the run.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
