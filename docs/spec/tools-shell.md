@@ -196,6 +196,11 @@ there, whether the move replaced it (O-REPLACED) or it had gone
 before. The moved track then takes the target as above, keeping its id
 and statistics. The statistics of the track removed are lost with it.
 
+The moved files of one run are recorded by one `Library::setPaths` call
+(library.md, L-MOVED), after the tracks that held a target were
+removed, so the playlists and the queue are brought up to date once
+for the run and not once for each file.
+
 ## TS-CONVERT
 
 The converter is given the selected paths and the settings. When it

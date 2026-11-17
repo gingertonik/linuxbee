@@ -47,6 +47,12 @@ it, or playing it again, fails as for any file that has gone
 
 "Remove from Library" leaves the file, and leaves the queue alone.
 
+## PS-MOVED
+
+When the library emits `pathsMoved` (library.md, L-MOVED), the shell
+gives the moves to the player's `renamePaths` (player.md, X-RENAME).
+A file that is playing goes on playing and is counted for its track.
+
 ## PS-UNQUEUE
 
 When the library shell emits `queueRemovalRequested(paths)` (the

@@ -118,6 +118,15 @@ path; a factor below 0 counts as 0; with no function it is 1.
 The backend is told whenever the volume, the mute or the factor function
 changes, and for every track after it is loaded and before it plays.
 
+## X-RENAME
+
+`renamePaths(oldToNew)` renames in the queue (play-queue.md,
+Q-RENAME) and, when the track last started is one of the old paths,
+takes its new path as `currentPath()`. The backend is told nothing:
+the file it has open is the same file. The state, the position and
+the time heard stay; `trackChanged` is not emitted. The play or skip
+is counted, when the track ends, under the new path.
+
 ## X-LISTEN
 
 The time heard of a track is the sum of the forward steps between one

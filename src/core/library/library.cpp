@@ -255,4 +255,10 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     return true;
 }
 
+// L-MOVED. (Stub.)
+int Library::setPaths(const QList<PathMove> &)
+{
+    return 0;
+}
+
 } // namespace linuxbee

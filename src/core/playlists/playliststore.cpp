@@ -443,4 +443,10 @@ QString PlaylistStore::validateName(const QString &name)
     return refuseName(name);
 }
 
+// Y-RELINK. (Stub.)
+int PlaylistStore::relink(const QHash<QString, QString> &)
+{
+    return 0;
+}
+
 }

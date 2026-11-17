@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QObject>
 #include <QString>
 
@@ -54,6 +55,7 @@ public:
 
     // X-VOLUME: a factor per track (volume levelling). By default 1 for all.
     void setTrackVolume(std::function<double(const QString &path)> factor);
+    int renamePaths(const QHash<QString, QString> &oldToNew); // X-RENAME
     void setCountRule(const PlayCountRule &rule);
 
 public slots:

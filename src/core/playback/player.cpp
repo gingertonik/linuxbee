@@ -115,4 +115,10 @@ void Player::setStopAfterCurrent(bool on)
     d->setStopAfterCurrent(on);
 }
 
+// X-RENAME. (Stub.)
+int Player::renamePaths(const QHash<QString, QString> &)
+{
+    return 0;
+}
+
 }

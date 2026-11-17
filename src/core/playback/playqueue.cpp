@@ -245,4 +245,10 @@ void PlayQueue::setCurrentInternal(int index)
     emit currentChanged(index);
 }
 
+// Q-RENAME. (Stub.)
+int PlayQueue::renamePaths(const QHash<QString, QString> &)
+{
+    return 0;
+}
+
 }

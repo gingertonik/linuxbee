@@ -259,6 +259,29 @@ returns 0, no change signal is sent, and `failed(what)` is emitted
 once, with the database's own words. A call that merely had nothing
 to do does not emit it.
 
+### L-MOVED
+
+(Found by an outside review of the code, 2026-11-16: organised files
+fell out of every playlist and the queue, and no rule said otherwise.)
+
+**A file the program moves keeps its place everywhere the program
+holds its path.** The library is where a move is recorded, so the
+library says it: `pathsMoved(oldToNew)`, old path to new path, for
+every track whose path a call changed.
+
+- `setPath` emits it for its one track, when the path changed.
+- `setPaths(moves)` is `setPath` for each `{id, newPath}` in order,
+  with the same refusals (an unknown id, a path another track has by
+  then), and returns how many paths changed. The call emits one
+  `tracksUpdated` and one `pathsMoved` for all of them.
+- `relinkPaths` emits one, with every path it changed.
+
+A call that changed no path does not emit it. It comes after the
+change is stored and after `tracksUpdated`.
+
+Not covered: a file moved by another program. The scan sees a file
+that is gone and a new one.
+
 ### L-STATS
 
 `recordPlay(id, when)` adds one to the play count and sets last played to
