@@ -7,6 +7,8 @@ settings and the library file may still change.
 ## Unreleased
 
 - Organise says when the library could not record its moves, and then records none of the run.
+- The desktop entry no longer offers linuxBee for opening audio files, which
+  it could not open yet.
 
 ## 0.6.0 (2026-11-17)
 
