@@ -144,19 +144,32 @@ child. A play count is the one thing in the library a scan cannot
 bring back, and the library waits only a quarter second for it
 (library.md, L-WAIT), so:
 
-- a play or skip the library **refused** (it said `failed` during the
-  call) is kept, with the time it happened. One it had nothing to do
-  for (a track it does not have) is not;
-- what is kept is offered again, **oldest first**, before the next
-  play or skip is recorded, and once more when the program saves its
-  state on the way out (PS-STORE). The offering stops at the first
-  refusal, and then what is new joins the kept untried: one call asks
-  the library to wait at most once;
+- the shell hands it the **path** and the time, and reads nothing
+  from the library for it. (Found by the review: the shell looked the
+  track up first, and on a library without a write-ahead log, held
+  by another program, the look-up failed, the play was taken for a
+  play of a file the library does not have, and was lost with nothing
+  said after ten seconds.)
+- a play or skip joins what is kept, and all of it is offered in one
+  call, `Library::recordPlays` (library.md, L-STATS), which stores all
+  of it in one change or gives back what it refused. What comes back
+  is what is kept. So the library is asked once for each play, each
+  skip and each `retry()`, however many are kept, and a thousand kept
+  plays are one change with one signal;
+- a file the library does not have is never kept, and does not sit
+  in the number kept, unless the library could not even look;
+- it is offered once more when the program saves its state on the way
+  out (PS-STORE);
 - **one track refused twice is two plays**; nothing is merged;
 - no more than 1,000 are kept. With that many, the oldest is let go
-  for each new one, and `oldestDropped` says so the first time;
+  for each new one, and `oldestDropped` says so the first time since
+  nothing was kept;
 - they are kept in memory: a crash loses them, as it loses the play
-  that was sounding.
+  that was sounding. What is still kept when the object is destroyed
+  is lost too, and that is said once, as a warning (so on the terminal
+  the program was started from): `linuxBee: N plays or skips could
+  not be counted before closing, because the library could not be
+  changed; they are lost` (`1 play or skip`).
 
 The status bar (`lastMessage()` too), when a call leaves another
 number kept:
@@ -165,7 +178,7 @@ number kept:
 |---|---|
 | some are kept | `The library could not be changed: N plays or skips are not counted yet and will be tried again` (`1 play or skip is`) |
 | none any more | `The plays and skips that were waiting are counted` |
-| the first time one is let go | `The library could not be changed: more than 1000 plays or skips are waiting, and the oldest are no longer kept` |
+| one is let go, the first time since none were kept | `The library could not be changed: more than 1000 plays or skips are waiting, and the oldest are no longer kept` |
 
 ## PS-ERROR
 

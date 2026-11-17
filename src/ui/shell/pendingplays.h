@@ -6,6 +6,7 @@
 
 #include <QDateTime>
 #include <QObject>
+#include <QString>
 
 #include <memory>
 
@@ -23,23 +24,25 @@ public:
 
     // The library is not owned and must outlive this.
     explicit PendingPlays(linuxbee::Library *library, QObject *parent = nullptr);
+    // PS-COUNT: what is still kept is lost here, and that is said, once, as a warning.
     ~PendingPlays() override;
 
-    // A play or a skip that has happened. What is kept is offered first (as retry does); if any of
-    // it is still kept, this one joins it untried, so that one call asks the library to wait at
-    // most once.
-    void play(qint64 trackId, const QDateTime &when);
-    void skip(qint64 trackId, const QDateTime &when);
+    // A play or a skip that has happened, of the file at `path`. It joins what is kept, and all of
+    // it is offered to the library in one call (Library::recordPlays), which stores all of it or
+    // gives back what it refused; that is what is kept. This object reads nothing from the library
+    // itself, and a file the library does not have is never kept.
+    void play(const QString &path, const QDateTime &when);
+    void skip(const QString &path, const QDateTime &when);
 
-    // Offers what is kept again, oldest first, and stops at the first the library refuses.
+    // Offers what is kept again, in one change. Nothing kept: the library is not asked.
     void retry();
 
     int kept() const;
 
 signals:
     void keptChanged(int kept); // after a call that left another number kept
-    void oldestDropped(); // the first time one is let go because kMost are kept; once in this
-                          // object's life
+    // One was let go because kMost are kept: the first time since nothing was kept.
+    void oldestDropped();
 
 private:
     struct Private;
