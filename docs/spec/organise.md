@@ -148,7 +148,8 @@ the file copied, in this order:
    that nothing is written to it after the flush;
 5. the copy is closed, and a close that reports an error fails the
    move;
-6. only then, as the last thing done, is the source removed.
+6. only then is the source removed. Nothing that could fail the move
+   comes after it: only descriptors are let go.
 
 A failure at any step leaves the source as it was (bytes, time and
 mode), removes whatever of the target was written, and is reported
@@ -161,6 +162,25 @@ scan does not take it for a changed file.
 A target the move did not make itself is never removed: if a file or
 a link appears at the target after the first look, the move fails
 and that file is left as it is.
+
+**Taking the copy back.** When a step fails, the copy is removed only
+while the target's name still holds the very file this move made
+(the same device and file number). The move holds the file open, by
+a descriptor of its own, from the moment it is made until the move
+returns, and the look and the removal happen while it is held: a
+file number that is in use cannot pass to another file, so a file
+that someone else put there in the meantime is never taken for the
+copy. This holds for a failure after the copy was closed too (the
+close itself failing, or the source that cannot be removed).
+
+**A source that changes while it is copied.** After the bytes are
+copied the source's size, modification time and change time are
+what they were before; if not, the move fails with `the file
+changed while it was copied`, the copy is taken back and the source
+stays.
+
+**No room.** When the target's disk is full or over its quota, the
+message is `there is no room for the file at the target`.
 
 A source that is a link is not moved to another file system: the
 move fails, the link stays, and nothing is copied. (Within one file
