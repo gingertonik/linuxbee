@@ -362,4 +362,9 @@ int Library::recordMoves(const QList<FileMove> &moves)
     return static_cast<int>(oldToNew.size());
 }
 
+// L-WAIT. (Stub.)
+void Library::setWriteWait(std::chrono::milliseconds)
+{
+}
+
 } // namespace linuxbee

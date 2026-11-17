@@ -118,6 +118,7 @@ void LibraryManyTest::allOrNone()
     QSignalSpy removed(big.library.get(), &Library::tracksRemoved);
     QSignalSpy updated(big.library.get(), &Library::tracksUpdated);
     QSignalSpy failed(big.library.get(), &Library::failed);
+    big.library->setWriteWait(std::chrono::milliseconds(50)); // L-WAIT: not the five seconds
     {
         QSqlDatabase holder = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("holder"));
         holder.setDatabaseName(big.dir.path() + QStringLiteral("/library.db"));
