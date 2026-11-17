@@ -122,6 +122,7 @@ MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options)
             QDir().rmdir(waiting);
         return failedWith(outcome, error);
     }
+    outcome.moved = moving; // the file left its source; a copy did not
 
     if (!aside.isEmpty()) {
         outcome.replaced = true;

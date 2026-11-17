@@ -116,6 +116,12 @@ struct ScanReport;
 // L-PARTS: the reports of parts, put together.
 ScanReport addedUp(const ScanReport &a, const ScanReport &b);
 
+// L-MOVED: one file that was moved.
+struct FileMove {
+    QString from;
+    QString to;
+};
+
 class Library : public QObject {
     Q_OBJECT
 public:
@@ -151,6 +157,7 @@ public:
     int setCategory(const QList<qint64> &ids, const QString &category);
     bool refresh(qint64 id); // read the file's tags again
     bool setPath(qint64 id, const QString &newPath); // the file was moved
+    int recordMoves(const QList<FileMove> &moves); // L-MOVED
     int relinkPaths(const QString &oldPrefix, const QString &newPrefix);
 
     // L-STATS
@@ -163,6 +170,7 @@ signals:
     void tracksAdded(const QList<qint64> &ids);
     void tracksUpdated(const QList<qint64> &ids);
     void tracksRemoved(const QList<qint64> &ids);
+    void pathsMoved(const QHash<QString, QString> &oldToNew); // L-MOVED
     void failed(const QString &what); // L-FAILED
 
 private:

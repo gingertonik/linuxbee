@@ -54,6 +54,14 @@ goes to the entry that followed the removed one, Previous to the one
 before it, and `queueNext` inserts at that place. In a queue that never
 had a current entry the place is the top.
 
+## Q-RENAME
+
+`renamePaths(oldToNew)` (library.md, L-MOVED) gives each entry whose
+path is one of the old ones its new path, and returns how many
+entries changed. Nothing else changes: the entry ids, the order, the
+current entry, the shuffle round and the way back. `entriesChanged`
+is emitted once when any entry changed; `currentChanged` never.
+
 ## Q-NEXT: Next and Previous, in list order
 
 `next(automatic)` and `previous()` return the new current index, or -1

@@ -196,6 +196,13 @@ there, whether the move replaced it (O-REPLACED) or it had gone
 before. The moved track then takes the target as above, keeping its id
 and statistics. The statistics of the track removed are lost with it.
 
+The moved files of one run are recorded by one `Library::recordMoves` call
+(library.md, L-MOVED): every outcome that is `Done`, has `moved` set
+(organise.md) and a target other than its source, as `{source,
+target}`, in the report's order. The shell decides nothing else: not
+by looking at the disk, and not which track goes. So the playlists
+and the queue are brought up to date once for the run.
+
 ## TS-CONVERT
 
 The converter is given the selected paths and the settings. When it

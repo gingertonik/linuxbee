@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -34,6 +35,7 @@ public:
     void queueLast(const QStringList &paths);
     int removeAt(const QList<int> &positions); // returns how many were removed
     int removePaths(const QStringList &paths); // every entry with one of them, but the current one
+    int renamePaths(const QHash<QString, QString> &oldToNew); // Q-RENAME
     bool move(int from, int to);
     void clear();
     bool setCurrent(int index);

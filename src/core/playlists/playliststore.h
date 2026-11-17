@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -42,6 +43,8 @@ public:
     int removeAt(const QString &id, const QList<int> &positions);
     // Moves the entry at `from` so that it ends up at position `to`.
     bool moveTrack(const QString &id, int from, int to);
+    // Y-RELINK: returns how many playlists were written.
+    int relink(const QHash<QString, QString> &oldToNew);
 
     // Y-NAME: empty when the name can be used, otherwise what is wrong.
     static QString validateName(const QString &name);

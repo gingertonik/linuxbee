@@ -196,6 +196,12 @@ file it has open and plays the track to its end. It stays in the queue until
 then; the other files that went leave the queue (playback-shell.md,
 PS-TRASHED).
 
+## SH-MOVED
+
+When the library emits `pathsMoved` (library.md, L-MOVED), the shell
+gives the moves to the playlist store's `relink` (playlists.md,
+Y-RELINK), so a moved file stays in its playlists, in its place.
+
 ## SH-PATHS: the paths of the list
 
 `shownPaths()` is the path of every row of the list, in the order
