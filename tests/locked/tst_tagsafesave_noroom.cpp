@@ -296,7 +296,44 @@ void SaveNoRoomTest::aSmallerFileNeedsNoRoom()
     TagChanges smaller;
     smaller.fields.insert(QStringLiteral("Title"), { QStringLiteral("T") });
     smaller.pictures = QList<Picture> { };
-    QCOMPARE(saveWithRoomFor(path, smaller, size), WriteResult::Status::Ok);
+    // The room is the song's own size: not a byte more. One thing first, which is the system's and
+    // not the writer's: some kernels refuse, under a file-size limit, a copy that ends exactly at
+    // the limit (the call that finds the end of the source is answered "file too large"), and
+    // others do not. (Seen on the hosted runner: this case failed there and nowhere else.) So the
+    // test tries a plain copy of the song under that limit itself. Where that is refused, the room
+    // is one byte more, which a plain copy must then get; a save that grew by two bytes would
+    // still fail.
+    qint64 room = size;
+    bool exactFitIsRefusedHere = false;
+    {
+        const NoRoomPast limit(size);
+        QVERIFY(limit.isSet());
+        exactFitIsRefusedHere = !QFile::copy(path, dir.path() + s(u"/probe-exact"));
+    }
+    QFile::remove(dir.path() + s(u"/probe-exact"));
+    if (exactFitIsRefusedHere) {
+        room = size + 1;
+        {
+            const NoRoomPast limit(room);
+            QVERIFY2(QFile::copy(path, dir.path() + s(u"/probe-one-more")),
+                "under a limit of the song's size and one byte, a plain copy of the song is "
+                "refused: "
+                "this is not the case this test knows, and it is the system's doing, not the "
+                "writer's");
+        }
+        QFile::remove(dir.path() + s(u"/probe-one-more"));
+        qInfo("this system refuses a copy that ends exactly at the limit; the room given is the "
+              "size and one byte");
+    }
+    const WriteResult::Status status = saveWithRoomFor(path, smaller, room);
+    QVERIFY2(status == WriteResult::Status::Ok,
+        qPrintable(QStringLiteral(
+            "status %1 with room for %2 bytes; the song is %3; a plain copy at exactly the size %4")
+                .arg(int(status))
+                .arg(room)
+                .arg(size)
+                .arg(exactFitIsRefusedHere ? QStringLiteral("is refused here")
+                                           : QStringLiteral("works here"))));
     QCOMPARE(readTags(path).tags.first(QStringLiteral("Title")), s(u"T"));
     QVERIFY(QFileInfo(path).size() <= size);
 }
