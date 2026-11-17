@@ -66,6 +66,13 @@ def main():
     f["LOVERATING"] = ["B"]
     f.save()
 
+    # The first name holds something that is not a Love value, the second holds one: the second gives
+    # the field, and the first stays among the other tags.
+    f = FLAC(copy("basic.flac", "love-second.flac"))
+    f["LOVE RATING"] = ["Yes"]
+    f["LOVERATING"] = ["L"]
+    f.save()
+
 
 if __name__ == "__main__":
     main()

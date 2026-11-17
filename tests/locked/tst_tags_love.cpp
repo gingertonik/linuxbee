@@ -74,6 +74,7 @@ private slots:
     void read();
     void aValueThatIsNotOneStaysAnOtherTag();
     void theFirstNameWinsAndTheOtherStays();
+    void aNameThatHoldsNoLoveValueIsPassedOver();
     void written_data();
     void written();
     void aWriteLeavesOneNameOnly();
@@ -164,6 +165,25 @@ void TagsLoveTest::theFirstNameWinsAndTheOtherStays()
     QCOMPARE(tags.other.value(kJoined), QStringList { s(u"B") }); // R-OTHER, the losing key
 }
 
+// R-LOVE: a file tagged by two programs. The first name holds a word, the second a Love value.
+void TagsLoveTest::aNameThatHoldsNoLoveValueIsPassedOver()
+{
+    const TrackTags tags = tagsOf(fixture(s(u"love-second.flac")));
+    QCOMPARE(tags.fields.value(kLove), QStringList { s(u"L") });
+    QCOMPARE(tags.other.value(kSpaced), QStringList { s(u"Yes") }); // not claimed, so it stays
+    QVERIFY(!tags.other.contains(kJoined)); // claimed
+
+    // A write clears both names and leaves one (W-ONEHOME).
+    const QString path = copy(s(u"love-second.flac"));
+    TagChanges ban;
+    ban.fields.insert(kLove, { s(u"B") });
+    QCOMPARE(writeTags(path, ban).status, WriteResult::Status::Ok);
+    QCOMPARE(tagsOf(path).fields.value(kLove), QStringList { s(u"B") });
+    QVERIFY(tagsOf(path).other.isEmpty() || !tagsOf(path).other.contains(kSpaced));
+    QCOMPARE(timesInFile(path, kSpaced), 1);
+    QCOMPARE(timesInFile(path, kJoined), 0);
+}
+
 void TagsLoveTest::written_data()
 {
     QTest::addColumn<QString>("name");
@@ -231,6 +251,23 @@ void TagsLoveTest::aWriteLeavesOneNameOnly()
     QCOMPARE(writeTags(lower, given).status, WriteResult::Status::Ok);
     QCOMPARE(timesInFile(lower, s(u"LOVE RATING=B")), 1);
     QCOMPARE(timesInFile(lower, s(u"LOVE RATING=b")), 0);
+
+    // Nor is the white space about a letter written (W-INVALID).
+    const QString spaced = copy(s(u"basic.flac"));
+    TagChanges padded;
+    padded.fields.insert(kLove, { s(u" l ") });
+    QCOMPARE(writeTags(spaced, padded).status, WriteResult::Status::Ok);
+    QCOMPARE(timesInFile(spaced, s(u"LOVE RATING=L")), 1);
+    QCOMPARE(timesInFile(spaced, s(u"LOVE RATING= ")), 0);
+    // The comment is the name, the sign and one letter: 13 bytes, as its length says.
+    {
+        QFile file(spaced);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QByteArray bytes = file.readAll();
+        const qsizetype at = bytes.indexOf("LOVE RATING=");
+        QVERIFY(at >= 4);
+        QCOMPARE(int(uchar(bytes.at(at - 4))), 13);
+    }
 
     // A value that was not one (it stood among the other tags) goes too.
     const QString odd = copy(s(u"love-odd.flac"));

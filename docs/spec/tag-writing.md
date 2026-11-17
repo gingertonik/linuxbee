@@ -62,7 +62,8 @@ An entry is refused when:
 - the field is Rating and the list is not a single number from 0.5 to 5 in
   steps of 0.5;
 - the field is Love and the list is not a single `L` or `B`, in either
-  case (it is written in upper case);
+  case, white space about it allowed (what is written is the letter
+  alone, in upper case);
 - the field is Track#, Track Count, Disc# or Disc Count and the list has
   more than one value or the value contains `/`;
 - an `other` key is empty, has a character outside printable ASCII

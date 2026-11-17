@@ -192,9 +192,12 @@ MPEG-4 file has the name without its space). The first value of the
 key, with white space trimmed from its ends and compared without regard
 to case, is the letter; the field holds it in upper case.
 
-A value that is neither letter is not a Love value: the field has no
-entry and the key stays in `other`, as a RATING that is not a number
-does.
+A value that is neither letter is not a Love value: that key is passed
+over and stays in `other`, as a RATING that is not a number does. The
+other key is then looked at as if the first were not there: a file
+tagged by two programs may hold a word under one name and a Love value
+under the other, and the value counts. With no Love value under either
+name the field has no entry.
 
 The ID3v2 and MPEG-4 forms are as found in files MusicBee had written
 (a `TXXX` frame described `LOVE RATING`; the atom
