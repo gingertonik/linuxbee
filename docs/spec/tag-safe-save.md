@@ -201,6 +201,19 @@ step is. It is not called when nothing is written (`Unchanged`,
 It exists so that a caller can check or stop a save at the last moment,
 and so that the test can end the process at the worst one.
 
+**`WriteOptions::afterFirstLook`**, when set, is called once in every
+call of `writeTags`, whatever comes of the call: after the first look
+at the file (WS-SAME) and before the file is read. (Found by the
+review of WS-SAME: a first look taken after the read lost another
+program's edit in 39 of 60 saves of a large file, and every other
+test passed, because they act at the swap.) It exists for the test,
+which is "another program" there:
+
+- a file changed at that moment, in place, in its time only, or by
+  being replaced, is a file that changed during the save: refused
+  with `ChangedOnDisk`, their version kept;
+- a file removed at that moment is `NotFound`: the read comes after.
+
 ## WS-KILLED
 
 A process that dies between steps 2 and 6 leaves the original whole and

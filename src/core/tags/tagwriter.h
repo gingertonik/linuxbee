@@ -41,6 +41,9 @@ struct WriteOptions {
     // false abandons the save: the original stays as it is and the result is
     // Failed. Not called when nothing is written.
     std::function<bool(const QString &newVersion)> beforeReplace;
+    // WS-HOOK: called once in every call, after the first look at the file and before it is
+    // read. For the test, which is another program there.
+    std::function<void()> afterFirstLook;
 };
 
 struct WriteResult {

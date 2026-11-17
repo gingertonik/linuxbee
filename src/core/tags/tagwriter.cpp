@@ -708,6 +708,8 @@ WriteResult writeTags(
     // so it is the file the path leads to.
     struct stat firstLook { };
     const bool looked = ::stat(QFile::encodeName(filePath).constData(), &firstLook) == 0;
+    if (options.afterFirstLook)
+        options.afterFirstLook();
 
     // W-STATUS: the read readTags does.
     const ReadResult read = readTags(filePath);
