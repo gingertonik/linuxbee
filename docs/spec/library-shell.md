@@ -176,6 +176,13 @@ The action's text is set whenever the view changes.
    there are any: `; M were not there` (`1 was not there`), then
    `; K could not be moved` for the refused and the failed together.
 
+   When the library did not take the removal (library.md, L-FAILED),
+   the files are in the trash all the same, and the message says
+   so after the count, before the other parts: `; the library could
+   not be changed and still lists them` (`still lists it` for one
+   file). Step 5 happens as usual. Running the command again on those
+   tracks finds their files not there.
+
 5. When any file went, `filesTrashed(paths)` is emitted once, after
    the library was told: the paths of those tracks as the library
    held them, in the order shown.
@@ -205,6 +212,19 @@ library has now: the held tracks follow the library's changes.
 (Before this rule each call read every row's track one by one:
 measured in a Release build at 17,000 rows, about 370 ms before a
 double-clicked track could start.)
+
+## SH-FAILED: the library did not take the change
+
+When the library emits `failed` (library.md, L-FAILED) during one of
+the shell's commands, the command's line is not the usual one:
+
+| Command | Line |
+|---|---|
+| Remove from Library | `The library could not be changed: none of the N tracks was removed` (`the track was not removed` for one) |
+| Send To | `The library could not be changed: nothing was moved to <section>` |
+| Delete Files | see SH-DELETE, step 4 |
+
+Nothing else is done: the selection and the view stay.
 
 ## SH-MESSAGE
 

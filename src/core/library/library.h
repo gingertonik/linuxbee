@@ -163,6 +163,7 @@ signals:
     void tracksAdded(const QList<qint64> &ids);
     void tracksUpdated(const QList<qint64> &ids);
     void tracksRemoved(const QList<qint64> &ids);
+    void failed(const QString &what); // L-FAILED
 
 private:
     Library();

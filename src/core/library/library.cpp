@@ -127,6 +127,11 @@ std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 int Library::remove(const QList<qint64> &ids)
 {
     const QList<qint64> gone = d->store.removeIds(ids);
+    // L-FAILED: a refusal changed nothing, so there is no change to announce.
+    if (const QString why = d->store.lastError(); !why.isEmpty()) {
+        emit failed(why);
+        return 0;
+    }
     // L-SIGNALS: one signal for the call, carrying the ids it changed.
     if (!gone.isEmpty())
         emit tracksRemoved(gone);
@@ -141,6 +146,10 @@ int Library::setCategory(const QList<qint64> &ids, const QString &category)
     if (!categories().contains(category))
         return 0;
     const QList<qint64> changed = d->store.setCategory(ids, category);
+    if (const QString why = d->store.lastError(); !why.isEmpty()) {
+        emit failed(why); // L-FAILED
+        return 0;
+    }
     if (!changed.isEmpty())
         emit tracksUpdated(changed);
     return static_cast<int>(changed.size());

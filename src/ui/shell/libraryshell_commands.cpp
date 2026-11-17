@@ -155,7 +155,19 @@ void LibraryShell::removeSelected()
             == QMessageBox::Yes;
     if (!yes)
         return;
+    // SH-FAILED: the library says `failed` during its own call when the database refused it.
+    bool refused = false;
+    const QMetaObject::Connection listening
+        = connect(d->library, &Library::failed, this, [&refused] { refused = true; });
     const int removed = d->library->remove(ids);
+    disconnect(listening);
+    if (refused) {
+        showMessage(ids.size() == 1
+                ? tr("The library could not be changed: the track was not removed")
+                : tr("The library could not be changed: none of the %1 tracks was removed")
+                      .arg(ids.size()));
+        return;
+    }
     showMessage(tr("Removed %1 from the library").arg(removed));
 }
 
@@ -214,8 +226,12 @@ void LibraryShell::deleteSelected()
             break;
         }
     }
+    bool refused = false; // SH-FAILED: the library did not take the removal
     if (!gone.isEmpty()) {
+        const QMetaObject::Connection listening
+            = connect(d->library, &Library::failed, this, [&refused] { refused = true; });
         d->library->remove(gone);
+        disconnect(listening);
         // Step 5: once, after the library was told: the paths as the library held them, in the
         // order shown.
         const QSet<qint64> wentIds(gone.cbegin(), gone.cend());
@@ -235,6 +251,10 @@ void LibraryShell::deleteSelected()
         text = tr("Moved 1 file to the trash");
     else
         text = tr("Moved %1 files to the trash").arg(gone.size());
+    // SH-DELETE step 4: the files are in the trash all the same, and the library still lists them.
+    if (refused)
+        text += gone.size() == 1 ? tr("; the library could not be changed and still lists it")
+                                 : tr("; the library could not be changed and still lists them");
     if (notThere == 1)
         text += tr("; 1 was not there");
     else if (notThere > 1)
@@ -250,7 +270,15 @@ void LibraryShell::sendToSection(const QString &section)
     const QList<qint64> ids = d->page->selectedTrackIds();
     if (ids.isEmpty())
         return;
+    bool refused = false; // SH-FAILED
+    const QMetaObject::Connection listening
+        = connect(d->library, &Library::failed, this, [&refused] { refused = true; });
     const int moved = d->library->setCategory(ids, section);
+    disconnect(listening);
+    if (refused) {
+        showMessage(tr("The library could not be changed: nothing was moved to %1").arg(section));
+        return;
+    }
     showMessage(tr("Moved %1 to %2").arg(moved).arg(section));
 }
 

@@ -271,6 +271,13 @@ struct Store::Private {
     QString connection; // empty while closed
     bool opened = false;
     bool inBatch = false;
+    QString lastError; // L-FAILED: the database's words for the last refused edit
+
+    // Never empty, so the library always has words to say.
+    void refused(const QString &words)
+    {
+        lastError = words.isEmpty() ? QStringLiteral("the database refused the change") : words;
+    }
 };
 
 Store::Store()
@@ -475,63 +482,195 @@ qint64 Store::insert(const LibraryTrack &track)
     return query.lastInsertId().toLongLong();
 }
 
+namespace {
+
+// L-MANY: a long list of ids is asked for in pieces (the same size heldById uses), because the
+// database refuses an expression that names every id once it is long enough.
+constexpr qsizetype kEditPiece = 400;
+
+// L-MANY, L-FAILED: the whole call is one transaction, so a refusal in any piece takes back the
+// pieces before it. A batch that is open already is the call's transaction; then a savepoint
+// does the same job inside it.
+class EditScope {
+public:
+    EditScope(QSqlDatabase database, bool inBatch)
+        : m_database(database)
+        , m_savepoint(inBatch)
+    {
+        if (m_savepoint) {
+            QSqlQuery begin(m_database);
+            m_open = begin.exec(QStringLiteral("SAVEPOINT linuxbee_edit"));
+            if (!m_open)
+                m_error = begin.lastError().text();
+        } else {
+            m_open = m_database.transaction();
+            if (!m_open)
+                m_error = m_database.lastError().text();
+        }
+    }
+    ~EditScope() { rollBack(); }
+    EditScope(const EditScope &) = delete;
+    EditScope &operator=(const EditScope &) = delete;
+
+    bool isOpen() const { return m_open; }
+    QString error() const { return m_error; }
+
+    // Keeps the words of the first thing that went wrong.
+    void fail(const QString &words)
+    {
+        if (m_error.isEmpty())
+            m_error = words;
+    }
+
+    bool commit()
+    {
+        if (!m_open)
+            return false;
+        m_open = false;
+        if (m_savepoint) {
+            QSqlQuery release(m_database);
+            if (release.exec(QStringLiteral("RELEASE linuxbee_edit")))
+                return true;
+            fail(release.lastError().text());
+            QSqlQuery undo(m_database);
+            undo.exec(QStringLiteral("ROLLBACK TO linuxbee_edit"));
+            undo.exec(QStringLiteral("RELEASE linuxbee_edit"));
+            return false;
+        }
+        if (m_database.commit())
+            return true;
+        fail(m_database.lastError().text());
+        m_database.rollback();
+        return false;
+    }
+
+    void rollBack()
+    {
+        if (!m_open)
+            return;
+        m_open = false;
+        if (m_savepoint) {
+            QSqlQuery undo(m_database);
+            undo.exec(QStringLiteral("ROLLBACK TO linuxbee_edit"));
+            undo.exec(QStringLiteral("RELEASE linuxbee_edit"));
+        } else {
+            m_database.rollback();
+        }
+    }
+
+private:
+    QSqlDatabase m_database;
+    bool m_savepoint;
+    bool m_open = false;
+    QString m_error;
+};
+
+} // namespace
+
 // L-EDIT: the ids that are stored and not already in `category`, which is
 // exactly the set L-EDIT counts and L-SIGNALS carries.
+// L-MANY, L-FAILED: pieces of one transaction; a refusal changes nothing, returns nothing and
+// leaves the database's words in lastError().
 QList<qint64> Store::setCategory(const QList<qint64> &ids, const QString &category)
 {
+    d->lastError.clear();
     if (!d->opened || ids.isEmpty())
         return { };
-    const IdPlaceholders placeholders = idPlaceholders(ids);
     QSqlDatabase database = QSqlDatabase::database(d->connection);
+    EditScope scope(database, d->inBatch);
+    if (!scope.isOpen()) {
+        d->refused(scope.error());
+        return { };
+    }
 
     QList<qint64> changed;
-    QSqlQuery select(database);
-    select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND category <> :category")
-            .arg(placeholders.condition));
-    select.bindValue(QStringLiteral(":category"), category);
-    bindIds(&select, placeholders.names, ids);
-    if (!select.exec())
-        return { };
-    while (select.next())
-        changed.append(select.value(0).toLongLong());
-    if (changed.isEmpty())
-        return { };
+    for (qsizetype from = 0; from < ids.size(); from += kEditPiece) {
+        const QList<qint64> piece = ids.mid(from, kEditPiece);
+        const IdPlaceholders placeholders = idPlaceholders(piece);
+        QSqlQuery select(database);
+        select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND category <> :category")
+                .arg(placeholders.condition));
+        select.bindValue(QStringLiteral(":category"), category);
+        bindIds(&select, placeholders.names, piece);
+        if (!select.exec()) {
+            d->refused(select.lastError().text());
+            return { };
+        }
+        QList<qint64> found;
+        while (select.next())
+            found.append(select.value(0).toLongLong());
+        if (found.isEmpty())
+            continue;
 
-    QSqlQuery update(database);
-    update.prepare(QStringLiteral("UPDATE tracks SET category = :category WHERE (%1)")
-            .arg(placeholders.condition));
-    update.bindValue(QStringLiteral(":category"), category);
-    bindIds(&update, placeholders.names, ids);
-    if (!update.exec())
+        QSqlQuery update(database);
+        update.prepare(QStringLiteral("UPDATE tracks SET category = :category WHERE (%1)")
+                .arg(placeholders.condition));
+        update.bindValue(QStringLiteral(":category"), category);
+        bindIds(&update, placeholders.names, piece);
+        if (!update.exec()) {
+            d->refused(update.lastError().text());
+            return { };
+        }
+        changed += found;
+    }
+    if (!scope.commit()) {
+        d->refused(scope.error());
         return { };
+    }
     return changed;
 }
 
 // L-EDIT remove: forgets the rows and changes no file.
+// L-MANY, L-FAILED: as setCategory.
 QList<qint64> Store::removeIds(const QList<qint64> &ids)
 {
+    d->lastError.clear();
     if (!d->opened || ids.isEmpty())
         return { };
-    const IdPlaceholders placeholders = idPlaceholders(ids);
     QSqlDatabase database = QSqlDatabase::database(d->connection);
+    EditScope scope(database, d->inBatch);
+    if (!scope.isOpen()) {
+        d->refused(scope.error());
+        return { };
+    }
 
     QList<qint64> gone;
-    QSqlQuery select(database);
-    select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1)").arg(placeholders.condition));
-    bindIds(&select, placeholders.names, ids);
-    if (!select.exec())
-        return { };
-    while (select.next())
-        gone.append(select.value(0).toLongLong());
-    if (gone.isEmpty())
-        return { };
+    for (qsizetype from = 0; from < ids.size(); from += kEditPiece) {
+        const QList<qint64> piece = ids.mid(from, kEditPiece);
+        const IdPlaceholders placeholders = idPlaceholders(piece);
+        QSqlQuery select(database);
+        select.prepare(
+            QStringLiteral("SELECT id FROM tracks WHERE (%1)").arg(placeholders.condition));
+        bindIds(&select, placeholders.names, piece);
+        if (!select.exec()) {
+            d->refused(select.lastError().text());
+            return { };
+        }
+        QList<qint64> found;
+        while (select.next())
+            found.append(select.value(0).toLongLong());
+        if (found.isEmpty())
+            continue;
 
-    QSqlQuery drop(database);
-    drop.prepare(QStringLiteral("DELETE FROM tracks WHERE (%1)").arg(placeholders.condition));
-    bindIds(&drop, placeholders.names, ids);
-    if (!drop.exec())
+        QSqlQuery drop(database);
+        drop.prepare(QStringLiteral("DELETE FROM tracks WHERE (%1)").arg(placeholders.condition));
+        bindIds(&drop, placeholders.names, piece);
+        if (!drop.exec()) {
+            d->refused(drop.lastError().text());
+            return { };
+        }
+        gone += found;
+    }
+    if (!scope.commit()) {
+        d->refused(scope.error());
         return { };
+    }
     return gone;
+}
+
+QString Store::lastError() const
+{
+    return d->lastError;
 }
 
 bool Store::updateReading(qint64 id, const LibraryTrack &track)

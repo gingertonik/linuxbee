@@ -70,6 +70,9 @@ public:
     // asked for, is not in the list, which is what L-EDIT's counting is.
     QList<qint64> setCategory(const QList<qint64> &ids, const QString &category);
     QList<qint64> removeIds(const QList<qint64> &ids);
+    // L-FAILED: the database's words when the last setCategory or removeIds was refused
+    // (nothing changed then); empty when it went through or had nothing to do.
+    QString lastError() const;
 
     // L-EDIT refresh: the file was read again, so its tags, size, time and
     // picture count replace what is stored. Everything only the library knows

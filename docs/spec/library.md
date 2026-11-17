@@ -241,6 +241,24 @@ much a part reads; nothing in the program decides anything by it.
 `remove`, `setCategory` and `relinkPaths` return the number of tracks they
 changed; an id that is unknown, or already as asked, does not count.
 
+### L-MANY
+
+(Found by an outside review of the code, 2026-11-16: one expression
+naming every id is refused by the database from 1,000 or 10,000 ids
+on, and the call then did nothing and said nothing.)
+
+The number of ids given to `remove` and `setCategory` has no limit:
+20,000 work as 2 do. The database is asked in pieces. The whole call
+is one transaction: either every piece is stored or none is.
+
+### L-FAILED
+
+When the database refuses a `remove` or a `setCategory` (it is held
+by another program, the disk is full), nothing is changed, the call
+returns 0, no change signal is sent, and `failed(what)` is emitted
+once, with the database's own words. A call that merely had nothing
+to do does not emit it.
+
 ### L-STATS
 
 `recordPlay(id, when)` adds one to the play count and sets last played to
