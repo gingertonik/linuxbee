@@ -10,6 +10,9 @@ settings and the library file may still change.
 - A change made while another program has the library open waits for it. A scan that cannot
   store stores nothing (the window and `linuxbeectl` do not yet say so).
 - Organise says when the library could not record its moves, and then records none of the run.
+- A play that cannot be counted, and every other change the library database refuses, is now
+  reported (`failed`) and stores nothing; remapping a folder is all or nothing; a library that
+  cannot be written to says so, and `linuxbeectl library scan` says when it could not store.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
 
