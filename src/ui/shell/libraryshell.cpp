@@ -108,6 +108,9 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     connect(d->playlists, &PlaylistStore::listChanged, this, &LibraryShell::onPlaylistsChanged);
     connect(
         d->playlists, &PlaylistStore::tracksChanged, this, &LibraryShell::onPlaylistTracksChanged);
+    // SH-MOVED: a file the library says moved stays in its playlists, in its place.
+    connect(d->library, &Library::pathsMoved, this,
+        [this](const QHash<QString, QString> &oldToNew) { d->playlists->relink(oldToNew); });
 
     // SR-SHELL: the one runner. The shell connects to it here, before anyone
     // else can, so it hears every signal first.

@@ -3,6 +3,8 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
+#include <QSet>
 #include <QTimeZone>
 
 #include "library_p.h"
@@ -34,6 +36,33 @@ bool readFresh(const QString &path, LibraryTrack *track)
     track->modified = stamp.isValid()
         ? QDateTime::fromSecsSinceEpoch(stamp.toSecsSinceEpoch(), QTimeZone::UTC)
         : QDateTime();
+    return true;
+}
+
+// L-MOVED: one track to a new path, with the refusals of setPath. False for a
+// refusal. `touched` says the stored row changed, and `was` is set to the path
+// the track held when its path did.
+bool moveTrack(
+    library::Store &store, qint64 id, const QString &newPath, QString *was, bool *touched)
+{
+    *touched = false;
+    const std::optional<LibraryTrack> known = store.byId(id);
+    if (!known)
+        return false;
+    const QString clean = libraryPath(newPath);
+    const std::optional<LibraryTrack> other = store.byPath(clean);
+    if (other && other->id != id)
+        return false; // L-EDIT: another track has that path
+    // L-MISSING: missing is set by whether a file is at the new path.
+    const bool missing = !QFileInfo::exists(clean);
+    // L-SIGNALS: a call that changes nothing emits nothing.
+    if (known->path == clean && known->missing == missing)
+        return true;
+    if (!store.setPath(id, clean, missing))
+        return false;
+    *touched = true;
+    if (known->path != clean)
+        *was = known->path;
     return true;
 }
 
@@ -174,21 +203,16 @@ bool Library::refresh(qint64 id)
 // everything the library knows about it.
 bool Library::setPath(qint64 id, const QString &newPath)
 {
-    const std::optional<LibraryTrack> known = d->store.byId(id);
-    if (!known)
+    QString was;
+    bool touched = false;
+    if (!moveTrack(d->store, id, newPath, &was, &touched))
         return false;
-    const QString clean = libraryPath(newPath);
-    const std::optional<LibraryTrack> other = d->store.byPath(clean);
-    if (other && other->id != id)
-        return false; // L-EDIT: another track has that path
-    // L-MISSING: missing is set by whether a file is at the new path.
-    const bool missing = !QFileInfo::exists(clean);
-    // L-SIGNALS: a call that changes nothing emits nothing.
-    if (known->path == clean && known->missing == missing)
+    if (!touched)
         return true;
-    if (!d->store.setPath(id, clean, missing))
-        return false;
     emit tracksUpdated(QList<qint64> { id });
+    // L-MOVED: after the change is stored and after tracksUpdated.
+    if (!was.isEmpty())
+        emit pathsMoved(QHash<QString, QString> { { was, libraryPath(newPath) } });
     return true;
 }
 
@@ -202,6 +226,7 @@ int Library::relinkPaths(const QString &oldPrefix, const QString &newPrefix)
     if (from.isEmpty() || to.isEmpty())
         return 0;
     QList<qint64> changed;
+    QHash<QString, QString> moves;
     for (const LibraryTrack &track : d->store.all(QString())) {
         if (!track.path.startsWith(from + QLatin1Char('/')))
             continue;
@@ -212,9 +237,13 @@ int Library::relinkPaths(const QString &oldPrefix, const QString &newPrefix)
         if (!d->store.setPath(track.id, moved, !QFileInfo::exists(moved)))
             continue;
         changed.append(track.id);
+        moves.insert(track.path, moved);
     }
     if (!changed.isEmpty())
         emit tracksUpdated(changed);
+    // L-MOVED: one signal for the call, with every path it changed.
+    if (!moves.isEmpty())
+        emit pathsMoved(moves);
     return static_cast<int>(changed.size());
 }
 
@@ -255,10 +284,42 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     return true;
 }
 
-// L-MOVED. (Stub.)
-int Library::setPaths(const QList<PathMove> &)
+// L-MOVED setPaths: setPath for each, in order, with its refusals, and one
+// tracksUpdated and one pathsMoved for the call. A track named twice is
+// reported from the path it held at the start to the path it ends on.
+int Library::setPaths(const QList<PathMove> &moves)
 {
-    return 0;
+    int changed = 0;
+    QList<qint64> touchedIds;
+    QSet<qint64> seenIds;
+    QHash<qint64, QString> firstPath; // id -> the path it held before this call
+    for (const PathMove &move : moves) {
+        QString was;
+        bool touched = false;
+        if (!moveTrack(d->store, move.id, move.newPath, &was, &touched) || !touched)
+            continue;
+        if (!seenIds.contains(move.id)) {
+            seenIds.insert(move.id);
+            touchedIds.append(move.id);
+        }
+        if (!was.isEmpty()) {
+            ++changed;
+            if (!firstPath.contains(move.id))
+                firstPath.insert(move.id, was);
+        }
+    }
+    if (touchedIds.isEmpty())
+        return changed;
+    emit tracksUpdated(touchedIds);
+    QHash<QString, QString> oldToNew;
+    for (auto it = firstPath.constBegin(); it != firstPath.constEnd(); ++it) {
+        const std::optional<LibraryTrack> now = d->store.byId(it.key());
+        if (now && now->path != it.value())
+            oldToNew.insert(it.value(), now->path);
+    }
+    if (!oldToNew.isEmpty())
+        emit pathsMoved(oldToNew);
+    return changed;
 }
 
 } // namespace linuxbee

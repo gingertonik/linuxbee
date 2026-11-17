@@ -245,10 +245,21 @@ void PlayQueue::setCurrentInternal(int index)
     emit currentChanged(index);
 }
 
-// Q-RENAME. (Stub.)
-int PlayQueue::renamePaths(const QHash<QString, QString> &)
+// Q-RENAME: each entry is looked up once, where it is. Ids, order, the current
+// entry and the shuffle lists are about entry ids, so they stay as they are.
+int PlayQueue::renamePaths(const QHash<QString, QString> &oldToNew)
 {
-    return 0;
+    int changed = 0;
+    for (Entry &entry : m_entries) {
+        const auto found = oldToNew.constFind(entry.path);
+        if (found == oldToNew.constEnd() || found.value() == entry.path)
+            continue;
+        entry.path = found.value();
+        ++changed;
+    }
+    if (changed > 0)
+        emit entriesChanged();
+    return changed;
 }
 
 }
