@@ -13,6 +13,7 @@
 #include <QtTest>
 
 #include <cerrno>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -106,6 +107,10 @@ private slots:
     void aLinkIsNotCopied();
     void whereTheNoReplaceRenameIsNotKnown();
     void theRealCalls();
+    void theCopyIsHeldWhileItIsTakenBack_data();
+    void theCopyIsHeldWhileItIsTakenBack();
+    void aSourceThatChangesMeanwhile();
+    void aFullDiskIsSaid();
 };
 
 void OrganiseAcross2Test::theOrder()
@@ -126,9 +131,13 @@ void OrganiseAcross2Test::theOrder()
     QVERIFY(log.lastIndexOf(QStringLiteral("write")) < firstFlush); // nothing is written after the flush
     QVERIFY2(log.indexOf(QStringLiteral("fchmod")) < firstFlush, qPrintable(log.join(QLatin1Char(' '))));
     QVERIFY2(log.indexOf(QStringLiteral("futimens")) < firstFlush, qPrintable(log.join(QLatin1Char(' '))));
-    QCOMPARE(log.last(), QStringLiteral("unlink song.flac (source)")); // nothing comes after the source goes
+    // After the source goes, nothing that could fail the move: only descriptors are let go.
+    const qsizetype sourceGoes = log.indexOf(QStringLiteral("unlink song.flac (source)"));
+    QVERIFY(sourceGoes > 0);
+    for (qsizetype i = sourceGoes + 1; i < log.size(); ++i)
+        QCOMPARE(log.at(i), QStringLiteral("close"));
     QCOMPARE(log.count(QStringLiteral("unlink song.flac (target)")), 0);
-    QVERIFY(log.lastIndexOf(QStringLiteral("fsync")) < log.size() - 1);
+    QVERIFY(log.lastIndexOf(QStringLiteral("fsync")) < sourceGoes);
     QVERIFY(!log.contains(QStringLiteral("link")) && !log.contains(QStringLiteral("rename")));
 }
 
@@ -320,6 +329,108 @@ void OrganiseAcross2Test::theRealCalls()
     QCOMPARE(organise::transferFile(box.target, box.source, true), QString());
     QCOMPARE(inode(box.source), was);
     QVERIFY(box.sourceIntact());
+}
+
+// Whether this process has the file at `path` open through any descriptor.
+bool heldOpen(const QString &path)
+{
+    struct stat want { };
+    if (::lstat(QFile::encodeName(path).constData(), &want) != 0)
+        return false;
+    const QStringList fds = QDir(QStringLiteral("/proc/self/fd")).entryList(QDir::AllEntries | QDir::System | QDir::NoDotAndDotDot);
+    for (const QString &name : fds) {
+        struct stat st { };
+        if (::fstat(name.toInt(), &st) == 0 && st.st_dev == want.st_dev && st.st_ino == want.st_ino)
+            return true;
+    }
+    return false;
+}
+
+void OrganiseAcross2Test::theCopyIsHeldWhileItIsTakenBack_data()
+{
+    QTest::addColumn<QString>("step");
+    for (const char *step : { "write fails", "fchmod", "fsync of the copy", "close of the copy", "unlink of the source" })
+        QTest::newRow(step) << QString::fromLatin1(step);
+}
+
+void OrganiseAcross2Test::theCopyIsHeldWhileItIsTakenBack()
+{
+    // O-ACROSS: the copy is taken back only while the name holds the very file this move made. The move knows
+    // that because it still has the file open at that moment: a number that is in use cannot pass to another file.
+    QFETCH(QString, step);
+    Box box;
+    TransferIo io = box.across();
+    const TransferIo real;
+    int writes = 0, flushes = 0, copyFd = -1, removals = 0;
+    bool heldAtRemoval = false;
+    io.fchmod = [&, real](int fd, mode_t m) { copyFd = fd; return real.fchmod(fd, m); };
+    if (step == QLatin1String("write fails"))
+        io.write = [&](int fd, const void *b, size_t n) -> ssize_t { if (++writes == 2) { errno = EIO; return -1; } return real.write(fd, b, n); };
+    else if (step == QLatin1String("fchmod"))
+        io.fchmod = [](int, mode_t) { errno = EPERM; return -1; };
+    else if (step == QLatin1String("fsync of the copy"))
+        io.fsync = [&](int fd) { if (++flushes == 1) { errno = EIO; return -1; } return real.fsync(fd); };
+    else if (step == QLatin1String("close of the copy"))
+        io.close = [&, real](int fd) { if (fd != copyFd) return real.close(fd); real.close(fd); errno = EIO; return -1; };
+    io.unlink = [&](const char *p) {
+        const QString path = QFile::decodeName(p);
+        if (path == box.target) {
+            ++removals;
+            heldAtRemoval = heldOpen(box.target);
+            return real.unlink(p);
+        }
+        if (step == QLatin1String("unlink of the source")) {
+            errno = EACCES;
+            return -1;
+        }
+        return real.unlink(p);
+    };
+    QVERIFY(!organise::transferFileWith(io, box.source, box.target, true).isEmpty());
+    QVERIFY(box.sourceIntact());
+    QVERIFY(box.inTo().isEmpty());
+    QCOMPARE(removals, 1);
+    QVERIFY2(heldAtRemoval, "the copy was removed by its name alone, with no descriptor on it");
+    QVERIFY2(!heldOpen(box.source), "a descriptor was left open");
+}
+
+void OrganiseAcross2Test::aSourceThatChangesMeanwhile()
+{
+    // O-ACROSS: the source was written to while it was copied, and has the size it had. The copy may be
+    // half old and half new: the move fails, the copy goes, and the source stays as its writer left it.
+    Box box;
+    TransferIo io = box.across();
+    const TransferIo real;
+    int reads = 0;
+    io.read = [&](int fd, void *b, size_t n) -> ssize_t {
+        if (++reads == 2) {
+            QFile other(box.source);
+            if (other.open(QIODevice::ReadWrite)) {
+                other.seek(10);
+                other.write("CHANGED");
+            }
+        }
+        return real.read(fd, b, n);
+    };
+    const QString said = organise::transferFileWith(io, box.source, box.target, true);
+    QCOMPARE(said, QStringLiteral("the file changed while it was copied"));
+    QVERIFY(box.inTo().isEmpty());
+    QCOMPARE(QFileInfo(box.source).size(), qint64(box.content.size()));
+    QCOMPARE(read(box.source).mid(10, 7), QByteArray("CHANGED"));
+}
+
+void OrganiseAcross2Test::aFullDiskIsSaid()
+{
+    // O-ACROSS: no room at the target is said in those words.
+    for (const int why : { ENOSPC, EDQUOT }) {
+        Box box;
+        TransferIo io = box.across();
+        const TransferIo real;
+        int writes = 0;
+        io.write = [&](int fd, const void *b, size_t n) -> ssize_t { if (++writes == 2) { errno = why; return -1; } return real.write(fd, b, n); };
+        QCOMPARE(organise::transferFileWith(io, box.source, box.target, true), QStringLiteral("there is no room for the file at the target"));
+        QVERIFY(box.sourceIntact());
+        QVERIFY(box.inTo().isEmpty());
+    }
 }
 
 QTEST_MAIN(OrganiseAcross2Test)
