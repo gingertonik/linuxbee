@@ -13,7 +13,9 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
+#include <optional>
 #include <set>
 #include <utility>
 
@@ -299,6 +301,27 @@ ScanKnown Library::scanKnown() const
     return d->store.scanKnown();
 }
 
+namespace {
+
+// L-WAIT: the storing of a scan nobody asked for waits the quick wait, and the connection goes
+// back to the write wait however the storing ends, stored or refused.
+struct QuickWait {
+    library::Store &store;
+    std::chrono::milliseconds back;
+    QuickWait(
+        library::Store &store, std::chrono::milliseconds quick, std::chrono::milliseconds back)
+        : store(store)
+        , back(back)
+    {
+        store.setWriteWait(quick);
+    }
+    ~QuickWait() { store.setWriteWait(back); }
+    QuickWait(const QuickWait &) = delete;
+    QuickWait &operator=(const QuickWait &) = delete;
+};
+
+}
+
 ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &options)
 {
     ScanReport report;
@@ -309,11 +332,15 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // L-WAIT, L-FAILED: the storing step takes the write lock first, and waits for it. A scan
     // that cannot begin, or cannot commit, stores nothing: its report names no track and says
     // why, `failed` goes out once and no change signal does.
-    const auto refuse = [this]() {
+    std::optional<QuickWait> quick;
+    if (options.nobodyWaits)
+        quick.emplace(d->store, d->quickWait, d->writeWait);
+    const auto refuse = [this, &quick]() {
         const QString why = d->store.lastError().isEmpty()
             ? QStringLiteral("the database refused the change")
             : d->store.lastError();
         d->store.rollbackBatch();
+        quick.reset(); // back to the write wait before the signal goes out
         ScanReport refused;
         refused.refused = why;
         emit failed(why);
@@ -400,6 +427,7 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     report.passedOver = int(passed.size());
     if (!d->store.commitBatch())
         return refuse(); // nothing was stored, so nothing is announced
+    quick.reset(); // back to the write wait before any signal goes out
 
     // L-SIGNALS: at most one signal of each kind, after the changes are
     // stored: one for what was added, one for everything else that changed

@@ -83,6 +83,26 @@ nothing.
 Destroying the runner stops the looking and waits for that thread to
 end. Nothing is stored and no signal is emitted from the destructor on.
 
+## SR-REFUSED
+
+(Found by the review of the status-bar notice: a scan of 20,000 files
+is a hundred parts, and with the library held by another program each
+part waited its five seconds on the window's thread and was refused.)
+
+When the library refuses a part (`ScanReport::refused` is not empty):
+
+- **no further part of that scan is given to the library**, neither
+  the parts already handed over and waiting nor what the looking
+  finds afterwards. The library is asked once and says `failed` once;
+- the looking is told to stop, as SR-STOP tells it;
+- the scan ends: `finished` with a report that has what was stored
+  before the refusal, and `refused` as the library gave it. It is not
+  `cancelled`, unless a stop was also asked for, and then it is both;
+- only that scan ends. One asked for meanwhile begins as ever, and
+  the runner remembers nothing of the refusal.
+
+What was not stored is found by the next scan.
+
 ## SR-SHELL
 
 The library shell has one runner, `LibraryShell::scanner()`, and "Scan
