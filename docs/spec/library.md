@@ -42,10 +42,17 @@ Open fails, with a message and without changing the file, when the file
 cannot be opened or created, is not an SQLite database, or has a schema
 newer than this program's (L-SCHEMA).
 
-A library that cannot be written to (its folder or the file is
-read-only) does not open, and the message says that it `cannot be
-written` to and names the file. It does not say that the file is not
-a linuxBee library. Opening such a library to read only is not in
+A library whose folder cannot be written to does not open (its
+write-ahead log cannot be made), and the message says that it `cannot
+be written` to and names the file. It does not say that the file is
+not a linuxBee library.
+
+Known and not yet so (found by the review, 2026-11-17): a read-only
+*file* in a folder that can be written to opens, and every change is
+then refused and said; a read-only mount and a full disk at opening
+are still answered with "not a linuxBee library". What open says in
+each of these is a package of its own, judged by the database's error
+code and not by its words. Opening a library to read only is not in
 this version.
 
 Everything the library holds survives closing and opening again.
@@ -326,6 +333,17 @@ with the database's words. A call that had nothing to do (an unknown
 id, a file that cannot be read, a path that is another track's, a
 track already there) emits nothing, whatever an earlier call was
 refused for.
+
+**Nothing to do is found out before the lock is asked for.** (Found by
+the review of this rule's first build: a play for an unknown id
+waited out another program's lock and then said `failed`.) A call
+with nothing to do neither waits for another program nor says
+anything, whoever holds the library: an unknown id, an empty list, a
+list of ids none of which is known, tracks all in the section
+already, a move that names no track of ours. This holds for `remove`,
+`setCategory` and `recordMoves` as for the calls named above. A call
+with something to do for even one track is a change, and is refused
+whole and said when the library is held.
 
 `relinkPaths` is one change, as `recordMoves` is: it takes the write
 lock first (L-WAIT), the first refused step ends it, nothing of it is

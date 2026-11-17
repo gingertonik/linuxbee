@@ -164,6 +164,7 @@ private slots:
     void aRefusedCallChangesNothingAndSaysSo_data();
     void aRefusedCallChangesNothingAndSaysSo();
     void nothingToDoIsNotARefusal();
+    void nothingToDoWhileAnotherHoldsTheLibrary();
     void aRefusalIsNotRememberedForTheNextCall_data();
     void aRefusalIsNotRememberedForTheNextCall();
     void aRelinkIsOneChange_data();
@@ -273,6 +274,93 @@ void LibraryRefusedCallsTest::nothingToDoIsNotARefusal()
         0);
     QCOMPARE(spies.failed.size(), 0);
     QCOMPARE(spies.changes(), 0);
+    QCOMPARE(box.rows(), before);
+}
+
+// L-FAILED: nothing to do is found out before the lock is asked for. (Found by the review of
+// fix-70a: a play for an unknown id waited out another program's lock and then said "failed".)
+// Every call here has nothing to do, and another program holds the library throughout.
+void LibraryRefusedCallsTest::nothingToDoWhileAnotherHoldsTheLibrary()
+{
+    Box box;
+    QVERIFY(box.library);
+    QVERIFY(QFile::remove(box.music + QStringLiteral("/c.ogg")));
+    const QStringList before = box.rows();
+    const QString other = Library::categories().value(1);
+    QVERIFY(!other.isEmpty() && other != QLatin1String("Music"));
+    box.library->setWriteWait(100ms);
+    Spies spies(box.library.get());
+    const qint64 nobody = box.c + 1000;
+    const QString nowhere = box.dir.path() + QStringLiteral("/nowhere");
+    // The lists are named, so that nothing below is built from a temporary inside a longer
+    // expression.
+    const QList<qint64> none;
+    const QList<qint64> unknown { nobody, nobody + 1 };
+    const QList<qint64> oneUnknown { nobody };
+    const QList<qint64> aAndB { box.a, box.b };
+    const QList<qint64> justA { box.a };
+    const QList<qint64> unknownAndA { nobody, box.a };
+    const QList<FileMove> noMoves;
+    const QList<FileMove> notOurs { FileMove {
+        nowhere + QStringLiteral("/a"), nowhere + QStringLiteral("/b") } };
+    const QList<FileMove> toItself { FileMove {
+        box.music + QStringLiteral("/a.flac"), box.music + QStringLiteral("/a.flac") } };
+    const TrackStatistics counted { kNow, 1, 1, kNow };
+    const TrackStatistics undated { QDateTime(), 1, 1, kNow };
+    {
+        Other holder(box.database);
+        holder.run(QStringLiteral("BEGIN IMMEDIATE"));
+        const auto quiet = [&spies](const char *what) {
+            if (spies.failed.isEmpty())
+                return true;
+            QTest::qFail(qPrintable(QStringLiteral("%1 said failed: %2")
+                                 .arg(QLatin1String(what), spies.failed.at(0).at(0).toString())),
+                __FILE__, __LINE__);
+            return false;
+        };
+        QVERIFY(!box.library->refresh(nobody) && quiet("refresh, unknown"));
+        QVERIFY(!box.library->refresh(box.c) && quiet("refresh, the file is gone"));
+        QVERIFY(!box.library->setPath(nobody, box.music + QStringLiteral("/x.mp3"))
+            && quiet("setPath, unknown"));
+        QVERIFY(!box.library->setPath(box.a, box.music + QStringLiteral("/b.mp3"))
+            && quiet("setPath, another's"));
+        QVERIFY(box.library->setPath(box.a, box.music + QStringLiteral("/a.flac"))
+            && quiet("setPath, the same"));
+        QVERIFY(box.library->relinkPaths(nowhere, box.elsewhere) == 0
+            && quiet("relinkPaths, nothing under it"));
+        QVERIFY(!box.library->recordPlay(nobody, kNow) && quiet("recordPlay, unknown"));
+        QVERIFY(!box.library->recordPlay(box.a, QDateTime()) && quiet("recordPlay, no time"));
+        QVERIFY(!box.library->recordSkip(nobody, kNow) && quiet("recordSkip, unknown"));
+        QVERIFY(!box.library->recordSkip(box.a, QDateTime()) && quiet("recordSkip, no time"));
+        QVERIFY(!box.library->setStatistics(nobody, counted) && quiet("setStatistics, unknown"));
+        QVERIFY(
+            !box.library->setStatistics(box.a, undated) && quiet("setStatistics, no date added"));
+        QVERIFY(
+            box.library->addFile(nowhere + QStringLiteral("/n.mp3"), QStringLiteral("Music"), kNow)
+                == 0
+            && quiet("addFile, not there"));
+        QVERIFY(box.library->addFile(
+                    box.music + QStringLiteral("/a.flac"), QStringLiteral("Music"), kNow)
+                == box.a
+            && quiet("addFile, known"));
+        QVERIFY(box.library->remove(none) == 0 && quiet("remove, none"));
+        QVERIFY(box.library->remove(unknown) == 0 && quiet("remove, unknown"));
+        QVERIFY(box.library->setCategory(oneUnknown, other) == 0 && quiet("setCategory, unknown"));
+        QVERIFY(box.library->setCategory(aAndB, QStringLiteral("Music")) == 0
+            && quiet("setCategory, there already"));
+        QVERIFY(box.library->setCategory(justA, QStringLiteral("No such")) == 0
+            && quiet("setCategory, no such section"));
+        QVERIFY(box.library->recordMoves(noMoves) == 0 && quiet("recordMoves, none"));
+        QVERIFY(box.library->recordMoves(notOurs) == 0 && quiet("recordMoves, no track of ours"));
+        QVERIFY(box.library->recordMoves(toItself) == 0 && quiet("recordMoves, to where it is"));
+        QCOMPARE(spies.changes(), 0);
+
+        // And a call that has something to do, among them, is still refused and said.
+        QCOMPARE(box.library->remove(unknownAndA), 0);
+        QCOMPARE(spies.failed.size(), 1);
+        QCOMPARE(box.library->setCategory(aAndB, other), 0);
+        QCOMPARE(spies.failed.size(), 2);
+    }
     QCOMPARE(box.rows(), before);
 }
 
