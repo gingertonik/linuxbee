@@ -53,7 +53,8 @@ struct WriteResult {
         InvalidChange, // nothing was written; see problems
         Failed, // the tag library could not save
         HardLinked, // WS-LINK: the file has another name; nothing was written; see problems
-        ChangedOnDisk, // WS-SAME: changed, or being saved, by another; nothing was written; see problems
+        ChangedOnDisk, // WS-SAME: changed, or being saved, by another; nothing was written; see
+                       // problems
     };
     Status status = Status::NotFound;
     // InvalidChange: one line per refused entry, each starting with the

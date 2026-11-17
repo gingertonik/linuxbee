@@ -89,6 +89,11 @@ QString copyTags(const TrackTags &source, const QString &target, bool pictures,
         const WriteResult result = writeTags(target, changes, options);
         if (result.ok())
             return { };
+        // WS-LINK, WS-SAME: a file that is not saved says why.
+        if ((result.status == WriteResult::Status::HardLinked
+                || result.status == WriteResult::Status::ChangedOnDisk)
+            && !result.problems.isEmpty())
+            return QStringLiteral("the tags could not be written: %1").arg(result.problems.first());
         if (result.status != WriteResult::Status::InvalidChange || result.problems.isEmpty())
             return QStringLiteral("the tags could not be written");
 

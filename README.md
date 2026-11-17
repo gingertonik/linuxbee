@@ -145,6 +145,14 @@ would take, `--apply --to INI` writes it.
 and the naming template. The import code is in the core, with no command or
 window running it yet.
 
+**Can it tag files that are hard-linked from a seeding folder?** No. A file with
+more than one name is not saved, because a save would replace one name and leave
+the others with the old tags. Keep the library as plain files (copy, do not
+link, from a download or seeding folder). To tag one such file, make it a file
+of its own first: `cp -p FILE FILE.new && mv FILE.new FILE`. `find FOLDER
+-samefile FILE` lists a file's other names. Playing, browsing and scanning such
+files work as ever.
+
 **Does it undo?** One step, tag changes only, from the editor or the tools.
 Organise cannot be undone.
 

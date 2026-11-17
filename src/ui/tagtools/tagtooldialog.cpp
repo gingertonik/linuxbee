@@ -226,7 +226,13 @@ bool TagToolDialog::apply()
         EditTarget &target = d->targets[i];
         const WriteResult result = d->saver(target.path, changes);
         if (!result.ok()) {
-            failedNames.append(QFileInfo(target.path).fileName());
+            QString name = QFileInfo(target.path).fileName();
+            // WS-LINK, WS-SAME: a file that was refused says why, as the tag editor does.
+            if ((result.status == WriteResult::Status::HardLinked
+                    || result.status == WriteResult::Status::ChangedOnDisk)
+                && !result.problems.isEmpty())
+                name += QStringLiteral(" (") + result.problems.first() + QLatin1Char(')');
+            failedNames.append(name);
             continue;
         }
         applySaved(target.tags, changes);
