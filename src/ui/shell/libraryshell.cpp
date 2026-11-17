@@ -4,6 +4,7 @@
 #include "actions/actionregistry.h"
 #include "mainwindow/mainwindow.h"
 #include "navigator/navigatorpanel.h"
+#include "shell/refusalnotice.h"
 #include "shell/scanrunner.h"
 #include "tracklist/tracklistmodel.h"
 #include "tracklist/tracklistpage.h"
@@ -115,6 +116,16 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     // SR-SHELL: the one runner. The shell connects to it here, before anyone
     // else can, so it hears every signal first.
     d->scanner = new ScanRunner(d->library, { }, this);
+    // SH-MESSAGE: a refusal that comes while the shell's scan runs is the scan's; one from
+    // before it began is not.
+    connect(d->scanner, &ScanRunner::started, this, [this] {
+        d->scanning = true;
+        d->scanRefused = false;
+    });
+    connect(d->library, &Library::failed, this, [this] {
+        if (d->scanning)
+            d->scanRefused = true;
+    });
     connect(d->scanner, &ScanRunner::finished, this, [this](const ScanReport &report) {
         QString text = tr("Scan: %1 added, %2 updated, %3 missing, %4 not audio")
                            .arg(report.added.size())
@@ -123,8 +134,16 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
                            .arg(report.notAudio.size());
         if (report.cancelled)
             text += tr(" (stopped)");
+        if (d->scanRefused)
+            text += tr("; the library could not be changed, and what was not stored will be "
+                       "found by the next scan");
+        d->scanning = false;
+        d->scanRefused = false;
         showMessage(text);
     });
+
+    // SH-REFUSED: the one standing listener to `failed`, for as long as the shell lives.
+    new RefusalNotice(d->library, d->window->statusBar(), this);
 
     // SH-PLAY: an activated track that is in the list asks for the list,
     // as shown now, from its row. A track not in the list emits nothing.
