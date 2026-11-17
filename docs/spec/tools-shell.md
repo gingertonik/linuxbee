@@ -58,6 +58,15 @@ tracks again (`Library::refresh`), and the message is
 `Saved tags of N tracks` (`1 track`). A dialog that is closed without
 saving changes nothing and gives no message.
 
+**Not kept.** When a save of the tag editor or of a tagging tool comes
+back with lines in `WriteResult::notKept` (tag-writing.md, W-ID3VER),
+the message goes on: `; not kept in ID3v2.3: NAMES (K files)`
+(`1 file`). NAMES are the names of the lines, the part before `: `,
+each once, sorted, joined with `, `; K is the number of files that
+had any. So: `Saved tags of 2 tracks; not kept in ID3v2.3: Year (1
+file)`. What is told belongs to that message alone: the next save
+starts with nothing. Undo names nothing.
+
 ## TS-TOOLS
 
 A tagging tool is `TagToolDialog` (tag-tools-dialog.md) with that

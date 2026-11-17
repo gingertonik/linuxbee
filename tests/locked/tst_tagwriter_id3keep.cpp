@@ -241,10 +241,10 @@ void TagWriterId3KeepTest::whatId3v23CannotHoldIsNamed()
     const WriteResult forced = linuxbee::writeTags(path, album(u"Another Album"), as(WriteOptions::Id3Version::V23));
     QCOMPARE(forced.status, WriteResult::Status::Ok); // it is saved all the same
     QCOMPARE(forced.notKept, QStringList({
-                                 s(u"DISCSUBTITLE"),
+                                 s(u"Disc Subtitle"),
                                  s(u"Mood"),
                                  s(u"Original Year: 1998-11-02 became 1998"),
-                                 s(u"RELEASEDATE"),
+                                 s(u"Release Date"),
                                  s(u"Year: 2019-03 became 2019"),
                              }));
     QCOMPARE(mp3Major(path), 3);

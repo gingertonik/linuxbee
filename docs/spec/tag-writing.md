@@ -192,7 +192,21 @@ then each other tag, that differs:
 - `NAME: MEANT became IS` when it is there but different; several
   values are joined with `; `.
 
-The lines are sorted (`QStringList::sort`). The save is still `Ok` and
+A value the save meant to be empty (a field the change removes, or one
+the file never had) is never named: only a value the file was meant to
+hold can be "not kept".
+
+NAME is the catalogue field's name, or the other tag's key; four keys
+are written as a person would:
+
+| Key | Written |
+|---|---|
+| `DISCSUBTITLE` | `Disc Subtitle` |
+| `RELEASEDATE` | `Release Date` |
+| `TAGGINGDATE` | `Tagging Date` |
+| `PRODUCEDNOTICE` | `Produced Notice` |
+
+The lines are sorted as written (`QStringList::sort`). The save is still `Ok` and
 the file is still replaced: the user asked for this version. Nothing is
 moved into a `TXXX` frame (the owner's ruling, 2026-11-16). `notKept` is
 empty for every other status, for an ID3v2.4 tag, and for the other
