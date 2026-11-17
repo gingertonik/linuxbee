@@ -23,20 +23,37 @@ command-line tool, or both.
 
 - Add files to the library, and scan folders for new files (File menu).
   The scan looks at the files on a thread of its own, so the window stays
-  usable while it runs. `linuxbeectl library` scans folders into a library
-  file, and counts or lists it.
+  usable while it runs. The status bar shows the scan's progress as a bar
+  and a count of files, such as `120 of 800 files`, with a Stop button at
+  its right end. Stop asks first, and the files found so far stay in the
+  library. File > Stop Scan does the same. `linuxbeectl library` scans
+  folders into a library file, and counts or lists it.
 - The navigator shows the library sections (Music, Inbox, Audiobooks,
   Podcasts, Videos), the playlists and Playing Tracks.
-- The track list sorts by column and narrows by a search box.
-- The main panel has a Tracks view and an Album and Tracks view, chosen from a
-  drop-down in the main panel. Album and Tracks shows the tracks under a heading
-  for each album, in album order, with a jump bar of letters. Activating a track
-  plays from there; activating an album's heading plays that album.
+- The track list shows one track in one row. It sorts by column and narrows
+  by a search box.
+- The main panel has a Tracks view and an Album and Tracks view, chosen from
+  the drop-down box at the top of the main panel. Album and Tracks shows the
+  tracks under a heading for each album, in album order, with a jump bar of
+  letters. Each heading shows the album's cover, when the album has one, before
+  its name. The cover is read from the music file or from a picture file beside
+  it. Activating a track plays from there, and activating an album's heading
+  plays that album.
 - The artist browser sits beside the track list. It browses by Album Artist,
   Artist, Album, Composer, Genre, Grouping or Year.
 - Send To (right-click menu) sends tracks to the Inbox, Music Library or
   Audiobooks section. Remove from Library drops tracks from the library and
   deletes no files.
+- Delete Files (File menu, Shift+Del) moves the selected tracks' files to the
+  desktop trash, after a question. The tracks whose files were moved leave the
+  library. A file the trash does not take stays where it is, and the message
+  says how many files were not moved. To take a file back, restore it from the
+  trash. Nothing is deleted for good. `linuxbeectl trash FILE...` does the same
+  for files named on the command line.
+- The Delete key takes the selected tracks out of the view on show. In a
+  playlist it takes them out of the playlist and asks nothing. In Playing
+  Tracks it takes them out of the queue. Anywhere else it asks first, then
+  removes them from the library. The files stay in every case.
 - Folders listed on the Library page of the preferences are watched, and
   files that arrive in them are scanned in.
 
@@ -44,6 +61,9 @@ command-line tool, or both.
 
 - New Playlist (File > Playlists) and the navigator's right-click menu make
   playlists. Rename, move and delete are on that menu.
+- Add to Playlist… (the right-click menu on the track list) adds the selected
+  tracks to the end of a playlist you choose. A track that is already in the
+  playlist is added again.
 - A double-click on a track in a playlist plays from the playlist's own
   order.
 - Auto-playlists: each `.lbauto` file in the `auto-playlists` folder beside
@@ -59,6 +79,10 @@ command-line tool, or both.
   mute, in the player bar and the Controls menu.
 - Shuffle, Repeat and Stop After Current.
 - Play Now, Queue Next and Queue Last for the selected tracks.
+- Files sent to the trash leave Playing Tracks, except the one playing. A file
+  that is playing when it is sent to the trash plays to its end.
+- In Playing Tracks, the Delete key takes the selected tracks out of the queue.
+  The track that is playing stays in the queue until it has played to its end.
 - Files are decoded with the `ffmpeg` program and played to the default
   audio device.
 
@@ -66,11 +90,27 @@ command-line tool, or both.
 
 - `linuxbeectl tags read` prints a file's tags, pictures and audio properties.
 - `linuxbeectl tags write` sets or clears fields and other keys, makes an
-  image the front cover, or removes every picture. MP3 files get ID3v2.3 by
-  default.
+  image the front cover, or removes every picture. `--id3v2.3` and
+  `--id3v2.4` choose the ID3v2 version of the tag (see below).
+- MP3 and WAV saves keep the file's own ID3v2 version. An ID3v2.4 tag stays
+  ID3v2.4, and an ID3v2.3 tag stays ID3v2.3. A file with no ID3v2 tag, or with
+  ID3v2.2, gets ID3v2.4. `--id3v2.3` or `--id3v2.4` forces one version whatever
+  the file had. ID3v2.3 has no frame for some values, such as the mood, the
+  disc subtitle and the release date. When a save to ID3v2.3 cannot keep a
+  value, the save still goes ahead, and standard error gets one line for each
+  value that was not kept.
 - Edit Tags (File menu) edits the tags of one track or of many at once.
-- `linuxbeectl tagtool` runs bulk replace, case, remove, renumber, infer,
-  copy and swap.
+- Edit > Undo (Ctrl+Z) takes back the last tag change, whether it came from the
+  tag editor or from one of the tagging tools. It is one step: the next tag
+  change, or closing linuxBee, makes the change final. Pictures that a tool
+  removed come back too. Organise is not undone.
+- Tools > Tagging Tools, in the Tools menu, opens five tagging tools in the
+  window: Search and Replace…, Capitalise…, Remove Tags…, Renumber Tracks…, and
+  Infer and Update Tags From Filename…. Each shows a preview of what would change, and
+  Apply writes it. Remove Tags asks first when it would remove every tag or the
+  embedded pictures.
+- `linuxbeectl tagtool` runs bulk replace, case, remove, renumber, infer, copy
+  and swap.
 - `linuxbeectl gain` measures, writes and removes volume levelling
   (ReplayGain) tags.
 - `linuxbeectl cover` shows which picture stands for a track's cover, and
@@ -87,16 +127,19 @@ command-line tool, or both.
 - Convert Format (Tools menu) and `linuxbeectl convert` convert files with
   presets. `linuxbeectl convert --list-presets` lists them.
 
-### Settings and import
+### Settings, skins and import
 
 - Edit > Preferences opens a Hotkeys page and a Library page, where the
   monitored folders are chosen.
 - The window remembers which sidebars and the status bar were shown.
+- View > Skins > Choose Skin… asks for a skin file and uses its colours.
+  View > Skins > No Skin goes back to linuxBee's own look. View > Skins >
+  Add Skin… copies a skin file into the skins folder and uses it. The skin in
+  use is stored as `appearance/skin` in `linuxbee.ini`. The colours are applied
+  when the file is a plain `.xml` skin. `linuxbeectl skin show` lists the
+  colours it takes.
 - `linuxbeectl settings import` carries the hotkeys and the organiser's
   naming template over from a MusicBee settings file.
-- A MusicBee skin's colours are applied to the window when `appearance/skin`
-  in `linuxbee.ini` is set by hand to the path of a plain `.xml` skin file.
-  `linuxbeectl skin show` lists the colours it takes.
 
 ### Desktop integration
 
@@ -107,32 +150,26 @@ command-line tool, or both.
 
 The gaps a MusicBee user will notice first:
 
-- **Album covers, and the other main panel views.** The Album and Tracks view
-  has no cover at each heading. The Album Covers, Artists and Jukebox views are
-  not built.
-- **Cover art in the window.** `linuxbeectl cover` reads the pictures, but no
-  part of the window shows them, and pictures are not downloaded.
+- **Album Covers, Artists and Jukebox views.** These views are not built. The
+  main panel has the Tracks and Album and Tracks views only.
+- **Covers outside the album headings, and downloads.** Only the album headings
+  in the Album and Tracks view show a cover. No other part of the window does,
+  and pictures are not downloaded.
 - **Making or editing an auto-playlist in the window.** An auto-playlist is
   shown, and a double-click plays the tracks it shows, but it can only be
   made by putting a file in its folder.
-- **Adding tracks to a playlist.** Playlists can be made, renamed, moved and
-  deleted, but no command adds tracks to one, and there is no drag and drop.
+- **Drag and drop.** Tracks cannot be dragged, for example onto a playlist.
 - **Gapless playback, crossfade and an equaliser.**
 - **ReplayGain in playback.** `linuxbeectl gain` writes the tags, but the
   player does not apply them yet.
-- **Scan progress and stop.** A scan runs off the window's thread and reports
-  its progress as a message in the status bar, but there is no progress bar
-  and no way to stop a scan from the window. The folder monitor's checks still
-  run on the window's thread.
 - **Importing a MusicBee library.** Only the settings file can be imported.
   The import code is in the core, with no command or window that runs it.
-- **Undo, and Delete Files.** Organise, tag edits and tag tools cannot be
-  undone, and files cannot be deleted from the window.
-- **Tagging tools in the window, and auto-tagging.** The tagging tools are on
-  the command line only. Auto-tagging from online services is not built.
-- **Choosing a skin in the window, and plugins.** A skin is chosen by editing
-  `linuxbee.ini`. Compiled skins (`.xmlc`), and a skin's pictures and layout,
-  are not used. Plugins are not built.
+- **Undo for Organise.** Organise cannot be undone. Undo covers tag changes
+  only, and only one step.
+- **Auto-tagging, and Copy and Swap in the window.** Auto-tagging from online
+  services is not built. Copy and Swap are on the command line only.
+- **Compiled skins, and plugins.** Compiled skins (`.xmlc`), and a skin's
+  pictures and layout, are not used. Plugins are not built.
 
 ## Try it
 
@@ -160,6 +197,7 @@ commands:
   tags       Read the tags, pictures and audio properties of a music file.
   tagtool    Bulk tag tools: replace, case, remove, renumber, infer, copy, swap.
   template   Fill in or check a naming template.
+  trash      Move music files to the trash.
 
 linuxbeectl --version prints the version.
 ```
