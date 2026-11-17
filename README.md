@@ -78,11 +78,10 @@ The whole list is in the [manual](docs/MANUAL.md).
 Install it:
 
 ```sh
-curl -fsSL \
-  https://raw.githubusercontent.com/gingertonik/linuxbee/v1.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gingertonik/linuxbee/v1.0/install.sh | sh
 ```
 
-Or fetch it, read it, then run it:
+Or read it first:
 
 ```sh
 curl -fsSL -o install.sh \
@@ -98,8 +97,8 @@ to get it. No root, no sudo: it prints package commands rather than running
 them. `--dry-run` shows the plan. `--uninstall` takes back exactly what it
 installed, and leaves settings, library, playlists and music alone.
 
-To build from source instead: CMake 3.25+, Ninja, a C++20 compiler, Qt 6.5+
-and clang-format, then
+If you prefer to build from source: CMake 3.25+, Ninja, a C++20 compiler,
+Qt 6.5+ and clang-format, then
 
 ```sh
 sh tools/check.sh
