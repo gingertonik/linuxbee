@@ -32,7 +32,7 @@ The full manual, every feature and command:
 ```
 
 ```
-┌─ At a glance ─────────────────────────────────────────────────────────────┐
+┌─ At a glance ────────────────────────────────────────────────────────────┐
 │ Built from : C++20, Qt 6, TagLib, ffmpeg                                 │
 │ Needs      : Linux, a sound card, a music folder                         │
 │ Status     : usable for early testing. Unreleased. Expect changes.       │
