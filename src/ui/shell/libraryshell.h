@@ -81,6 +81,8 @@ signals:
     void nodeTracksChanged(); // SH-EXTEND: nodeTracks() may answer differently now
     // SH-DELETE: these files went to the trash and their tracks left the library.
     void filesTrashed(const QStringList &paths);
+    // SH-REMOVE: the Delete key in Playing Tracks; these tracks are to leave the queue.
+    void queueRemovalRequested(const QStringList &paths);
 
 private:
     struct Private;

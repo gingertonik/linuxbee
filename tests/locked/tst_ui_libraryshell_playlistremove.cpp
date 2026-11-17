@@ -240,7 +240,7 @@ void LibraryShellPlaylistRemoveTest::theLabelFollowsTheView()
     QCOMPARE(label(r), s(u"Remove from Library"));
     QVERIFY(r.shell->navigator()->selectNode(s(u"playlist:") + id));
     QVERIFY(r.shell->navigator()->selectNode(s(u"playing")));
-    QCOMPARE(label(r), s(u"Remove from Library"));
+    QCOMPARE(label(r), s(u"Remove from Queue")); // SH-REMOVE: Playing Tracks
 }
 
 void LibraryShellPlaylistRemoveTest::deleteFilesIsStillTheTrash()

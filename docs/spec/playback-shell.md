@@ -47,6 +47,25 @@ it, or playing it again, fails as for any file that has gone
 
 "Remove from Library" leaves the file, and leaves the queue alone.
 
+## PS-UNQUEUE
+
+When the library shell emits `queueRemovalRequested(paths)` (the
+Delete key in Playing Tracks, SH-REMOVE), those paths leave the queue
+in one change (`PlayQueue::removePaths`): every entry with one of the
+paths, but the current one. The track that is playing is not pulled
+out from under the player; it plays to its end and Next goes on to
+what is left, as in PS-TRASHED. The player is told nothing.
+
+The message, in the status bar and `lastMessage()`, N being the
+entries that went:
+
+| What happened | Message |
+|---|---|
+| N > 0, the current entry's path not among `paths` | `Removed N from the queue` |
+| N > 0, the current entry's path among them | `Removed N from the queue; the playing track stays` |
+| N = 0, the current entry's path among them | `The playing track stays in the queue` |
+| N = 0 otherwise | nothing is said |
+
 ## PS-NODE
 
 When the navigator reports a node activated (a double-click or Return on

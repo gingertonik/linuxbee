@@ -117,6 +117,7 @@ removes the track from the library after a question; Shift+Del stays
 | View on show | The command | Its name in the menu |
 |---|---|---|
 | a playlist (`playlist:ID`) | takes the selected tracks out of that playlist; asks nothing | `Remove from Playlist` |
+| Playing Tracks (`playing`) | asks the playback shell to take the selected tracks out of the queue; asks nothing | `Remove from Queue` |
 | any other | asks, then `Library::remove` of the selected tracks | `Remove from Library` |
 
 With nothing selected nothing happens: nothing is asked and nothing
@@ -129,6 +130,13 @@ does not know stays. The library is not asked to remove anything and
 no file is touched. The message is `Removed N tracks from the
 playlist` (`Removed 1 track from the playlist`), N being the tracks,
 not the entries.
+
+**In Playing Tracks.** (The owner's ruling, 2026-11-16: "delete in
+playing tracks should take it out of the queue".) The shell emits
+`queueRemovalRequested(paths)` once, with the paths of the selected
+tracks in the order shown, and does nothing else: no question, no
+`Library::remove`, no file touched, and no message of its own. What
+the queue does with it is PS-UNQUEUE in playback-shell.md.
 
 **Anywhere else.** It asks `confirm(question)` first:
 `Remove N tracks from the library? The files stay. Their play counts
