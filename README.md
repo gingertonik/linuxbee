@@ -106,7 +106,7 @@ command-line tool, or both.
   removed come back too. Organise is not undone.
 - Tools > Tagging Tools, in the Tools menu, opens five tagging tools in the
   window: Search and Replace…, Capitalise…, Remove Tags…, Renumber Tracks…, and
-  Infer Tags From Filename…. Each shows a preview of what would change, and
+  Infer and Update Tags From Filename…. Each shows a preview of what would change, and
   Apply writes it. Remove Tags asks first when it would remove every tag or the
   embedded pictures.
 - `linuxbeectl tagtool` runs bulk replace, case, remove, renumber, infer, copy
@@ -162,7 +162,6 @@ The gaps a MusicBee user will notice first:
 - **Gapless playback, crossfade and an equaliser.**
 - **ReplayGain in playback.** `linuxbeectl gain` writes the tags, but the
   player does not apply them yet.
-- **The folder monitor's checks.** They still run on the window's thread.
 - **Importing a MusicBee library.** Only the settings file can be imported.
   The import code is in the core, with no command or window that runs it.
 - **Undo for Organise.** Organise cannot be undone. Undo covers tag changes
