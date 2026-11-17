@@ -105,9 +105,7 @@ A named release installs from
 To uninstall, if you used the one-liner and have no `install.sh` to run:
 
 ```sh
-curl -fsSL \
-  https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh \
-  | sh -s -- --uninstall
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh -s -- --uninstall
 ```
 
 It takes back what it installed and leaves settings, library, playlists and

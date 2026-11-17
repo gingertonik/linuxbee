@@ -219,9 +219,7 @@ and changes nothing.
 With the one-liner there is no file to run, so:
 
 ```sh
-curl -fsSL \
-  https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh \
-  | sh -s -- --uninstall
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh -s -- --uninstall
 ```
 
 The installer prints that same line for its own release when it finishes.
