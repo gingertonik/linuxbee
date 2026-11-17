@@ -324,6 +324,34 @@ any change is. The caller keeps what was refused and offers it again
 set and a scan the user asked for never does. Every other change
 waits as above.
 
+**`recordPlays(records)`** (L-STATS) is how the window counts: plays
+and skips, each with the file's path and the time, in the order they
+happened. Under the short wait:
+
+1. each path is looked up, once for each different path. A record
+   whose file the library does not have, or whose time is not valid,
+   is passed over: nothing to do, found out without asking for the
+   lock (L-FAILED);
+2. the rest are stored in **one change**: all or none. Then one
+   `tracksUpdated` names each track changed, once. Nothing to store:
+   no change and no signal;
+3. it returns what it refused, to be offered again: nothing when all
+   was stored or passed over; when the change was refused, the
+   records it would have stored, in the order given, with `failed`
+   said once; when a look-up **could not be made** (step 1: the
+   database was busy, which without a write-ahead log a reader can
+   meet), every record with a valid time, with `failed` said once.
+
+**A look that could not be made is not "no such track".**
+`recordPlay(id)` and `recordSkip(id)` look the track up under the
+short wait too, and when the look could not be made they say `failed`
+and return false. (The other readers of the library still take a
+failed read for nothing found, and still wait the long wait for it:
+on a library without a write-ahead log that another program holds,
+the end of a track holds the window for the reads the playback shell
+makes then, though the play itself is now kept. Measured while this
+was written: two such reads. An audit finding for 0.9.)
+
 ### L-FAILED
 
 When the database refuses a `remove` or a `setCategory` (it is held

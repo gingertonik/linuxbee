@@ -2,77 +2,61 @@
 
 #include "library/library.h"
 
+#include <QtGlobal>
+
 #include <deque>
 
-// PS-COUNT (docs/spec/playback-shell.md): a play or a skip the library refused is kept, with the
-// time it happened, and offered again oldest first.
+// PS-COUNT (docs/spec/playback-shell.md): a play or a skip the library refused is kept, by the
+// path of its file and the time it happened, and offered again with the next one, oldest first.
 namespace linuxbee::ui {
 
 struct PendingPlays::Private {
-    struct Entry {
-        qint64 id = 0;
-        QDateTime when;
-        bool skip = false;
-    };
-
     PendingPlays *owner = nullptr;
     linuxbee::Library *library = nullptr;
-    std::deque<Entry> kept;
+    // Oldest first. What is kept is what Library::recordPlays gave back.
+    std::deque<linuxbee::PlayRecord> kept;
     bool droppedSaid = false;
-    // True while this object's own call to the library runs: only a refusal said then is ours.
-    bool asking = false;
-    bool refused = false;
 
-    // The library's answer to one entry: true when it was counted or had nothing to do for it
-    // (a track it does not have), false when it refused (it said `failed` during the call).
-    bool offer(const Entry &entry)
-    {
-        asking = true;
-        refused = false;
-        if (entry.skip)
-            library->recordSkip(entry.id, entry.when);
-        else
-            library->recordPlay(entry.id, entry.when);
-        asking = false;
-        return !refused;
-    }
-
-    // Oldest first; stops at the first one the library refuses.
+    // All of what is kept, in one call; what the library gives back is what is kept now.
     void offerKept()
     {
-        while (!kept.empty()) {
-            if (!offer(kept.front()))
-                return;
-            kept.pop_front();
-        }
+        if (kept.empty())
+            return;
+        QList<linuxbee::PlayRecord> records;
+        records.reserve(static_cast<qsizetype>(kept.size()));
+        for (const linuxbee::PlayRecord &record : kept)
+            records.append(record);
+        const QList<linuxbee::PlayRecord> back = library->recordPlays(records);
+        kept.assign(back.cbegin(), back.cend());
     }
 
-    void keep(const Entry &entry)
+    // No more than kMost are kept: the oldest goes, and that is said the first time since nothing
+    // was kept.
+    void bound()
     {
-        if (static_cast<int>(kept.size()) >= kMost) {
+        while (static_cast<int>(kept.size()) > kMost) {
             kept.pop_front();
             if (!droppedSaid) {
                 droppedSaid = true;
                 emit owner->oldestDropped();
             }
         }
-        kept.push_back(entry);
     }
 
-    void add(const Entry &entry)
+    void add(const linuxbee::PlayRecord &record)
     {
         const int before = static_cast<int>(kept.size());
+        kept.push_back(record); // joins what is kept, and all of it is offered at once
         offerKept();
-        if (!kept.empty())
-            keep(entry); // still refused: this one joins untried
-        else if (!offer(entry))
-            keep(entry);
+        bound();
         said(before);
     }
 
     void said(int before)
     {
         const int now = static_cast<int>(kept.size());
+        if (now == 0)
+            droppedSaid = false;
         if (now != before)
             emit owner->keptChanged(now);
     }
@@ -84,22 +68,29 @@ PendingPlays::PendingPlays(linuxbee::Library *library, QObject *parent)
 {
     d->owner = this;
     d->library = library;
-    connect(library, &linuxbee::Library::failed, this, [this] {
-        if (d->asking)
-            d->refused = true;
-    });
 }
 
-PendingPlays::~PendingPlays() = default;
-
-void PendingPlays::play(qint64 trackId, const QDateTime &when)
+PendingPlays::~PendingPlays()
 {
-    d->add({ trackId, when, false });
+    // PS-COUNT: what is still kept is lost, and that is said once.
+    const qsizetype lost = static_cast<qsizetype>(d->kept.size());
+    if (lost == 0)
+        return;
+    const QString what = lost == 1 ? QStringLiteral("1 play or skip")
+                                   : QString::number(lost) + QStringLiteral(" plays or skips");
+    qWarning().noquote() << QStringLiteral("linuxBee: ") + what
+            + QStringLiteral(" could not be counted before closing, because the library could "
+                             "not be changed; they are lost");
 }
 
-void PendingPlays::skip(qint64 trackId, const QDateTime &when)
+void PendingPlays::play(const QString &path, const QDateTime &when)
 {
-    d->add({ trackId, when, true });
+    d->add({ path, when, false });
+}
+
+void PendingPlays::skip(const QString &path, const QDateTime &when)
+{
+    d->add({ path, when, true });
 }
 
 void PendingPlays::retry()

@@ -82,6 +82,10 @@ public:
     // L-FAILED: the database's words when the last setCategory or removeIds was refused
     // (nothing changed then); empty when it went through or had nothing to do.
     QString lastError() const;
+    // L-WAIT: whether the last byId or byPath could look. Empty when the look was made, whatever
+    // it found; the database's words when the statement failed (it was busy, say). Separate from
+    // lastError(), which a read never clears.
+    QString lastReadError() const;
 
     // L-EDIT refresh: the file was read again, so its tags, size, time and
     // picture count replace what is stored. Everything only the library knows

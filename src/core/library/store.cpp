@@ -31,6 +31,14 @@ void setError(QString *error, const QString &message)
         *error = message;
 }
 
+// L-WAIT: the database's words for a read that failed; never empty, so a failed look is always
+// told from one that was made.
+QString readWords(const QSqlQuery &query)
+{
+    const QString words = query.lastError().text();
+    return words.isEmpty() ? QStringLiteral("the database could not be read") : words;
+}
+
 QDateTime toDateTime(qint64 secs)
 {
     if (secs == kNoTime)
@@ -300,6 +308,7 @@ struct Store::Private {
     bool opened = false;
     bool inBatch = false;
     QString lastError; // L-FAILED: the database's words for the last refused edit
+    QString lastReadError; // L-WAIT: the database's words when the last byId or byPath failed
 
     // Never empty, so the library always has words to say.
     void refused(const QString &words)
@@ -377,12 +386,17 @@ QMap<QString, int> Store::categoryCounts() const
 
 std::optional<LibraryTrack> Store::byId(qint64 id) const
 {
+    d->lastReadError.clear();
     if (!d->opened)
         return std::nullopt;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("%1 WHERE id = :id").arg(QLatin1String(kSelectTrack)));
     query.bindValue(QStringLiteral(":id"), id);
-    if (!query.exec() || !query.next())
+    if (!query.exec()) {
+        d->lastReadError = readWords(query);
+        return std::nullopt;
+    }
+    if (!query.next())
         return std::nullopt;
     return rowFromRead(query);
 }
@@ -439,12 +453,17 @@ QHash<qint64, ScanFindings::Judged> Store::heldById(const QList<qint64> &ids) co
 
 std::optional<LibraryTrack> Store::byPath(const QString &path) const
 {
+    d->lastReadError.clear();
     if (!d->opened)
         return std::nullopt;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("%1 WHERE path = :path").arg(QLatin1String(kSelectTrack)));
     query.bindValue(QStringLiteral(":path"), path);
-    if (!query.exec() || !query.next())
+    if (!query.exec()) {
+        d->lastReadError = readWords(query);
+        return std::nullopt;
+    }
+    if (!query.next())
         return std::nullopt;
     return rowFromRead(query);
 }
@@ -742,6 +761,11 @@ QList<qint64> Store::removeIds(const QList<qint64> &ids)
 QString Store::lastError() const
 {
     return d->lastError;
+}
+
+QString Store::lastReadError() const
+{
+    return d->lastReadError;
 }
 
 // L-FAILED: false with lastError() empty means no such track; with words, the database refused.
