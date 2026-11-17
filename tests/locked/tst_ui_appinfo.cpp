@@ -21,7 +21,7 @@ void UiAppInfoTest::names()
     QCOMPARE(linuxbee::ui::versionLine(), QStringLiteral("linuxBee ") + linuxbee::versionString());
     linuxbee::ui::applyApplicationInfo(*qApp);
     QCOMPARE(QCoreApplication::applicationName(), QStringLiteral("linuxbee"));
-    QCOMPARE(QCoreApplication::organizationName(), QStringLiteral("linuxbee"));
+    QCOMPARE(QCoreApplication::organizationName(), QString()); // main-window.md, W-PLACES: the name once
     QCOMPARE(QCoreApplication::applicationVersion(), linuxbee::versionString());
     QCOMPARE(QGuiApplication::applicationDisplayName(), QStringLiteral("linuxBee"));
     QCOMPARE(QGuiApplication::desktopFileName(), QStringLiteral("linuxbee"));

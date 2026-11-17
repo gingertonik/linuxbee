@@ -22,7 +22,7 @@ out=$(timeout 8 "$app" --parts 2> /dev/null); rc=$?
 is "parts: exit" 0 "$rc"
 is "parts: no skin" "skin=none" "$(printf '%s\n' "$out" | grep '^skin=')"
 [ "$(printf '%s\n' "$out" | grep -x -A 1 'main-view=albums' | tail -n 1)" = 'skin=none' ] && pass "parts: after the earlier lines" || fail "parts: after the earlier lines [$out]"
-ini="$work/config/linuxbee/linuxbee/linuxbee.ini"
+ini="$work/config/linuxbee/linuxbee.ini"
 mkdir -p "$(dirname "$ini")"
 printf '\n[appearance]\nskin=%s\n' "$data/Red Accent.xml" >> "$ini"
 is "parts: the stored skin" "skin=Red Accent.xml" "$(timeout 8 "$app" --parts 2> /dev/null | grep '^skin=')"

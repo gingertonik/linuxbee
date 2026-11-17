@@ -200,11 +200,117 @@ shown. `saveLayout()` writes it; closing the window calls it.
   below the minimum or above 16384, or a width list that is not three
   numbers from 0 to 16383, is ignored in favour of the default.
 
+### W-PLACES
+
+The application keeps its files in three folders, each named `linuxbee`
+once:
+
+| What | Where | Default |
+|---|---|---|
+| settings (`linuxbee.ini`) | `$XDG_CONFIG_HOME/linuxbee/` | `~/.config/linuxbee/` |
+| the library (`library.db`), `playlists/`, `auto-playlists/`, `skins/` | `$XDG_DATA_HOME/linuxbee/` | `~/.local/share/linuxbee/` |
+| what may be thrown away (the undo's pictures) | `$XDG_CACHE_HOME/linuxbee/` | `~/.cache/linuxbee/` |
+
+It writes nowhere else of its own accord. `--version` writes nothing.
+
+### W-ADOPT
+
+Builds before 0.8 had the name twice (`.../linuxbee/linuxbee/`). At a
+start, for the settings folder and for the data folder alike, what is
+in that inner folder is taken into the folder above it:
+
+- each entry is moved by renaming it, whole, and only where the folder
+  above has nothing of that name; a folder is never merged into another;
+- an entry whose name is taken is left exactly as it is, and named on
+  standard error with the place it was left in;
+- the inner folder is removed once it is empty;
+- an inner `linuxbee` that is a link is not followed and not touched.
+
+So a library made by an older build is there at the first start of
+this one, and when both places hold a library, the one in the new
+place is used and the other is not lost.
+
+This happens before the library is opened, and under W-ONE's lock.
+
+**A database and its companions.** (Found by the review of this rule's
+first build, which moved each entry by itself: with a library in both
+places, the older library's write-ahead log was moved beside the
+library in use, SQLite applied it, and the library in use was
+destroyed.) A name that ends in `-wal`, `-shm` or `-journal` is the
+companion of the name without that ending. Then:
+
+- a companion is never moved by itself, and never to where a file of
+  its database's name is: a log with no database beside it is left;
+- an entry is moved only when the folder above has neither its name
+  nor any companion's name of it;
+- an entry that has a companion beside it is first settled: if it
+  begins as an SQLite database does (its first sixteen bytes), it is
+  opened as one and closed, by the database's own means, so that what
+  its log holds is in the one file. Only when no companion is left is
+  it moved. If it does not begin so, it is not opened at all (SQLite
+  clears away the log of a file it cannot read); it and its
+  companions are left as they are, as they are when a companion
+  stays after settling;
+- whatever is left is left whole, byte for byte, and each is named on
+  standard error.
+
+So what was committed last in an older build is there after the move,
+and a library is never changed by another library's log.
+
+**Open elsewhere.** If another program has an entry of the inner
+folder open (an older build still running does not know W-ONE's
+lock), nothing is moved, and the start ends as W-ONE's does: status 5,
+a line containing `already running`. This is found by what the system
+shows of this user's programs' open files.
+
+**Never an empty library while an older one waits.** When, after all
+this, the inner folder of the data folder (followed through a link,
+this once) holds a `library.db` and the data folder has none, the
+program does not start: status 6, a line on standard error containing
+`was not taken over` that names both places and why, and the same in
+a dialog where a window would have been shown. It makes no library.
+A user must not be shown an empty library and left to think the music
+is gone.
+
+Known: with a library in both places the one in the new place is used
+and the older one is only named on standard error, at every start.
+Going back to a build from before 0.8 on a profile that has been
+moved shows that build an empty library; its files are left alone
+when this build starts again.
+
+### W-ONE
+
+One program uses a profile at a time. Every start that opens the
+library (all but `--version`) first takes a lock in the data folder.
+When another program holds it, the start ends with status 5 and a
+line on standard error containing `already running`; it opens
+nothing, changes nothing, prints nothing on standard output and shows
+no dialog.
+
+(On a network file system a lock left by a program that died on
+another machine is never taken to be stale: the start is refused
+until the lock file is removed by hand. The owner's library is on a
+local disk.)
+
+The lock goes when the program ends, however it ends: a program that
+was killed does not hold the profile afterwards. A profile in another
+place (another `XDG_DATA_HOME`) is another profile.
+
+Two starts at the same moment on a profile with nothing in it: one of
+them runs, or both in turn; neither fails to open the library.
+
+Why: two windows over one library each hold their own picture of it,
+and each saves its settings over the other's on the way out.
+`linuxbeectl` takes no such lock; it and a running window share the
+library file by the library's own rules (library.md, L-OPEN, L-WAIT).
+
+Not in this version: bringing the running window to the front, and
+handing it the files the second start was given.
+
 ### W-MAIN
 
 `src/app/main.cpp` builds the application: the settings file
-`linuxbee.ini` in the user's configuration folder for the application
-(`QStandardPaths::AppConfigLocation`), an `ActionRegistry` loaded from it,
+`linuxbee.ini` in the settings folder (W-PLACES), an `ActionRegistry` loaded from it,
 a `MainWindow`, and on exit the hotkeys saved. `--version` still prints
 the version line and exits without opening a window or writing a file.
 

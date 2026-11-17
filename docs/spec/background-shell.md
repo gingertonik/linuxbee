@@ -125,8 +125,10 @@ Every message goes to the window's status bar and is kept as
   `mpris=on` or `mpris=off`, and `monitored=` with the number of
   monitored folders, and ends with status 0.
 
-A machine with no session bus still starts the program; a second
-linuxBee still starts.
+A machine with no session bus still starts the program. A second
+linuxBee with a profile of its own still starts, without the bus name
+when the first has it; a second with the same profile is refused
+(main-window.md, W-ONE).
 
 ## Not in this version
 

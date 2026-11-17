@@ -10,6 +10,7 @@ settings and the library file may still change.
   nothing, and a change with nothing to do asks for no lock. Remapping a folder is all or
   nothing. `linuxbeectl library scan` says when it could not store, and a library in a
   read-only folder says it cannot be written to. The window does not show these refusals yet.
+- The settings and the library now live in `~/.config/linuxbee/` and `~/.local/share/linuxbee/`, with the name once; the files of an older build are moved there at the first start, and one program uses a profile at a time (a second start on the same profile is refused). An older library is taken along whole, with its log, or not at all: it is settled first, never moved while another program has it open, and the start is refused (status 6) rather than shown an empty library while it waits.
 
 ## 0.7.0 (2026-11-17)
 

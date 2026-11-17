@@ -18,7 +18,7 @@ out=$(timeout 8 "$app" --parts 2> /dev/null); rc=$?
 printf '%s\n' "$out" | grep -qx 'artist-browser=shown' && pass shown-by-default || fail "shown-by-default [$out]"
 
 # The setting is read.
-ini="$work/config/linuxbee/linuxbee/linuxbee.ini"
+ini="$work/config/linuxbee/linuxbee.ini"
 mkdir -p "$(dirname "$ini")"
 printf '\n[browser]\nartistsShown=false\n' >> "$ini"
 out=$(timeout 8 "$app" --parts 2> /dev/null)

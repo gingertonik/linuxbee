@@ -266,11 +266,22 @@ linuxbeectl path build --field "Album Artist=Adele" --field "Album=21" --field "
 
 The last command prints `Adele/21/Someone like You.mp3`.
 
-linuxBee keeps its settings in `$XDG_CONFIG_HOME/linuxbee/linuxbee/linuxbee.ini`
-and its library in `$XDG_DATA_HOME/linuxbee/linuxbee/library.db`. The playlists
+linuxBee keeps its settings in `$XDG_CONFIG_HOME/linuxbee/linuxbee.ini`
+and its library in `$XDG_DATA_HOME/linuxbee/library.db`. The playlists
 are in the `playlists` folder beside the library. `$XDG_CONFIG_HOME` and
-`$XDG_DATA_HOME` default to `~/.config` and `~/.local/share`. The name
-`linuxbee` appears twice in each path.
+`$XDG_DATA_HOME` default to `~/.config` and `~/.local/share`.
+
+Builds up to 0.7 kept them one folder deeper (`.../linuxbee/linuxbee/`). At the
+first start of a newer build, what is in that inner folder is moved up. The
+library goes whole, with its log files, or not at all: it is settled first,
+and it is never moved while another program has it open. A name already taken
+in the new place is left where it is and named on standard error. If an older
+library is still waiting and cannot be taken over, linuxBee does not start on an
+empty library: it says why and ends with status 6. Back up both folders, with
+linuxBee closed, before the first start of a newer build.
+
+One program uses a profile at a time. A second start on the same profile is
+refused, with `already running` on standard error and status 5.
 
 To carry over the hotkeys and the organiser's naming template from a MusicBee 3
 settings file, close linuxBee and run `linuxbeectl settings import FILE`. Without

@@ -130,9 +130,10 @@ linuxbeectl path build --field "Album Artist=Adele" --field "Album=21" \
 ```
 
 The last line prints `Adele/21/Someone like You.mp3`. Settings live in
-`~/.config/linuxbee/linuxbee/linuxbee.ini`, the library in
-`~/.local/share/linuxbee/linuxbee/library.db`, playlists beside it. Yes,
-`linuxbee` appears twice in each path. To carry over from
+`~/.config/linuxbee/linuxbee.ini`, the library in
+`~/.local/share/linuxbee/library.db`, playlists beside it. Builds up to 0.7
+kept them one folder deeper, and the first start of a newer build moves them
+up; the [manual](docs/MANUAL.md) has the rules. To carry over from
 a MusicBee 3 settings file: `linuxbeectl settings import FILE` prints what it
 would take, `--apply --to INI` writes it.
 
