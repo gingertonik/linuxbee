@@ -286,7 +286,9 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
 
 // L-MOVED recordMoves: the moves of the files, in the order they happened, done to the tracks
 // one after the other, in one transaction. At the end each moved track is missing or not by
-// its file, and one signal of each kind goes out.
+// its file, and one signal of each kind goes out. The run is whole or not at all: the first
+// step the database refuses gives the whole batch up, runs no statement after it, and says so
+// once (L-FAILED).
 int Library::recordMoves(const QList<FileMove> &moves)
 {
     struct Start {
@@ -297,7 +299,15 @@ int Library::recordMoves(const QList<FileMove> &moves)
     QList<qint64> order; // the moved tracks, in the order they first moved
     QList<qint64> gone;
     QSet<qint64> goneSet;
-    const bool batch = d->store.beginBatch();
+    // A refused step ends the call: the batch is given up, nothing is stored or signalled.
+    const auto refuse = [this]() {
+        const QString why = d->store.lastError();
+        d->store.rollbackBatch();
+        emit failed(why.isEmpty() ? QStringLiteral("the database refused the change") : why);
+        return 0;
+    };
+    if (!d->store.beginBatch())
+        return refuse();
     for (const FileMove &move : moves) {
         const QString from = libraryPath(move.from);
         const QString to = libraryPath(move.to);
@@ -307,10 +317,8 @@ int Library::recordMoves(const QList<FileMove> &moves)
         if (const std::optional<LibraryTrack> held = d->store.byPath(to);
             held && (!moving || held->id != moving->id)) {
             d->store.removeIds({ held->id });
-            if (const QString why = d->store.lastError(); !why.isEmpty()) {
-                emit failed(why); // L-FAILED
-                continue;
-            }
+            if (!d->store.lastError().isEmpty())
+                return refuse();
             gone.append(held->id);
             goneSet.insert(held->id);
         }
@@ -321,7 +329,8 @@ int Library::recordMoves(const QList<FileMove> &moves)
             order.append(moving->id);
         }
         // missing is settled below, once every move is done
-        d->store.setPath(moving->id, to, moving->missing);
+        if (!d->store.setPath(moving->id, to, moving->missing))
+            return refuse();
     }
     QList<qint64> touched;
     QHash<QString, QString> oldToNew;
@@ -333,8 +342,8 @@ int Library::recordMoves(const QList<FileMove> &moves)
             continue;
         // L-MISSING: by whether a file is at the path now.
         const bool missing = !QFileInfo::exists(now->path);
-        if (missing != now->missing)
-            d->store.setPath(id, now->path, missing);
+        if (missing != now->missing && !d->store.setPath(id, now->path, missing))
+            return refuse();
         const Start &was = began.value(id);
         if (now->path == was.path && missing == was.missing)
             continue; // it ended where it began
@@ -342,8 +351,8 @@ int Library::recordMoves(const QList<FileMove> &moves)
         if (now->path != was.path)
             oldToNew.insert(was.path, now->path);
     }
-    if (batch)
-        d->store.commitBatch();
+    if (!d->store.commitBatch())
+        return refuse();
     if (!gone.isEmpty())
         emit tracksRemoved(gone);
     if (!touched.isEmpty())

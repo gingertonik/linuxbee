@@ -362,13 +362,24 @@ struct ToolsShell::Private {
                 && outcome.target != outcome.source)
                 moves.append({ outcome.source, outcome.target });
         }
-        if (!moves.isEmpty())
+        // TS-ORGANISE: the library saying `failed` during this one call, and only then, ends the
+        // line with what the user needs to know.
+        bool refused = false;
+        if (!moves.isEmpty()) {
+            const QMetaObject::Connection listening = QObject::connect(
+                library, &Library::failed, owner, [&refused] { refused = true; });
             library->recordMoves(moves);
-        showMessage(QCoreApplication::translate(
+            QObject::disconnect(listening);
+        }
+        QString line = QCoreApplication::translate(
             "linuxbee::ui::ToolsShell", "Organised: %1 done, %2 skipped, %3 failed")
-                .arg(report.done)
-                .arg(report.skipped)
-                .arg(report.failed));
+                           .arg(report.done)
+                           .arg(report.skipped)
+                           .arg(report.failed);
+        if (refused)
+            line += QCoreApplication::translate("linuxbee::ui::ToolsShell",
+                "; the library could not be changed and still lists the files where they were");
+        showMessage(line);
     }
 
     // TS-CONVERT: the converter is given the selected paths and the settings.

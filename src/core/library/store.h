@@ -60,6 +60,9 @@ public:
     // statement otherwise, which costs a hundred times over a folder.
     bool beginBatch();
     bool commitBatch();
+    // L-MOVED: gives the batch up, storing none of it. Nothing is open afterwards, also when the
+    // database ended the transaction itself. Does nothing when no batch is open.
+    void rollbackBatch();
 
     // L-SCAN, L-ADD: store one track and return its id. Ids are positive,
     // grow, and are never used again, so AUTOINCREMENT is the point.

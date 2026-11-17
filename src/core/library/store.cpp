@@ -443,21 +443,46 @@ QList<LibraryTrack> Store::all(const QString &category) const
 
 bool Store::beginBatch()
 {
-    if (!d->opened || d->inBatch)
+    d->lastError.clear();
+    if (!d->opened || d->inBatch) {
+        d->refused(QString());
         return false;
+    }
     QSqlDatabase database = QSqlDatabase::database(d->connection);
-    if (!database.transaction())
+    if (!database.transaction()) {
+        d->refused(database.lastError().text());
         return false;
+    }
     d->inBatch = true;
     return true;
 }
 
+// L-MOVED: a commit that fails leaves no transaction open, so the next call finds nothing in its
+// way.
 bool Store::commitBatch()
 {
-    if (!d->inBatch)
+    d->lastError.clear();
+    if (!d->inBatch) {
+        d->refused(QString());
         return false;
+    }
     d->inBatch = false;
-    return QSqlDatabase::database(d->connection).commit();
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+    if (database.commit())
+        return true;
+    d->refused(database.lastError().text());
+    database.rollback();
+    return false;
+}
+
+// L-MOVED: the rollback may fail when the database ended the transaction itself; that is fine,
+// nothing is open then either.
+void Store::rollbackBatch()
+{
+    if (!d->inBatch)
+        return;
+    d->inBatch = false;
+    QSqlDatabase::database(d->connection).rollback();
 }
 
 qint64 Store::insert(const LibraryTrack &track)
@@ -690,15 +715,21 @@ bool Store::updateReading(qint64 id, const LibraryTrack &track)
 
 bool Store::setPath(qint64 id, const QString &newPath, bool missing)
 {
-    if (!d->opened)
+    d->lastError.clear();
+    if (!d->opened) {
+        d->refused(QString());
         return false;
+    }
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(
         QStringLiteral("UPDATE tracks SET path = :path, missing = :missing WHERE id = :id"));
     query.bindValue(QStringLiteral(":path"), newPath);
     query.bindValue(QStringLiteral(":missing"), missing);
     query.bindValue(QStringLiteral(":id"), id);
-    return query.exec() && query.numRowsAffected() == 1;
+    if (query.exec() && query.numRowsAffected() == 1)
+        return true;
+    d->refused(query.lastError().text());
+    return false;
 }
 
 bool Store::recordPlay(qint64 id, const QDateTime &when)
