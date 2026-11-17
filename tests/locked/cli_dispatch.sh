@@ -9,8 +9,8 @@ ok() { echo "PASS $1"; }
 bad() { echo "FAIL $1: $2"; fails=$((fails + 1)); }
 
 out=$("$bin" --version 2>/dev/null); rc=$?
-# expected: CMakeLists.txt, project(linuxbee VERSION 0.1.0 ...)
-if [ "$rc" = 0 ] && [ "$out" = "linuxbeectl 0.1.0" ]; then ok version; else bad version "rc=$rc out=[$out]"; fi
+# expected: CMakeLists.txt, project(linuxbee VERSION 0.6.0 ...)
+if [ "$rc" = 0 ] && [ "$out" = "linuxbeectl 0.6.0" ]; then ok version; else bad version "rc=$rc out=[$out]"; fi
 
 out=$("$bin" --help 2>/dev/null); rc=$?
 if [ "$rc" = 0 ]; then ok help-exit; else bad help-exit "rc=$rc"; fi

@@ -8,8 +8,8 @@ class VersionTest : public QObject
 private slots:
     void matchesProjectVersion()
     {
-        // expected: CMakeLists.txt, project(linuxbee VERSION 0.1.0 ...)
-        QCOMPARE(linuxbee::versionString(), QStringLiteral("0.1.0"));
+        // expected: CMakeLists.txt, project(linuxbee VERSION 0.6.0 ...)
+        QCOMPARE(linuxbee::versionString(), QStringLiteral("0.6.0"));
     }
 };
 
