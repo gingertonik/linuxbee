@@ -140,11 +140,15 @@ under its new name. It never replaces a file that is at the target.
 Only when the system says the target is on another file system is
 the file copied, in this order:
 
-1. the bytes are copied to the target;
-2. the copy is flushed to the disk (`fsync`), and its folder too;
-3. the copy has the source's size, or the move fails;
-4. the copy is given the source's modification time and mode;
-5. only then is the source removed.
+1. the bytes are copied to a target made new for them (never a file
+   or a link that is there, even one that appeared a moment ago);
+2. the copy has the source's size, or the move fails;
+3. the copy is given the source's modification time and mode;
+4. the copy is flushed to the disk (`fsync`), and its folder too, so
+   that nothing is written to it after the flush;
+5. the copy is closed, and a close that reports an error fails the
+   move;
+6. only then, as the last thing done, is the source removed.
 
 A failure at any step leaves the source as it was (bytes, time and
 mode), removes whatever of the target was written, and is reported
@@ -153,6 +157,42 @@ permission, no such file) is a failure at once, with no copy tried.
 
 A moved file keeps its modification time in both cases, so a later
 scan does not take it for a changed file.
+
+A target the move did not make itself is never removed: if a file or
+a link appears at the target after the first look, the move fails
+and that file is left as it is.
+
+A source that is a link is not moved to another file system: the
+move fails, the link stays, and nothing is copied. (Within one file
+system the link itself is renamed, as any file.)
+
+**Where the never-replacing rename is not known.** Some file systems
+(network and user-space ones) answer `EINVAL` to it. Then the file
+is given a second name at the target (`link`, which also never
+replaces) and the first name is removed; if that removal fails the
+second name is taken back. If the second name is refused as on
+another file system, the copy above is made. Only where second
+names are not possible at all (`EPERM`, `EOPNOTSUPP`, `ENOSYS`) is
+the plain rename used, after one more look that nothing is at the
+target. Any other answer of the first rename is a failure at once.
+
+Known and left: extended attributes and access lists are not carried
+to another file system. The folder is flushed once for each file,
+not once for a run.
+
+### O-IO
+
+(Added after the review of the first version showed that three
+plausible mistakes lose a file and no test could see them.)
+
+Every system call a move makes on the way (the renames, `link`,
+`read`, `write`, `fchmod`, `futimens`, `fsync`, `close`, `unlink`)
+goes through a `TransferIo` (`organise/transfer_io.h`, a locked
+file), whose default is the real calls. `transferFile` is
+`transferFileWith` with the default. A test gives one whose calls
+fail, and the rule it checks is the one above: whichever call
+fails, the source is as it was and nothing is left at the target.
+Nothing else in the program uses it.
 
 `done`, `skipped` and `failed` count the outcomes, O-OTHER files included.
 
