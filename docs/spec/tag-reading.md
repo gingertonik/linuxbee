@@ -113,6 +113,7 @@ key that has a value wins.
 | Initial Key | INITIALKEY |
 | Encoded By | ENCODEDBY |
 | Mix Artist | REMIXER |
+| Love | LOVE RATING, LOVERATING (R-LOVE) |
 
 The frame behind each key in each format is TagLib's mapping (TL): TITLE is
 `TIT2` in ID3v2, `TITLE` in a Vorbis comment, `©nam` in MPEG-4, and so on.
@@ -180,6 +181,26 @@ written without a trailing zero (`4`, `3.5`). No rating means no entry.
   (a quarter rounds up) and is never less than 0.5.
 
 If an ID3v2 tag has both a `POPM` frame and a RATING text, `POPM` wins.
+
+### R-LOVE
+
+The Love field says a track is loved or banned. It holds one value:
+`L` for loved, `B` for banned. No entry means neither.
+
+It is read from the key `LOVE RATING`, and after it `LOVERATING` (an
+MPEG-4 file has the name without its space). The first value of the
+key, with white space trimmed from its ends and compared without regard
+to case, is the letter; the field holds it in upper case.
+
+A value that is neither letter is not a Love value: the field has no
+entry and the key stays in `other`, as a RATING that is not a number
+does.
+
+The ID3v2 and MPEG-4 forms are as found in files MusicBee had written
+(a `TXXX` frame described `LOVE RATING`; the atom
+`----:com.apple.iTunes:LOVERATING`; both with the value `L`). The
+Vorbis name and the value `B` are as MusicBee's forum gives them; no
+file was seen with either.
 
 ### R-OTHER
 
@@ -275,7 +296,7 @@ Nothing else is written to standard error.
 - Fields computed from other fields or from the file (Disc-Track#, Decade,
   Filename, Date Added): they belong to the library.
 - Custom tags, the artist roles, synchronised lyrics, WMA.
-- Album rating, Love, Keywords, Quality, Tempo, Occasion: they arrive with
+- Album rating, Keywords, Quality, Tempo, Occasion: they arrive with
   tag writing, once the frame for each is settled.
 
 ## Open parity questions
