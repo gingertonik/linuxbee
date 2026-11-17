@@ -42,6 +42,12 @@ Open fails, with a message and without changing the file, when the file
 cannot be opened or created, is not an SQLite database, or has a schema
 newer than this program's (L-SCHEMA).
 
+A library that cannot be written to (its folder or the file is
+read-only) does not open, and the message says that it `cannot be
+written` to and names the file. It does not say that the file is not
+a linuxBee library. Opening such a library to read only is not in
+this version.
+
 Everything the library holds survives closing and opening again.
 
 **The file is shared.** Another program may have it open: `linuxbeectl`
@@ -308,6 +314,24 @@ returns 0, no change signal is sent, and `failed(what)` is emitted
 once, with the database's own words. A call that merely had nothing
 to do does not emit it.
 
+**Every change, not those two alone.** (Found by the reviews of fix 60:
+`relinkPaths` passed over a refused step and went on, and the other
+calls answered a refusal as they answer "no such track", so a play
+that could not be counted was lost without a word.) `refresh`,
+`setPath`, `relinkPaths`, `recordPlay`, `recordSkip`, `setStatistics`
+and `addFile` behave alike: when the database refuses, nothing is
+changed, the call answers as it does when it did nothing (`false`, 0;
+`addFile` 0), no change signal is sent, and `failed` is emitted once
+with the database's words. A call that had nothing to do (an unknown
+id, a file that cannot be read, a path that is another track's, a
+track already there) emits nothing, whatever an earlier call was
+refused for.
+
+`relinkPaths` is one change, as `recordMoves` is: it takes the write
+lock first (L-WAIT), the first refused step ends it, nothing of it is
+stored, and the same call made again later moves every track. A
+library with half a folder at the new place is what this is against.
+
 The storing step of a scan (`applyScan`, and so `scan`) is such a
 change. When it cannot begin, or cannot be committed, nothing of it
 is stored, the report names no track, its report says why in `refused`,
@@ -444,6 +468,9 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
 
   with `1 name that is` for one, and each folder indented by two spaces.
   The exit status does not change.
+- A scan that could not be stored (L-FAILED) prints no result line. On
+  standard error: `linuxbeectl: the scan was not stored: ` and the
+  database's words. Exit 3.
 - `list` prints one line per track in ascending order of path: the path,
   or with `--format` the template evaluated on the track's
   `LibraryFieldSource`.
