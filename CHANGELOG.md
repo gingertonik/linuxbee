@@ -10,7 +10,7 @@ settings and the library file may still change.
 - Organise says when the library could not record its moves, and then records none of the run.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
-- The settings and the library now live in `~/.config/linuxbee/` and `~/.local/share/linuxbee/`, with the name once; the files of an older build are moved there at the first start, and one program uses a profile at a time (a second start on the same profile is refused).
+- The settings and the library now live in `~/.config/linuxbee/` and `~/.local/share/linuxbee/`, with the name once; the files of an older build are moved there at the first start, and one program uses a profile at a time (a second start on the same profile is refused). An older library is taken along whole, with its log, or not at all: it is settled first, never moved while another program has it open, and the start is refused (status 6) rather than shown an empty library while it waits.
 
 ## 0.6.0 (2026-11-17)
 

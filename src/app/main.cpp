@@ -118,9 +118,25 @@ int main(int argc, char *argv[])
         QTextStream(stderr) << profileLock.message() << '\n';
         return profileLock.state() == linuxbee::ui::ProfileLock::State::Busy ? 5 : 4;
     }
+    // An older build that is still running does not know the lock: nothing is moved under it.
+    for (const QString &folder : { configDir, dataDir }) {
+        const QString busy = linuxbee::ui::olderFilesInUse(folder);
+        if (!busy.isEmpty()) {
+            QTextStream(stderr) << busy << '\n';
+            return 5;
+        }
+    }
     for (const QString &line :
         linuxbee::ui::adoptOlderFiles(configDir) + linuxbee::ui::adoptOlderFiles(dataDir))
         QTextStream(stderr) << line << '\n';
+    // Never an empty library while an older one waits.
+    const QString notTaken = linuxbee::ui::libraryNotTakenOver(dataDir);
+    if (!notTaken.isEmpty()) {
+        QTextStream(stderr) << notTaken << '\n';
+        if (!wantShot) // a screenshot run has no person to answer a dialog
+            QMessageBox::critical(nullptr, linuxbee::ui::applicationDisplayName(), notTaken);
+        return 6;
+    }
 
     const QString iniPath = configDir + QStringLiteral("/linuxbee.ini");
     QDir().mkpath(configDir);

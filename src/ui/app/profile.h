@@ -42,12 +42,27 @@ private:
     QString m_message;
 };
 
+// W-ADOPT, "Open elsewhere": when another program of this user has a file under
+// `<folder>/linuxbee` open (read from /proc/<pid>/fd), the line for standard error
+// that says so (it contains `already running`); empty when none has. Ask for the
+// settings folder and the data folder before anything is moved.
+QString olderFilesInUse(const QString &folder);
+
 // W-ADOPT: each entry of `<folder>/linuxbee` (the folder of a build that had the
-// name twice) is renamed into `folder` when nothing of that name is there. An
-// entry whose name is taken is left as it is. A folder is never merged and
-// nothing is overwritten. The inner folder is removed once it is empty; one that
-// is a link is not followed and not touched. Returns one line for standard error
-// for each entry left behind. Call it under the lock, before the library is opened.
+// name twice) is renamed into `folder` when neither its name nor a companion's
+// name of it (`-wal`, `-shm`, `-journal`) is there. A companion is never moved by
+// itself. An entry with a companion beside it is settled first (opened as a
+// database and closed, only if it begins as one) and moved only when no companion
+// is left. Whatever is left is left whole. A folder is never merged and nothing
+// is overwritten. The inner folder is removed once it is empty; one that is a
+// link is not followed and not touched. Returns one line for standard error for
+// each entry left behind. Call it under the lock, before the library is opened.
 QStringList adoptOlderFiles(const QString &folder);
+
+// W-ADOPT, "Never an empty library while an older one waits": after adoption,
+// when `<dataFolder>/linuxbee/library.db` exists (through a link too) and
+// `<dataFolder>/library.db` does not, the line for standard error (it contains
+// `was not taken over`) that names both places; otherwise empty.
+QString libraryNotTakenOver(const QString &dataFolder);
 
 }
