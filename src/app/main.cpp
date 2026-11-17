@@ -15,6 +15,7 @@
 
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
+#include "app/profile.h"
 #include "app/quitonsignal.h"
 #include "desktop/mprisservice.h"
 #include "library/library.h"
@@ -107,15 +108,26 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     linuxbee::ui::applyApplicationInfo(application);
 
-    const QString iniPath = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation)
-        + QStringLiteral("/linuxbee.ini");
-    QDir().mkpath(QFileInfo(iniPath).absolutePath());
+    // W-ONE: one program a profile. The lock comes first, before anything is opened or
+    // written, and is let go when main ends; W-ADOPT: under it, an older build's files
+    // are taken along before the library is opened.
+    const QString dataDir = linuxbee::ui::profileDataFolder();
+    const QString configDir = linuxbee::ui::profileSettingsFolder();
+    linuxbee::ui::ProfileLock profileLock(dataDir);
+    if (profileLock.state() != linuxbee::ui::ProfileLock::State::Held) {
+        QTextStream(stderr) << profileLock.message() << '\n';
+        return profileLock.state() == linuxbee::ui::ProfileLock::State::Busy ? 5 : 4;
+    }
+    for (const QString &line :
+        linuxbee::ui::adoptOlderFiles(configDir) + linuxbee::ui::adoptOlderFiles(dataDir))
+        QTextStream(stderr) << line << '\n';
+
+    const QString iniPath = configDir + QStringLiteral("/linuxbee.ini");
+    QDir().mkpath(configDir);
     QSettings settings(iniPath, QSettings::IniFormat);
 
     // SH-MAIN: library.db in the data folder, the playlists in the folder
     // `playlists` beside it; missing folders are created.
-    const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataDir);
     const QString dbPath = dataDir + QStringLiteral("/library.db");
     QString libraryError;
     auto library = linuxbee::Library::open(dbPath, &libraryError);

@@ -25,7 +25,6 @@ QString versionLine()
 void applyApplicationInfo(QCoreApplication &application)
 {
     application.setApplicationName(applicationSettingsName());
-    application.setOrganizationName(applicationSettingsName());
     application.setApplicationVersion(versionString());
     if (qobject_cast<QGuiApplication *>(&application)) {
         QGuiApplication::setApplicationDisplayName(applicationDisplayName());

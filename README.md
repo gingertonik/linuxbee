@@ -213,11 +213,16 @@ linuxbeectl path build --field "Album Artist=Adele" --field "Album=21" --field "
 
 The last command prints `Adele/21/Someone like You.mp3`.
 
-linuxBee keeps its settings in `$XDG_CONFIG_HOME/linuxbee/linuxbee/linuxbee.ini`
-and its library in `$XDG_DATA_HOME/linuxbee/linuxbee/library.db`. The playlists
+linuxBee keeps its settings in `$XDG_CONFIG_HOME/linuxbee/linuxbee.ini`
+and its library in `$XDG_DATA_HOME/linuxbee/library.db`. The playlists
 are in the `playlists` folder beside the library. `$XDG_CONFIG_HOME` and
 `$XDG_DATA_HOME` default to `~/.config` and `~/.local/share`. The name
-`linuxbee` appears twice in each path.
+`linuxbee` appears once in each path. A build before 0.8 kept them one folder
+deeper (`.../linuxbee/linuxbee/`); at the first start of this one, what is in
+that inner folder is moved up, and anything whose name is already taken is left
+where it is and named on standard error. One program uses a profile at a
+time: a second start on the same profile is refused, with `already running` on
+standard error and status 5.
 
 To carry over the hotkeys and the organiser's naming template from a MusicBee 3
 settings file, close linuxBee and run `linuxbeectl settings import FILE`. Without
