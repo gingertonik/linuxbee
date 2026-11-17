@@ -186,26 +186,45 @@ That address takes you to the `install.sh` of the release marked latest. To
 read the script before running it:
 
 ```sh
-curl -fsSL -o install.sh https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh
+curl -fsSL -o install.sh \
+  https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh
 less install.sh
+sh install.sh --dry-run
 sh install.sh
 ```
 
+A named release installs from the same file under its tag, at
+`https://github.com/gingertonik/linuxbee/releases/download/<tag>/install.sh`.
+
 The script builds a release from the tagged source in a temporary folder and
-installs into `~/.local`. Each release carries its own copy of the script,
-stamped with the tag and the commit it was cut from, and the script refuses if
-the tag does not point at that commit.
+installs into `~/.local`, keeping the list of what it put there. Each release
+carries its own copy of the script, stamped with the tag and the commit it was
+cut from, and the script refuses if the tag does not point at that commit.
 
-On Arch and the Arch family it checks the dependencies by version. Anywhere
-else it stops and prints what is missing, with the package-manager command to
-get it. It refuses to run as root and never uses sudo: it installs into your
-home only, and prints package commands rather than running them.
+It checks what the build needs before it fetches anything. On Arch and the
+Arch family, anything missing is listed with the one `pacman -Syu --needed`
+line that gets it, and the script stops there without running that line.
+Anywhere else it stops too, and says this script installs on Arch-family
+systems only.
 
-- `install.sh --dry-run` prints the plan and writes nothing.
+It refuses to run as root and never uses sudo: everything it writes goes into
+your home. `install.sh --dry-run` makes every check, prints what it would do
+and changes nothing.
+
 - `install.sh --uninstall` removes what the installer put there, from its own
-  manifest.
+  list.
 - Settings, the library, playlists and music files are never touched by the
   uninstall.
+
+With the one-liner there is no file to run, so:
+
+```sh
+curl -fsSL \
+  https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh \
+  | sh -s -- --uninstall
+```
+
+The installer prints that same line for its own release when it finishes.
 
 ### Build from source
 

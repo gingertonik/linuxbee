@@ -87,15 +87,31 @@ Or read it first:
 curl -fsSL -o install.sh \
   https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh
 less install.sh
+sh install.sh --dry-run
 sh install.sh
 ```
 
 It builds a release from the tagged source in a temporary folder and installs
-into `~/.local`. On Arch and the Arch family it checks the dependencies by
-version. Anywhere else it stops and prints what is missing, with the command
-to get it. No root, no sudo: it prints package commands rather than running
-them. `--dry-run` shows the plan. `--uninstall` takes back exactly what it
-installed, and leaves settings, library, playlists and music alone.
+into `~/.local`, keeping the list of what it put there. It checks what the
+build needs before it fetches anything. On Arch and the Arch family, anything
+missing comes with one `pacman -Syu --needed` line, and it stops there without
+running that line. Anywhere else it stops and says this script installs on
+Arch-family systems only. No root, no sudo: everything it writes goes into
+your home. `--dry-run` shows the plan.
+
+A named release installs from
+`https://github.com/gingertonik/linuxbee/releases/download/<tag>/install.sh`.
+
+To uninstall, if you used the one-liner and have no `install.sh` to run:
+
+```sh
+curl -fsSL \
+  https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh \
+  | sh -s -- --uninstall
+```
+
+It takes back what it installed and leaves settings, library, playlists and
+music alone.
 
 If you prefer to build from source: CMake 3.25+, Ninja, a C++20 compiler,
 Qt 6.5+, TagLib 2, ffmpeg and clang-format, then
