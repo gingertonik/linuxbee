@@ -90,6 +90,7 @@ class ThreadedBackendEndTest : public QObject {
     Q_OBJECT
 private slots:
     void aHealthyOneEndsAsBeforeAndSaysNothing();
+    void aWaitOfNothingIsTheUsualWait();
     void aStuckOneIsLeftBehind();
     void whatItDoesLaterReachesNothing();
     void manyInARow();
@@ -107,6 +108,32 @@ void ThreadedBackendEndTest::aHealthyOneEndsAsBeforeAndSaysNothing()
     // Already so when the destructor has returned.
     QVERIFY(probe.destroyedOn.load() != nullptr);
     QCOMPARE(probe.destroyedOn.load(), probe.madeOn.load());
+    QCOMPARE(gWarnings, 0);
+}
+
+void ThreadedBackendEndTest::aWaitOfNothingIsTheUsualWait()
+{
+    // AT-END: no wait, or less, is not a wait anyone can mean: a healthy thread would be left
+    // behind. The inner backend here takes a third of a second to go, as one closing a sound device
+    // may: the usual wait is long enough for it, and no wait, or a wait of a moment, is not.
+    class Lingering : public Stuck {
+    public:
+        using Stuck::Stuck;
+        ~Lingering() override { QThread::msleep(300); }
+    };
+    const CountWarnings count;
+    for (const std::chrono::milliseconds wait : { 0ms, -5ms }) {
+        Probe probe;
+        {
+            ThreadedAudioBackend backend(
+                [&probe]() -> AudioBackend * { return new Lingering(&probe); });
+            backend.setEndWait(wait);
+            backend.play();
+        }
+        // Already so when the destructor has returned: it waited, and the thread ended.
+        QVERIFY(probe.destroyedOn.load() != nullptr);
+        QCOMPARE(probe.destroyedOn.load(), probe.madeOn.load());
+    }
     QCOMPARE(gWarnings, 0);
 }
 

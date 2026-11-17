@@ -212,12 +212,19 @@ Moving the volume or muting asks the library nothing.
 
 `src/app/main.cpp` additionally:
 
-- creates a `DeviceSink` and an `FfmpegAudioBackend` over it, and a
-  `PlaybackShell` over that backend, with the same `now` as the library
-  shell;
+- creates a `ThreadedAudioBackend` (audio-thread.md) whose factory is
+  `makeDeviceBackend` (`audio/devicebackend.h`: an `FfmpegAudioBackend`
+  over a `DeviceSink` that is its child), and a `PlaybackShell` over
+  it, with the same `now` as the library shell. `main` itself makes
+  neither the sink nor the engine and does not name them: they are
+  made on the audio thread and never belong to the window's (AT-OWN).
+  So sound goes on while the window is busy, and a file that is slow
+  to open does not hold the window;
 - on the way out, before anything else is saved or destroyed: the
   playback shell's `saveState()`, then the playback shell is destroyed
-  (which stops the sound) while the backend and the sink still exist.
+  (which stops the sound) while the backend still exists. The backend
+  then ends its thread (AT-END): in time, or after three seconds
+  without it.
 
 The program starts and leaves cleanly on a machine with no sound device.
 

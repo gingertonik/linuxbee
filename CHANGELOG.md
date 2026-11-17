@@ -15,6 +15,7 @@ settings and the library file may still change.
 - A tag save is refused on a file that has more than one name (a hard link, such as a library file linked from a seeding folder). Nothing is written, and the message says how many names the file has and how to make it a file of its own.
 - A file that another program changed while linuxBee was saving it is no longer overwritten: the save is refused, with a message to try again, and the other program's change stays. A second save of the same file, while one is under way, is refused the same way.
 - A play that cannot be counted because another program has the library no longer holds the window for five seconds, and is counted when the library is free again (while linuxBee stays open; up to 1,000 are kept).
+- Sound is decoded and played on a thread of its own, so it goes on while the window is busy.
 
 ## 0.7.1 (2026-11-17)
 

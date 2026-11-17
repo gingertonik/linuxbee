@@ -22,8 +22,8 @@
 #include "mainwindow/mainwindow.h"
 #include "playlists/autoplayliststore.h"
 #include "playlists/playliststore.h"
-#include "audio/devicesink.h"
-#include "playback/audioengine.h"
+#include "audio/devicebackend.h"
+#include "playback/threadedbackend.h"
 #include "shell/albumviewing.h"
 #include "shell/artistbrowsing.h"
 #include "shell/autoplaylistnodes.h"
@@ -218,11 +218,10 @@ int main(int argc, char *argv[])
     // TS-MAIN: the tools shell, with the default presenter (the dialogs run modally).
     linuxbee::ui::ToolsShell tools(&window, &registry, library.get(), &shell, &settings);
 
-    // PS-MAIN: the real sound: the device sink, the ffmpeg engine over it, and
-    // the playback shell over the engine. On the way out the playback shell
-    // goes first, while the engine and the sink still exist.
-    linuxbee::ui::DeviceSink sink;
-    linuxbee::FfmpegAudioBackend backend(&sink);
+    // PS-MAIN: the real sound. The backend keeps the sound on a thread of its own, and makes
+    // what plays there (makeDeviceBackend). The playback shell is over the backend. On the way
+    // out the playback shell goes first, while the backend still exists.
+    linuxbee::ThreadedAudioBackend backend(linuxbee::ui::makeDeviceBackend);
     auto playback = std::make_unique<linuxbee::ui::PlaybackShell>(
         &window, &registry, library.get(), &shell, &backend, &settings, hooks.now);
 

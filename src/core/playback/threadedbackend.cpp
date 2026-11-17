@@ -160,7 +160,9 @@ ThreadedAudioBackend::~ThreadedAudioBackend()
 
 void ThreadedAudioBackend::setEndWait(std::chrono::milliseconds wait)
 {
-    d->endWait = wait;
+    // AT-END: a wait of nothing, or less, is not taken; the three seconds stand.
+    if (wait.count() > 0)
+        d->endWait = wait;
 }
 
 // Each call is numbered on this thread (only this thread writes the numbers) and the numbers go

@@ -72,7 +72,9 @@ afterwards. Calls still on their way are not promised to arrive.
 **A backend that is stuck.** `load` reads a file, and a file on a
 mount that has died may never be read. The destructor therefore waits
 for the audio thread no longer than the end wait (`setEndWait`; three
-seconds unless set). When the audio thread has not ended by then:
+seconds unless set; a wait of nothing or less is not taken, and the
+three seconds stand: with no wait a healthy thread would be left
+behind). When the audio thread has not ended by then:
 
 - the destructor returns all the same, and says so once, as a warning
   through Qt's logging that contains the words `audio thread`;
