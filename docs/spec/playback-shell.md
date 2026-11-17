@@ -140,6 +140,36 @@ path the library does not know is ignored.
 `lastMessage()`. Nothing is counted. What the player does next is the
 player's rule (player.md, X-ERROR).
 
+## PS-GAIN: ReplayGain on playback
+
+(The owner's ruling, 2026-11-16: ReplayGain applied on playback is in
+1.0.)
+
+The shell implements `controls.gain.off`, `controls.gain.track` and
+`controls.gain.album` (Controls > Replay Gain). They are checkable
+and exactly one is checked: the mode. Choosing one checks it,
+unchecks the others, stores it, and applies it to the track that is
+playing at once. Choosing the one that is on changes nothing.
+
+The mode is stored in the settings as `playback/gain`: `off`,
+`track` or `album`, when it is chosen. A new shell starts with the
+stored mode; no value, or any other value, is `off`.
+
+The shell gives the player its track factor (player.md, X-VOLUME):
+for a path, `gainFactor(gainFromTags(tags), options)` (replay-gain.md,
+N-TAGS and N-APPLY), where `tags` are the tags the library holds for
+the track at that path, and `options` has the mode and everything
+else as `GainOptions` makes it (no pre-amp, clipping prevented). A
+path the library does not know has the factor 1. No file is read.
+
+X-VOLUME holds the result between 0 and 1: a gain that would make a
+track louder uses the room the user's volume leaves and no more.
+
+Speed: the library is asked for a track when the factor is first
+wanted for its path under a mode, and the answer is kept until the
+path or the mode changes, or the library says the track changed.
+Moving the volume or muting asks the library nothing.
+
 ## PS-STORE
 
 `saveState()` saves the bar's state (PB-STORE). The queue is not saved.
@@ -159,8 +189,6 @@ The program starts and leaves cleanly on a machine with no sound device.
 
 ## Not in this version
 
-- Volume levelling from ReplayGain tags (the player has the hook; the
-  sound plan supplies the factor).
 - Remembering the queue and the position between sessions.
 - Reordering and removing entries in the Playing Tracks list by hand, and
   marking the track that is playing.
