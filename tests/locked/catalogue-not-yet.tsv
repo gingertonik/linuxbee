@@ -1,0 +1,35 @@
+# LOCKED. Written by the reviewer. docs/spec/main-window.md, H-NOTYET.
+# A command in the menus that does nothing yet: its id, a tab, and what it waits for. In catalogue order.
+# A plan that gives a command its behaviour takes its line out (its apply.sh does); nobody else edits this.
+file.library.import	ruled 2026-11-16: the import is a linuxbeectl command; this entry leaves the catalogue with it
+file.library.relink	remap music folders in the window; the core and linuxbeectl have it
+file.library.statistics	library statistics
+file.playlists.newAuto	the auto-playlist editor
+file.playlists.import	playlist import in the window; the core reads M3U and PLS
+file.playlists.export	playlist export in the window; the core writes M3U and PLS
+file.locate	locate in the file manager
+edit.copyTags	tagging: copy tags between tracks; linuxbeectl has it
+edit.pasteTags	tagging: paste tags; linuxbeectl has it
+edit.editField	tagging: edit the clicked field in place
+view.miniPlayer	the mini player
+view.arrangePanels	arranging the panels
+tools.tagging.autoTagAlbum	auto-tagging from online services is not built
+tools.tagging.resetCounts	tagging: reset play and skip counts; the library can, no command
+tools.analyseVolume	volume analysis in the window; linuxbeectl gain has it
+tools.restoreVolume	volume analysis in the window; linuxbeectl gain has it
+tools.rescanAll	rescan of the whole library from the menu
+help.online	online help
+track.rate.0	rating from the menus; a rating can be set in the tag editor
+track.rate.1	rating from the menus; a rating can be set in the tag editor
+track.rate.2	rating from the menus; a rating can be set in the tag editor
+track.rate.3	rating from the menus; a rating can be set in the tag editor
+track.rate.4	rating from the menus; a rating can be set in the tag editor
+track.rate.5	rating from the menus; a rating can be set in the tag editor
+track.rate.none	rating from the menus; a rating can be set in the tag editor
+playing.rate.0	rating from the menus; a rating can be set in the tag editor
+playing.rate.1	rating from the menus; a rating can be set in the tag editor
+playing.rate.2	rating from the menus; a rating can be set in the tag editor
+playing.rate.3	rating from the menus; a rating can be set in the tag editor
+playing.rate.4	rating from the menus; a rating can be set in the tag editor
+playing.rate.5	rating from the menus; a rating can be set in the tag editor
+playing.rate.none	rating from the menus; a rating can be set in the tag editor

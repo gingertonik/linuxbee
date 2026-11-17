@@ -7,6 +7,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -62,6 +63,8 @@ struct ScanReport {
     bool cancelled = false;
     // L-PARTS: findings about a track the library had changed since it was looked at.
     int passedOver = 0;
+    // L-FAILED: why nothing was stored; empty when the scan was stored.
+    QString refused;
 };
 
 // L-PARTS: what a scan needs to know of the library.
@@ -157,6 +160,7 @@ public:
     int setCategory(const QList<qint64> &ids, const QString &category);
     bool refresh(qint64 id); // read the file's tags again
     bool setPath(qint64 id, const QString &newPath); // the file was moved
+    void setWriteWait(std::chrono::milliseconds wait); // L-WAIT
     int recordMoves(const QList<FileMove> &moves); // L-MOVED
     int relinkPaths(const QString &oldPrefix, const QString &newPrefix);
 

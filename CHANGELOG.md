@@ -6,11 +6,24 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- A change the library database refuses (a play that cannot be counted among them) stores
+  nothing, and a change with nothing to do asks for no lock. Remapping a folder is all or
+  nothing. `linuxbeectl library scan` says when it could not store, and a library in a
+  read-only folder says it cannot be written to. The window does not show these refusals yet.
+- The settings and the library now live in `~/.config/linuxbee/` and `~/.local/share/linuxbee/`, with the name once; the files of an older build are moved there at the first start, and one program uses a profile at a time (a second start on the same profile is refused). An older library is taken along whole, with its log, or not at all: it is settled first, never moved while another program has it open, and the start is refused (status 6) rather than shown an empty library while it waits.
+
+## 0.7.0 (2026-11-17)
+
 - linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.
+- A change made while another program has the library open waits for it. A scan that cannot
+  store stores nothing (the window and `linuxbeectl` do not yet say so).
 - Organise says when the library could not record its moves, and then records none of the run.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
-- The settings and the library now live in `~/.config/linuxbee/` and `~/.local/share/linuxbee/`, with the name once; the files of an older build are moved there at the first start, and one program uses a profile at a time (a second start on the same profile is refused). An older library is taken along whole, with its log, or not at all: it is settled first, never moved while another program has it open, and the start is refused (status 6) rather than shown an empty library while it waits.
+- Love (a track marked loved or banned in its tags) is read from and written to files as a field, and can be used in templates and auto-playlist rules.
+- Love can be set in the tag editor (L or B), and a Love column shows it as a heart. The window
+  cannot add the column yet, and a library scanned before this version shows Love only once
+  its files are read again.
 
 ## 0.6.0 (2026-11-17)
 
