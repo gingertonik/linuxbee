@@ -30,6 +30,7 @@ roots() {
     data=${XDG_DATA_HOME:-$HOME/.local/share}
     case $bin in /*) ;; *) die "the programs' folder is not an absolute path: $bin" ;; esac
     case $data in /*) ;; *) die "the data folder is not an absolute path: $data" ;; esac
+    case "$bin/$data/" in */../* | */./*) die "a folder spelled with .. or /./ is refused: $bin, $data" ;; esac
     manifest=$data/linuxbee-installer/manifest
     pbin=$(cd "$bin" 2> /dev/null && pwd -P) || pbin=$bin
     pdata=$(cd "$data" 2> /dev/null && pwd -P) || pdata=$data
@@ -55,12 +56,12 @@ prune() {
 }
 remove_listed() {
     if ! honoured "$1"; then say "left alone, not a file this script may remove: '$1'"; return 0; fi
-    if [ -e "$1" ] || [ -L "$1" ]; then act rm -f -- "$1"; prune "$(dirname -- "$1")"; fi
+    if [ -e "$1" ] || [ -L "$1" ]; then act rm -f -- "$1" || die "cannot remove $1; the list is kept, so run --uninstall again"; prune "$(dirname -- "$1")"; fi
 }
 uninstall() {
     if [ ! -f "$manifest" ]; then say "Nothing was installed by this script ($manifest is not there)."; return 0; fi
     while IFS= read -r line || [ -n "$line" ]; do remove_listed "$line"; done < "$manifest"
-    act rm -f -- "$manifest"
+    act rm -f -- "$manifest" "$manifest.lbnew"
     prune "$(dirname -- "$manifest")"
     say "Removed. Your library, settings, playlists and music were not touched."
 }
@@ -69,7 +70,7 @@ version_ok() {
     [ -n "$1" ] || return 1
     [ "$(printf '%s\n%s\n' "$2" "$1" | sort -t. -k1,1n -k2,2n | sed -n 1p)" = "$2" ]
 }
-lack() { missing="$missing$1;"; pkgs="$pkgs $2"; }
+lack() { missing="$missing$1;"; case "$pkgs " in *" $2 "*) ;; *) pkgs="$pkgs $2" ;; esac; }
 is_arch() {
     [ -r "$osrel" ] || die "cannot read $osrel, so the system is not known"
     case " $(sed -n 's/^ID=//p;s/^ID_LIKE=//p' "$osrel" | tr -d "\"'" | tr '\n' ' ') " in *" arch "*) return 0 ;; esac
@@ -85,22 +86,25 @@ check_needs() {
     if ! command -v c++ > /dev/null 2>&1 || ! printf 'consteval int f() { return 0; }\nint main() { return f(); }\n' | c++ -std=c++20 -fsyntax-only -x c++ - > /dev/null 2>&1; then lack "a C++20 compiler" gcc; fi
     if command -v pkg-config > /dev/null 2>&1; then
         v=$(pkg-config --modversion Qt6Widgets 2> /dev/null || true)
-        if ! version_ok "$v" 6.5; then lack "Qt 6.5 or later" "qt6-base qt6-multimedia"; fi
+        if ! version_ok "$v" 6.5; then lack "Qt 6.5 or later" qt6-base; fi
+        for q in Multimedia:qt6-multimedia Sql:qt6-base DBus:qt6-base; do
+            if ! pkg-config --exists "Qt6${q%%:*}" 2> /dev/null; then lack "Qt 6 ${q%%:*}" "${q#*:}"; fi
+        done
         v=$(pkg-config --modversion taglib 2> /dev/null || true)
         if ! version_ok "$v" 2.0; then lack "TagLib 2.0 or later" taglib; fi
     fi
     if [ -n "$missing" ]; then say "Missing, and needed to build linuxBee:"; printf '%s\n' "$missing" | tr ';' '\n' | sed '/^$/d;s/^/  /'; fi
     if ! is_arch; then die "this script installs on Arch-family systems only; other systems name these packages differently"; fi
-    if [ -n "$missing" ]; then say "Install them with this line (this script does not run it), then run it again:"; say "  pacman -S --needed$pkgs"; exit 1; fi
+    if [ -n "$missing" ]; then say "Install them with this line (this script does not run it), then run it again:"; say "  pacman -Syu --needed$pkgs"; exit 1; fi
 }
 tag_commit() {
-    out=$(git ls-remote "$repo" "refs/tags/$TAG" "refs/tags/$TAG^{}") || die "cannot ask $repo for the commit of $TAG"
+    out=$(git ls-remote -- "$repo" "refs/tags/$TAG" "refs/tags/$TAG^{}") || die "cannot ask $repo for the commit of $TAG"
     printf '%s\n' "$out" | awk -v a="refs/tags/$TAG^{}" -v b="refs/tags/$TAG" '$2==a{x=$1} $2==b{y=$1} END{print (x!=""?x:y)}'
 }
 fetch() {
     work=$(mktemp -d)
     say "+ git clone --depth 1 --branch $TAG $repo $work/src"
-    git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$TAG" "$repo" "$work/src"
+    git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$TAG" -- "$repo" "$work/src"
     got=$(git -C "$work/src" rev-parse HEAD)
     if [ "$got" != "$COMMIT" ]; then die "the clone is at $got, not at the commit wanted, $COMMIT; nothing was installed"; fi
 }
@@ -110,8 +114,15 @@ build() {
     act cmake --build --preset release
     act cmake --install build/release --prefix "$work/stage"
 }
-# place: pair every staged file with its target, refuse any that is in the way, copy,
-# remove what an earlier install had and this one has not, then write the list.
+# keep FILE: make FILE the list, through a temporary name that is cleared if the copy fails.
+keep() {
+    act mkdir -p "$(dirname -- "$manifest")"
+    act cp "$1" "$manifest.lbnew" || { rm -f -- "$manifest.lbnew"; die "cannot write the list $manifest"; }
+    act mv -f "$manifest.lbnew" "$manifest"
+}
+# place: pair every staged file with its target, refuse any that is in the way, write the list
+# (every target and its temporary name, with the earlier list), copy, remove what an earlier
+# install had and this one has not, then rewrite the list as exactly what is in place.
 place() {
     tab=$(printf '\t'); stage=$work/stage
     (cd "$stage" && find . ! -type d) | sed 's|^\./||' | sort > "$work/rel"
@@ -127,23 +138,24 @@ place() {
         printf '%s\t%s\n' "$rel" "$dst" >> "$work/pairs"
     done < "$work/rel"
     cut -f2 "$work/pairs" | sort > "$work/new"
+    { cat "$work/new"; sed 's/$/.lbnew/' "$work/new"; } | sort > "$work/mine"
     while IFS= read -r dst; do
         if { [ -e "$dst" ] || [ -L "$dst" ]; } && ! grep -Fxq -- "$dst" "$manifest" 2> /dev/null; then
             say "in the way, and not installed by this script: $dst"; clash=1
         fi
-    done < "$work/new"
+    done < "$work/mine"
     if [ "$clash" = 1 ]; then die "nothing was changed; move those files and run this again"; fi
+    : > "$work/old"; if [ -f "$manifest" ]; then cp "$manifest" "$work/old"; fi
+    { cat "$work/mine" "$work/old"; } | sort -u > "$work/all"; keep "$work/all"
     while IFS="$tab" read -r rel dst; do
         act mkdir -p "$(dirname -- "$dst")"
         act cp -p "$stage/$rel" "$dst.lbnew"
         act mv -f "$dst.lbnew" "$dst"
     done < "$work/pairs"
-    if [ -f "$manifest" ]; then while IFS= read -r old || [ -n "$old" ]; do
+    while IFS= read -r old || [ -n "$old" ]; do
         if ! grep -Fxq -- "$old" "$work/new"; then remove_listed "$old"; fi
-    done < "$manifest"; fi
-    act mkdir -p "$(dirname -- "$manifest")"
-    act cp "$work/new" "$manifest.lbnew"
-    act mv -f "$manifest.lbnew" "$manifest"
+    done < "$work/old"
+    keep "$work/new"
 }
 main() {
     work=; dry=0; mode=install
@@ -165,9 +177,9 @@ main() {
     repo=${LINUXBEE_REPO:-https://github.com/gingertonik/linuxbee.git}
     osrel=${LINUXBEE_OS_RELEASE:-/etc/os-release}
     say "linuxBee $TAG, commit $COMMIT, from $repo"
+    check_needs
     have=$(tag_commit)
     if [ "$have" != "$COMMIT" ]; then die "the tag $TAG is at '$have', not at the commit wanted, $COMMIT; nothing was installed"; fi
-    check_needs
     say "Programs go to $bin; data files to $data; the list to $manifest"
     if [ "$dry" = 1 ]; then
         say "+ git clone --depth 1 --branch $TAG $repo <temporary folder>/src"
@@ -182,4 +194,4 @@ main() {
     case ":${PATH:-}:" in *":$bin:"*) ;; *) say "Note: $bin is not on your PATH, so add it to run linuxbee from a shell." ;; esac
 }
 
-main "$@"
+{ main "$@"; }

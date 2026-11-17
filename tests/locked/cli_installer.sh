@@ -56,9 +56,9 @@ sh "$ST" v9.9.1 abc123 < "$S" > /dev/null 2>&1 && no "a short commit was taken"
 sh "$ST" v9.9.1 "$C1" < "$T/one.sh" > /dev/null 2>&1 && no "a stamped script was stamped again"
 
 # --- the shape of the script (I-CLOSED)
-[ "$(tail -n 1 "$S")" = 'main "$@"' ] || no 'the last line is not: main "$@"'
+[ "$(tail -n 1 "$S")" = '{ main "$@"; }' ] || no 'the last line is not: { main "$@"; }'
 grep -qx 'set -eu' "$S" || no "no set -eu"
-[ "$(wc -l < "$S")" -le 200 ] || no "longer than 200 lines: $(wc -l < "$S")"
+[ "$(wc -l < "$S")" -le 220 ] || no "longer than 220 lines: $(wc -l < "$S")"
 sh -n "$S" || no "sh -n"
 grep -q 'raw.githubusercontent\|/main/' "$S" && no "the script names the main branch or the raw host"
 if command -v shellcheck > /dev/null 2>&1; then
@@ -91,6 +91,9 @@ kept() { (cd "$H" && sha256sum .local/share/linuxbee/library.db .local/share/lin
 state > "$T/state0"; kept > "$T/kept0"
 same() { state > "$T/state1"; cmp -s "$T/state0" "$T/state1" || no "$1: the home folder changed: $(diff "$T/state0" "$T/state1" | head -n 3 | tr '\n' ' ')"; }
 B="$H/.local/bin"; D="$H/.local/share"; M="$D/linuxbee-installer/manifest"
+files() { (cd "$H" && find . -type f -exec sha256sum {} + | sort); }
+files > "$T/files0"
+samefiles() { files > "$T/files1"; cmp -s "$T/files0" "$T/files1" || no "$1: files were left or changed: $(diff "$T/files0" "$T/files1" | head -n 4 | tr '\n' ' ')"; }
 
 # The copy in the tree installs nothing.
 run "$S" && no "the unstamped copy ran"
@@ -106,6 +109,20 @@ while [ "$i" -lt "$n" ]; do
     i=$((i + 1))
 done
 [ "$cut_ran" = 0 ] || no "a script cut off after line $cut_ran still did something"
+# ... and anywhere inside the last line, when it was given an option (sh -s -- --dry-run): a cut there must not
+# become a run without the option. (All but the last byte, which is only the line's end.)
+size=$(wc -c < "$T/one.sh"); i=2; cut_ran=0
+printf '#!/bin/sh\necho "$*" >> "%s/git.ran"\nexec "%s" "$@"\n' "$T" "$(command -v git)" > "$FAKE/git"; chmod +x "$FAKE/git"
+while [ "$i" -le 16 ]; do
+    head -c $((size - i)) "$T/one.sh" > "$T/cut.sh"
+    run "$T/cut.sh" --dry-run
+    [ -e "$T/git.ran" ] && cut_ran=$i
+    i=$((i + 1))
+done
+rm -f "$FAKE/git"
+[ "$cut_ran" = 0 ] || no "a script cut off $cut_ran bytes before its end still ran: $(head -n 1 "$T/git.ran")"
+rm -f "$T/git.ran"
+same "cut off in the last line"
 same "cut off"
 [ -z "$(ls -A "$T/tmp")" ] || no "a cut-off script left something in the temporary folder"
 
@@ -137,6 +154,17 @@ rm -f "$FAKE/git"
 same "a clone at another commit"
 [ -z "$(ls -A "$T/tmp")" ] || no "a refused clone was left in the temporary folder"
 
+# A repository that is an option to git is not run as one (I-STAMP).
+env -i HOME="$H" PATH="$FAKE:$PATH" TMPDIR="$T/tmp" LINUXBEE_REPO="--upload-pack=touch $T/pwned" LINUXBEE_OS_RELEASE="$T/os-arch" sh "$T/one.sh" --dry-run > "$T/out" 2>&1 \
+    && no "a repository beginning with - was accepted"
+[ -e "$T/pwned" ] && no "a repository beginning with - was run as an option to git"
+same "a repository that is an option"
+
+# A folder spelled with .. is refused, for an install and for an uninstall alike (I-USER).
+env -i HOME="$H/../home" PATH="$FAKE:$PATH" TMPDIR="$T/tmp" LINUXBEE_REPO="file://$REPO" LINUXBEE_OS_RELEASE="$T/os-arch" sh "$T/one.sh" > "$T/out" 2>&1 && no "a home spelled with .. was accepted"
+env -i HOME="$H" XDG_DATA_HOME="$H/.local/./share" PATH="$FAKE:$PATH" sh "$T/one.sh" --uninstall > "$T/out" 2>&1 && no "a data folder spelled with /./ was accepted for an uninstall"
+same "folders spelled with dots"
+
 # Not an Arch-family system: it stops (I-NEEDS).
 OSR="$T/os-other" run "$T/one.sh" && no "it installed on another system"
 grep -qi 'arch' "$T/out" || no "the refusal does not say which systems it installs on"
@@ -147,14 +175,16 @@ OSR="$T/nowhere" run "$T/one.sh" && no "it installed with no os-release file"
 # Something missing: all of it said, the pacman line printed, nothing run, nothing changed.
 NB="$T/nobin"; mkdir -p "$NB"
 for d in $(printf '%s' "$PATH" | tr ':' ' '); do ln -s "$d"/* "$NB"/ 2> /dev/null; done
-rm -f "$NB/ffmpeg" "$NB/ninja" "$NB/sudo" "$NB/pkexec" "$NB/su" "$NB/doas"
-printf '#!/bin/sh\ncase "$*" in *taglib*) echo 1.13.1 ;; *) exec "%s" "$@" ;; esac\n' "$(command -v pkg-config)" > "$FAKE/pkg-config.off"
+rm -f "$NB/ffmpeg" "$NB/ninja" "$NB/git" "$NB/sudo" "$NB/pkexec" "$NB/su" "$NB/doas"
+printf '#!/bin/sh\ncase "$*" in *taglib*) echo 1.13.1 ;; *Qt6Multimedia*) exit 1 ;; *) exec "%s" "$@" ;; esac\n' "$(command -v pkg-config)" > "$FAKE/pkg-config.off"
 cp "$FAKE/pkg-config.off" "$NB/pkg-config.new" && rm -f "$NB/pkg-config" && mv "$NB/pkg-config.new" "$NB/pkg-config" && chmod +x "$NB/pkg-config"
 env -i HOME="$H" PATH="$FAKE:$NB" TMPDIR="$T/tmp" LINUXBEE_REPO="file://$REPO" LINUXBEE_OS_RELEASE="$T/os-arch" sh "$T/one.sh" > "$T/out" 2>&1 \
-    && no "it went on with ffmpeg, ninja and TagLib 2 missing"
-grep -q 'pacman -S' "$T/out" || no "no pacman line for what is missing"
-for word in ffmpeg ninja 'TagLib' '2\.0'; do grep -v 'pacman' "$T/out" | grep -q "$word" || no "the list of what is missing lacks: $word"; done
-grep -q 'CMake\|Qt 6' "$T/out" && no "it lists as missing what is there: $(grep 'CMake\|Qt 6' "$T/out" | head -n 1)"
+    && no "it went on with git, ffmpeg, ninja, Qt Multimedia and TagLib 2 missing"
+grep -q 'pacman -Syu --needed ' "$T/out" || no "no 'pacman -Syu --needed' line for what is missing (Arch: never a partial upgrade)"
+for word in git ffmpeg ninja 'TagLib' '2\.0' 'Multimedia'; do grep -v 'pacman' "$T/out" | grep -q "$word" || no "the list of what is missing lacks: $word"; done
+grep 'pacman' "$T/out" | grep -q 'qt6-multimedia' || no "the pacman line lacks qt6-multimedia"
+grep -qi 'command not found\|cannot ask' "$T/out" && no "with git missing it tried the repository first: $(grep -i 'not found\|cannot ask' "$T/out" | head -n 1)"
+grep -q 'CMake\|Qt 6\.5\|Sql\|DBus\|compiler' "$T/out" && no "it lists as missing what is there: $(grep 'CMake\|Qt 6\.5\|Sql\|DBus\|compiler' "$T/out" | head -n 1)"
 same "missing"
 [ -e "$T/escalated" ] && no "it ran: $(cat "$T/escalated")"
 
@@ -175,6 +205,22 @@ run "$T/one.sh" && no "it overwrote a file it had not installed"
 grep -q "$B/linuxbee" "$T/out" || no "the file in the way is not named"
 same "a file in the way"
 rm -r "$B"; rmdir "$H/.local/bin" 2> /dev/null; state > "$T/state0"
+
+# An install that stops partway (a full disk, Ctrl-C): nothing is left that the script cannot account for.
+REALCP=$(command -v cp); REALMV=$(command -v mv)
+[ -x "$REALCP" ] && [ -x "$REALMV" ] || no "no cp or mv to stand in for"
+for x in "$REALCP" "$REALMV"; do printf '#!/bin/sh\ncase "$*" in *"%s"*linuxbeectl*) echo "$0: no space left on device" >&2; exit 1 ;; esac\nexec "%s" "$@"\n' "$H" "$x" > "$FAKE/$(basename "$x")"; chmod +x "$FAKE/$(basename "$x")"; done
+run "$T/one.sh" && no "an install whose copy failed said it succeeded"
+[ -e "$B/linuxbee" ] || echo "NOTE: the copy failed before the first file was in place; the partway case was not reached"
+run "$T/one.sh" --uninstall || no "the uninstall after a partway install failed: $(tail -n 2 "$T/out" | tr '\n' ' ')"
+samefiles "a partway install, then an uninstall"
+run "$T/one.sh" && no "an install whose copy failed said it succeeded"
+rm -f "$FAKE/cp" "$FAKE/mv"
+run "$T/one.sh" || no "the install could not be run again after it stopped partway: $(tail -n 3 "$T/out" | tr '\n' ' ')"
+[ "$("$B/linuxbeectl" 2> /dev/null)" = ctl ] || no "running it again after a partway install did not finish it"
+[ -z "$(find "$H" -name '*.lbnew' -o -name '*.tmp' -o -name '*.partial' | head -n 1)" ] || no "a partway install left a temporary name: $(find "$H" -name '*.lbnew' -o -name '*.tmp' -o -name '*.partial' | head -n 2 | tr '\n' ' ')"
+run "$T/one.sh" --uninstall > /dev/null 2>&1
+samefiles "a partway install, run again, then an uninstall"
 
 # The install (I-INSTALL).
 run "$T/one.sh" || no "the install failed: $(tail -n 3 "$T/out" | tr '\n' ' ')"
@@ -210,6 +256,15 @@ grep -q "song.flac" "$T/out" || no "a line it would not honour is not named"
 [ -d "$B" ] || no "the programs' folder itself was removed"
 (cd "$H" && find . -type f | sort) > "$T/files2"
 [ "$(wc -l < "$T/files2")" = 4 ] || no "after the uninstall: $(tr '\n' ' ' < "$T/files2")"
+
+# A file that could not be removed stays on the list, so a later uninstall can finish (I-UNINSTALL).
+run "$T/two.sh" > /dev/null 2>&1 || no "the install before the last uninstall checks failed"
+chmod a-w "$B"
+run "$S" --uninstall && no "an uninstall that could not remove a file said it succeeded"
+chmod u+w "$B"
+[ -e "$B/linuxbee" ] && grep -qxF "$B/linuxbee" "$M" 2> /dev/null || no "a file that could not be removed is no longer on the list"
+run "$S" --uninstall || no "the uninstall could not be finished afterwards"
+[ ! -e "$B/linuxbee" ] && [ ! -e "$M" ] || no "the finished uninstall left the program or the list"
 
 # Nothing installed: says so, changes nothing.
 state > "$T/state0"

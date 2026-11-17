@@ -22,20 +22,25 @@ input and writes a release copy: the two lines carry the tag
 anything else, and a script without exactly those two lines.
 
 A release copy clones that tag and nothing else, and goes on only if
-the commit it got is `COMMIT`. It asks the repository for the tag's
-commit before it does anything (`git ls-remote`), so `--dry-run`
-refuses a wrong commit too; and it checks again after cloning
-(`git rev-parse HEAD`). A tag that was moved after the release
+the commit it got is `COMMIT`. Once it knows the tools are there
+(I-NEEDS comes first: without `git` there is nothing to ask with), it
+asks the repository for the tag's commit before it fetches or changes
+anything (`git ls-remote`), so `--dry-run` refuses a wrong commit
+too; and it checks again after cloning (`git rev-parse HEAD`). A tag that was moved after the release
 therefore installs nothing.
 
 `LINUXBEE_REPO` names another repository to clone (a mirror, or a
-test's). The commit must match there too.
+test's). The commit must match there too. A value that `git` would
+read as an option (it begins with `-`) is never run as one.
 
 ## I-CLOSED
 
 The body is functions. Nothing runs until the last line, which is
-`main "$@"`, so a download cut off anywhere does nothing at all. It
-runs under `set -eu`. It is at most 200 lines, so that it can be read
+`{ main "$@"; }`, so a download cut off anywhere does nothing at all:
+no beginning of that line is a command. (A bare `main "$@"` cut
+after `main` would run without the options it was given, and a dry
+run would become an install.) It runs under `set -eu`. It is at most
+220 lines, so that it can be read
 before it is run. It is clean under `shellcheck` and runs in a POSIX
 shell.
 
@@ -54,6 +59,11 @@ It refuses to run as root and it never runs `sudo`, `su`, `doas` or
 It never writes under `linuxbee/` in the data, settings or cache
 folders: those hold the library, the settings and the playlists.
 
+The two folders must be absolute and spelled plainly: one with `..`
+or `/./` in it is refused, for an install and an uninstall alike.
+(The uninstall distrusts such lines in its list; an install into such
+a folder could then never be removed.)
+
 ## I-NEEDS
 
 Before it clones, it looks for what a build needs, and says all that
@@ -65,11 +75,14 @@ is missing at once, with the version wanted:
 | CMake 3.25 or later | `cmake --version` |
 | a C++20 compiler | `c++ -std=c++20` accepts a line of C++20 |
 | Qt 6.5 or later | `pkg-config --modversion Qt6Widgets` |
+| Qt 6 Multimedia, Sql and DBus | `pkg-config --exists` for each |
 | TagLib 2.0 or later | `pkg-config --modversion taglib` |
 
 It installs none of them. On an Arch-family system (`ID` or `ID_LIKE`
-in `/etc/os-release` names `arch`) it prints the one `pacman` line
-that gets them, for the user to run, and stops. On any other system it
+in `/etc/os-release` names `arch`) it prints the one line that gets
+them, `pacman -Syu --needed` and the packages (with `-Syu`: Arch does
+not support installing against a system that is not up to date), for
+the user to run, and stops. On any other system it
 stops whether or not anything is missing: it prints the list, and that
 this script installs on Arch-family systems only. (Other systems name
 these packages differently and ship different versions; a line that is
@@ -99,6 +112,14 @@ install is not overwritten: the installer names it and stops, having
 changed nothing. Installing over an earlier install replaces its
 files and removes those the new version no longer has.
 
+**Stopped partway.** The list is written before the first file is put
+in place: everything this run may put there, with what an earlier
+list held. When the run ends well, the list is rewritten as exactly
+what is in place. So after a full disk or Ctrl-C during the copy,
+running it again finishes the install, and `--uninstall` removes
+what was put there; neither meets a file it does not know. No
+temporary name is left beside a file by a run that ended well.
+
 If the folder for the programs is not on `PATH`, it says so at the end.
 
 ## I-UNINSTALL
@@ -112,8 +133,24 @@ is under one of the two roots, has no `..` in it, and is not under
 `linuxbee/` in the data folder. Any other line is named and left. It
 never removes the settings, the library, playlists or music.
 
+A file it may remove and cannot (the folder is read-only) stops the
+uninstall with an error, and the list is kept, so that it can be run
+again. A line it would not honour is not kept: it was never this
+script's file.
+
 With no list, it says that nothing was installed by it and changes
 nothing.
+
+## Known and left
+
+- **A folder below the data folder that is a link elsewhere** (a
+  `~/.local/share/applications` kept by a dotfiles manager): the
+  install writes through the link, as any program would, and the
+  uninstall then will not follow it, names the line, and leaves the
+  file. The user's link is the user's; the script does not remove
+  through one.
+- **A file changed by hand after the install** is removed by the
+  uninstall like any other. No checksum is kept.
 
 ## Not in this version
 
