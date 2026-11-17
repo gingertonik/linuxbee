@@ -79,7 +79,15 @@ struct ToolsShell::Private {
             : root(QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation)
                   + QStringLiteral("/linuxbee/undo"))
         {
-            if (!QDir().mkpath(root))
+            // The last name of the root must be a folder, not a link; judged before and
+            // after it is made. Folders above it may be links.
+            if (QFileInfo(root).isSymLink() || !QDir().mkpath(root) || QFileInfo(root).isSymLink())
+                return;
+            // One start at a time: tidying and making the folder happen under this lock,
+            // let go on every way out (it goes out of scope with the constructor).
+            QLockFile start(root + QStringLiteral("/start.lock"));
+            start.setStaleLockTime(0);
+            if (!start.tryLock(2000))
                 return;
             tidy(root);
             // mkdtemp makes the folder with mode 0700 at once.
@@ -106,12 +114,11 @@ struct ToolsShell::Private {
             QDir(path).removeRecursively();
         }
 
-        // Where the undo keeps pictures. With no folder, a path that does not exist, so a
-        // picture cannot be kept; no other place is used.
+        // Where the undo keeps pictures. With no folder, an empty text: the undo then keeps
+        // no picture at all, and no stand-in path is used.
         QString pictures() const
         {
-            return path.isEmpty() ? root + QStringLiteral("/no-run-folder/pictures")
-                                  : path + QStringLiteral("/pictures");
+            return path.isEmpty() ? QString() : path + QStringLiteral("/pictures");
         }
     };
 
