@@ -15,6 +15,7 @@
 
 #include "actions/actionregistry.h"
 #include "app/appinfo.h"
+#include "app/quitonsignal.h"
 #include "desktop/mprisservice.h"
 #include "library/library.h"
 #include "mainwindow/mainwindow.h"
@@ -292,5 +293,6 @@ int main(int argc, char *argv[])
         });
     }
 
+    linuxbee::ui::quitOnSignals(&application); // W-SIGNAL
     return application.exec();
 }
