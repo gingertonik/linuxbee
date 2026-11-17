@@ -84,6 +84,7 @@ BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackS
             ScanOptions options;
             options.category = sectionFrom(settings);
             options.now = now ? now() : QDateTime();
+            options.nobodyWaits = true; // L-WAIT: nobody asked for this scan, so nobody waits
             d->sections.push_back(options.category);
             d->runner->scan(folders, options);
             return ScanReport();

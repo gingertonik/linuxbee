@@ -6,6 +6,7 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- A scan that cannot store what it finds, because another program has the library, stops at once and says so; it no longer holds the window for five seconds at every part.
 - A change the library database refuses (a play that cannot be counted among them) stores
   nothing, and a change with nothing to do asks for no lock. Remapping a folder is all or
   nothing. `linuxbeectl library scan` says when it could not store, and a library in a

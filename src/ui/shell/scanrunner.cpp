@@ -50,6 +50,8 @@ struct ScanRunner::Private {
     std::shared_ptr<Shared> shared;
     std::thread looking;
     ScanReport report; // of the scan under way, the parts added up
+    bool refused = false; // SR-REFUSED: the library refused a part; nothing more goes to it
+    bool cancelAsked = false; // SR-STOP: cancel() was called for the scan under way
     int lastDone = 0;
     int lastTotal = 0;
 
@@ -76,6 +78,8 @@ void ScanRunner::Private::begin()
     ++serial;
     shared = std::make_shared<Shared>();
     report = ScanReport();
+    refused = false;
+    cancelAsked = false;
     lastDone = 0;
     lastTotal = 0;
     emit q->started(current.folders);
@@ -150,20 +154,38 @@ void ScanRunner::Private::onPart(quint64 forScan, const ScanFindings &part)
     // What was handed over is stored, even after a stop was asked for.
     if (gone || forScan != serial || !running)
         return;
+    // SR-REFUSED: after a refusal no further part of the scan is given to the library.
+    if (refused)
+        return;
     ScanOptions options = current.options;
     options.progress = nullptr;
-    report = addedUp(report, library->applyScan(part, options));
+    const ScanReport stored = library->applyScan(part, options);
+    report = addedUp(report, stored);
+    if (!stored.refused.isEmpty()) {
+        // SR-REFUSED: the library said why once; the looking is told to stop, as cancel() does.
+        refused = true;
+        report.refused = stored.refused;
+        if (shared)
+            shared->stop = true;
+    }
 }
 
 void ScanRunner::Private::onFound(quint64 forScan, const ScanFindings &findings)
 {
     if (gone || forScan != serial || !running)
         return;
-    ScanOptions options = current.options;
-    options.progress = nullptr;
-    ScanReport result = addedUp(report, library->applyScan(findings, options));
-    // SR-STOP: a stop asked for while the scan ran ends it as stopped.
-    if (shared->stop.load())
+    ScanReport result = report;
+    // SR-REFUSED: a refused scan gives the library nothing more, not even the last findings.
+    if (!refused) {
+        ScanOptions options = current.options;
+        options.progress = nullptr;
+        const ScanReport stored = library->applyScan(findings, options);
+        result = addedUp(report, stored);
+        result.refused = stored.refused;
+    }
+    // SR-STOP: a stop asked for while the scan ran ends it as stopped. A refusal sets the same
+    // stop flag, so the flag cannot tell the two apart: cancel() is remembered by itself.
+    if (cancelAsked)
         result.cancelled = true;
     end(result);
 }
@@ -242,6 +264,7 @@ void ScanRunner::cancel()
     if (!d->running)
         return;
     d->waiting.clear();
+    d->cancelAsked = true;
     if (d->shared)
         d->shared->stop = true;
 }
