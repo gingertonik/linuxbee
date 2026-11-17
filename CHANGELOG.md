@@ -12,6 +12,7 @@ settings and the library file may still change.
   read-only folder says it cannot be written to.
 - The settings and the library now live in `~/.config/linuxbee/` and `~/.local/share/linuxbee/`, with the name once; the files of an older build are moved there at the first start, and one program uses a profile at a time (a second start on the same profile is refused). An older library is taken along whole, with its log, or not at all: it is settled first, never moved while another program has it open, and the start is refused (status 6) rather than shown an empty library while it waits.
 - The window now says in the status bar when the library could not store a change (a play, added files, saved tags, a scan), once for each refusal or run of them, and never in a dialog.
+- A play that cannot be counted because another program has the library no longer holds the window for five seconds, and is counted when the library is free again.
 
 ## 0.7.1 (2026-11-17)
 

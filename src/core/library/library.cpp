@@ -301,6 +301,27 @@ int Library::relinkPaths(const QString &oldPrefix, const QString &newPrefix)
     return static_cast<int>(changed.size());
 }
 
+namespace {
+
+// L-WAIT: a change nobody is waiting for waits the quick wait, and the connection goes back to
+// the write wait however the call ends, so no other change is affected.
+struct QuickWaitScope {
+    library::Store &store;
+    std::chrono::milliseconds back;
+    QuickWaitScope(
+        library::Store &store, std::chrono::milliseconds quick, std::chrono::milliseconds back)
+        : store(store)
+        , back(back)
+    {
+        store.setWriteWait(quick);
+    }
+    ~QuickWaitScope() { store.setWriteWait(back); }
+    QuickWaitScope(const QuickWaitScope &) = delete;
+    QuickWaitScope &operator=(const QuickWaitScope &) = delete;
+};
+
+}
+
 // L-STATS recordPlay: the count goes up, and "last played" moves forward only.
 bool Library::recordPlay(qint64 id, const QDateTime &when)
 {
@@ -309,7 +330,12 @@ bool Library::recordPlay(qint64 id, const QDateTime &when)
         return false;
     if (!d->store.byId(id)) // L-FAILED: an unknown id is nothing to do, whoever holds the library
         return false;
-    if (!d->store.recordPlay(id, when)) {
+    bool stored = false;
+    {
+        const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
+        stored = d->store.recordPlay(id, when);
+    } // back to the write wait before any signal goes out
+    if (!stored) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
             emit failed(why); // L-FAILED: a play that cannot be counted is said
         return false;
@@ -326,7 +352,12 @@ bool Library::recordSkip(qint64 id, const QDateTime &when)
         return false;
     if (!d->store.byId(id)) // L-FAILED: as recordPlay
         return false;
-    if (!d->store.recordSkip(id)) {
+    bool stored = false;
+    {
+        const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
+        stored = d->store.recordSkip(id);
+    } // back to the write wait before any signal goes out
+    if (!stored) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
             emit failed(why); // L-FAILED
         return false;
@@ -446,7 +477,14 @@ int Library::recordMoves(const QList<FileMove> &moves)
 // L-WAIT: how long a change waits for another program's write lock.
 void Library::setWriteWait(std::chrono::milliseconds wait)
 {
+    d->writeWait = wait;
     d->store.setWriteWait(wait);
+}
+
+// L-WAIT: how long a play or a skip waits for another program's write lock.
+void Library::setQuickWait(std::chrono::milliseconds wait)
+{
+    d->quickWait = wait;
 }
 
 } // namespace linuxbee
