@@ -251,6 +251,12 @@ The number of ids given to `remove` and `setCategory` has no limit:
 20,000 work as 2 do. The database is asked in pieces. The whole call
 is one transaction: either every piece is stored or none is.
 
+Inside a batch that is open already, the call undoes its own pieces
+and leaves the batch's earlier work. Known and left: a failure that
+makes the database end the whole transaction (a full disk, an I/O
+error) takes the batch's earlier work with it. The only batch today
+is the scan's, and it does not call these.
+
 ### L-FAILED
 
 When the database refuses a `remove` or a `setCategory` (it is held
