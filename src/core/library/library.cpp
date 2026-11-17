@@ -71,6 +71,19 @@ bool moveTrack(library::Store &store, qint64 id, const QString &newPath, QString
     return true;
 }
 
+// L-FAILED: nothing to do is found out before the lock is asked for, so a call asks the store with
+// a plain read first. True when some id in `ids` is a track of ours that `wants` accepts. It stops
+// at the first one, so a call that has something to do reads little. The answer is taken outside
+// the lock and can be stale by the time it is acted on; that costs a call that comes a moment late.
+template <typename Wants>
+bool anyWanted(const library::Store &store, const QList<qint64> &ids, Wants wants)
+{
+    return std::any_of(ids.cbegin(), ids.cend(), [&store, &wants](qint64 id) {
+        const std::optional<LibraryTrack> known = store.byId(id);
+        return known && wants(*known);
+    });
+}
+
 } // namespace
 
 Library::Library()
@@ -160,6 +173,9 @@ std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 // L-EDIT remove: forgets the tracks. No music file is touched.
 int Library::remove(const QList<qint64> &ids)
 {
+    // L-FAILED: no id is a track of ours, so there is nothing to refuse.
+    if (!anyWanted(d->store, ids, [](const LibraryTrack &) { return true; }))
+        return 0;
     const QList<qint64> gone = d->store.removeIds(ids);
     // L-FAILED: a refusal changed nothing, so there is no change to announce.
     if (const QString why = d->store.lastError(); !why.isEmpty()) {
@@ -178,6 +194,10 @@ int Library::setCategory(const QList<qint64> &ids, const QString &category)
 {
     // L-CATEGORY: a function given any other name does nothing.
     if (!categories().contains(category))
+        return 0;
+    // L-FAILED: no id is ours, or every one named is in that section already.
+    if (!anyWanted(d->store, ids,
+            [&category](const LibraryTrack &track) { return track.category != category; }))
         return 0;
     const QList<qint64> changed = d->store.setCategory(ids, category);
     if (const QString why = d->store.lastError(); !why.isEmpty()) {
@@ -287,6 +307,8 @@ bool Library::recordPlay(qint64 id, const QDateTime &when)
     // L-STATS: an unknown id or an invalid time changes nothing.
     if (!when.isValid())
         return false;
+    if (!d->store.byId(id)) // L-FAILED: an unknown id is nothing to do, whoever holds the library
+        return false;
     if (!d->store.recordPlay(id, when)) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
             emit failed(why); // L-FAILED: a play that cannot be counted is said
@@ -301,6 +323,8 @@ bool Library::recordPlay(qint64 id, const QDateTime &when)
 bool Library::recordSkip(qint64 id, const QDateTime &when)
 {
     if (!when.isValid())
+        return false;
+    if (!d->store.byId(id)) // L-FAILED: as recordPlay
         return false;
     if (!d->store.recordSkip(id)) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
@@ -317,6 +341,8 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     // L-STATS: refused, changing nothing, for a missing date added or a
     // negative count. An unknown id is what the store's no-row answer is.
     if (!statistics.dateAdded.isValid() || statistics.playCount < 0 || statistics.skipCount < 0)
+        return false;
+    if (!d->store.byId(id)) // L-FAILED: as recordPlay
         return false;
     if (!d->store.setStatistics(id, statistics)) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
@@ -338,6 +364,18 @@ int Library::recordMoves(const QList<FileMove> &moves)
         QString path;
         bool missing = false;
     };
+    // L-FAILED: a call with nothing to do asks for no lock. A move has something to do when its two
+    // paths differ and one of them is a track of ours (the track to move, or the one replaced). The
+    // library has not changed until the first such move, so looking at the start is enough.
+    const bool somethingToDo
+        = std::any_of(moves.cbegin(), moves.cend(), [this](const FileMove &move) {
+              const QString from = libraryPath(move.from);
+              const QString to = libraryPath(move.to);
+              return !from.isEmpty() && !to.isEmpty() && from != to
+                  && (d->store.byPath(from) || d->store.byPath(to));
+          });
+    if (!somethingToDo)
+        return 0;
     QHash<qint64, Start> began; // each track that moved: how it was before the call
     QList<qint64> order; // the moved tracks, in the order they first moved
     QList<qint64> gone;
