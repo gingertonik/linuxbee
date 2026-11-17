@@ -208,6 +208,24 @@ acted on. Words that are not options are files handed over by the desktop;
 they are accepted and, for now, ignored. Later plans add options of their
 own to the usage line.
 
+### W-SIGNAL
+
+The signals SIGTERM, SIGINT and SIGHUP (a logout, a service being
+stopped, Ctrl+C in a terminal, the terminal closing) end the
+application as File > Exit does: the event loop is left, everything
+W-MAIN and the shells save on exit is saved, the objects are
+destroyed in their order, and the exit status is 0. The process does
+not die of the signal.
+
+The signal handler itself does nothing but tell the event loop, in a
+way that is safe inside a handler (a byte written to a pipe or
+socket the loop watches); the quit happens in the loop. A second
+signal while the first is being answered changes nothing.
+
+Not covered: SIGKILL, which no program sees. What a killed run
+leaves behind is tidied at the next start (tools-shell.md, TS-UNDO).
+`--version` and `--screenshot` runs need none of this.
+
 ## Not in this version
 
 - What goes into the panels: the navigator, the track list, playing
