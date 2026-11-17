@@ -68,6 +68,23 @@ object is destroyed the command is disabled and free again.
 
 A tick-box command's function reads the new state from the action.
 
+### H-NOTYET
+
+A command that nothing implements is greyed in its menu (H-IMPLEMENT).
+`tests/locked/catalogue-not-yet.tsv` lists every such command, with
+what it waits for. `tests/locked/cli_catalogue.sh` holds the list to
+the program: every command of the catalogue is implemented by the
+running program (`linuxbee --commands`) or is on the list, never both
+and never neither.
+
+So the list is the program's own account of what its menus promise
+and do not yet do, and it cannot rot: a plan that gives a command its
+behaviour takes the line out in the same commit, and a command added
+to the catalogue without a behaviour needs a line with a reason.
+
+The list is empty at 1.0, or what is left on it has been taken out of
+the catalogue: a menu does not show a command that will never work.
+
 ### H-SET
 
 `setShortcut(id, sequence)`:
