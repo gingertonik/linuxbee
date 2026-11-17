@@ -394,7 +394,15 @@ QVariant TrackListModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case Qt::DisplayRole: {
         const LibraryFieldSource source(track);
-        return source.value(field).value_or(QString());
+        const QString value = source.value(field).value_or(QString());
+        // T-MODEL: a Love column shows a sign for its value; sorting and search keep the letter.
+        if (field.compare(QLatin1String("Love"), Qt::CaseInsensitive) == 0) {
+            if (value == QLatin1String("L"))
+                return QStringLiteral(u"\u2665");
+            if (value == QLatin1String("B"))
+                return QStringLiteral(u"\u2298");
+        }
+        return value;
     }
     case Qt::ToolTipRole:
         return track.path;

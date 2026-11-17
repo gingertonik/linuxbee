@@ -56,6 +56,8 @@ TagEditorDialog::TagEditorDialog(const QList<EditTarget> &targets, QWidget *pare
         edit->setObjectName(QStringLiteral("field.") + field);
         if (state.kind == FieldState::Kind::Mixed)
             edit->setPlaceholderText(tr("<multiple values>"));
+        else if (field == QLatin1String("Love"))
+            edit->setPlaceholderText(tr("L (loved) or B (banned)"));
         edit->setText(state.text);
         edit->setEnabled(!targets.isEmpty());
 
