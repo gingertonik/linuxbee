@@ -36,10 +36,12 @@ fi
 
 D="$P/share/applications/$ID.desktop"
 if [ -f "$D" ]; then
-    grep -qx 'Exec=linuxbee %F' "$D" || no "desktop entry: Exec"
+    # B-DESKTOP: it starts the program and claims no files, until opening files is built.
+    grep -qx 'Exec=linuxbee' "$D" || no "desktop entry: Exec"
+    grep -q '%[fFuU]' "$D" && no "desktop entry: a field code"
     grep -qx "Icon=$ID" "$D" || no "desktop entry: Icon"
     grep -qx 'Name=linuxBee' "$D" || no "desktop entry: Name"
-    grep -q '^MimeType=.*audio/flac;.*audio/mpeg;' "$D" || no "desktop entry: MimeType"
+    grep -q '^MimeType=' "$D" && no "desktop entry: MimeType"
     grep -q '^Categories=.*AudioVideo;.*Audio;' "$D" || no "desktop entry: Categories"
     if command -v desktop-file-validate > /dev/null 2>&1; then
         out=$(desktop-file-validate "$D" 2>&1) || no "desktop-file-validate: $out"
