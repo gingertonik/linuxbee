@@ -215,6 +215,52 @@ place is used and the other is not lost.
 
 This happens before the library is opened, and under W-ONE's lock.
 
+**A database and its companions.** (Found by the review of this rule's
+first build, which moved each entry by itself: with a library in both
+places, the older library's write-ahead log was moved beside the
+library in use, SQLite applied it, and the library in use was
+destroyed.) A name that ends in `-wal`, `-shm` or `-journal` is the
+companion of the name without that ending. Then:
+
+- a companion is never moved by itself, and never to where a file of
+  its database's name is: a log with no database beside it is left;
+- an entry is moved only when the folder above has neither its name
+  nor any companion's name of it;
+- an entry that has a companion beside it is first settled: if it
+  begins as an SQLite database does (its first sixteen bytes), it is
+  opened as one and closed, by the database's own means, so that what
+  its log holds is in the one file. Only when no companion is left is
+  it moved. If it does not begin so, it is not opened at all (SQLite
+  clears away the log of a file it cannot read); it and its
+  companions are left as they are, as they are when a companion
+  stays after settling;
+- whatever is left is left whole, byte for byte, and each is named on
+  standard error.
+
+So what was committed last in an older build is there after the move,
+and a library is never changed by another library's log.
+
+**Open elsewhere.** If another program has an entry of the inner
+folder open (an older build still running does not know W-ONE's
+lock), nothing is moved, and the start ends as W-ONE's does: status 5,
+a line containing `already running`. This is found by what the system
+shows of this user's programs' open files.
+
+**Never an empty library while an older one waits.** When, after all
+this, the inner folder of the data folder (followed through a link,
+this once) holds a `library.db` and the data folder has none, the
+program does not start: status 6, a line on standard error containing
+`was not taken over` that names both places and why, and the same in
+a dialog where a window would have been shown. It makes no library.
+A user must not be shown an empty library and left to think the music
+is gone.
+
+Known: with a library in both places the one in the new place is used
+and the older one is only named on standard error, at every start.
+Going back to a build from before 0.8 on a profile that has been
+moved shows that build an empty library; its files are left alone
+when this build starts again.
+
 ### W-ONE
 
 One program uses a profile at a time. Every start that opens the
@@ -223,6 +269,11 @@ When another program holds it, the start ends with status 5 and a
 line on standard error containing `already running`; it opens
 nothing, changes nothing, prints nothing on standard output and shows
 no dialog.
+
+(On a network file system a lock left by a program that died on
+another machine is never taken to be stale: the start is refused
+until the lock file is removed by hand. The owner's library is on a
+local disk.)
 
 The lock goes when the program ends, however it ends: a program that
 was killed does not hold the profile afterwards. A profile in another

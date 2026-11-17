@@ -1,4 +1,4 @@
-25f7acc5714eb6d5ba54510f6096a1322815134784e6a576268d19be2f5b7b18  docs/spec/main-window.md
+cbbcba767476925348f6fd57a4d8f78961190150202712ac08d3cb0d64498bc7  docs/spec/main-window.md
 59849a273a489b73bb26603b6d3cace00f14c6741233a4270cc21aef00a7bb06  src/ui/actions/actioncatalogue.cpp
 0bdc0c4ed480561900cd2f200542e6a79a7272c844115882f5f5cd5f9b605d19  tests/locked/cli_app_signal.sh
 fb6abf1412ef09c3937eb6a6d0b926fcd74495b3e05eab9c77c7dfb11b14d6ae  tests/locked/cli_window.sh
