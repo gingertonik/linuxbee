@@ -6,6 +6,8 @@ settings and the library file may still change.
 
 ## Unreleased
 
+## 0.7.0 (2026-11-17)
+
 - linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.
 - A change made while another program has the library open waits for it. A scan that cannot
   store stores nothing (the window and `linuxbeectl` do not yet say so).
