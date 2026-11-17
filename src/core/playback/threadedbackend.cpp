@@ -1,26 +1,45 @@
 #include "playback/threadedbackend.h"
 
+#include <QDebug>
+#include <QDeadlineTimer>
 #include <QMetaObject>
 #include <QThread>
 
+#include <mutex>
 #include <utility>
 
 namespace linuxbee {
 
 namespace {
 
+class AudioSide;
+
+// What the audio thread needs, and what is left behind when the destructor gives up waiting for
+// it (AT-END). It is made on the caller's thread and freed there only after the audio thread has
+// finished; when the thread has not, it is not freed at all.
+struct Engine {
+    QThread thread; // caller's thread starts and waits for it; the audio thread only runs in it
+    AudioSide *side = nullptr; // set before the thread starts; never changed
+    // The one thing both threads touch with no posted event between, because a thread stuck in a
+    // call cannot be asked anything. `owner` is read and posted to by the audio thread, and set
+    // to null by the destructor, both only while holding `lock`: after the destructor has set
+    // it, nothing is posted to the object, and a post that was under way has been finished.
+    std::mutex lock;
+    ThreadedAudioBackend *owner = nullptr;
+};
+
 // The part that lives on the audio thread. Its QObject side is only the address calls are posted
 // to (this object's thread is the audio thread). Every member is touched by the audio thread only,
-// except `owner`, which is written once in the constructor (before the thread starts) and is only
-// ever used as the target of posted events, never dereferenced for a call.
+// except `engine`, which is written once in the constructor (before the thread starts) and points
+// at something that is never freed while the thread runs.
 class AudioSide : public QObject {
 public:
-    explicit AudioSide(ThreadedAudioBackend *o)
-        : owner(o)
+    explicit AudioSide(Engine *e)
+        : engine(e)
     {
     }
 
-    ThreadedAudioBackend *owner; // posted to only; set before the thread starts
+    Engine *engine; // set before the thread starts
     AudioBackend *inner = nullptr; // audio thread only: made, used and deleted there
     quint64 handledLoad = 0; // audio thread only: number of the last load or stop handled
     quint64 handledSeek = 0; // audio thread only: number of the last seek handled
@@ -29,36 +48,38 @@ public:
 }
 
 // Which thread owns each member:
-//   thread      caller's thread starts, waits for and destroys it; the audio thread only runs in
-//   it. side        made on the caller's thread before the thread starts, moved to the audio
-//   thread;
-//               after that the audio thread uses it, the caller's thread only posts events to it
-//               and deletes it once the thread has finished.
+//   engine      the pointer: caller's thread only. What it points at is shared as set out on
+//               Engine and AudioSide above: the thread is started, waited for and (when it has
+//               ended) freed by the caller's thread; when it has not ended in time it is left
+//               behind, and never freed.
 //   loadCount   caller's thread only: number of load and stop calls made so far.
 //   seekCount   caller's thread only: number of seek calls made so far.
-// No lock: a number crosses over only by value, inside a posted event.
+//   endWait     caller's thread only: how long the destructor waits.
+// A number crosses over only by value, inside a posted event. The one lock is Engine::lock.
 struct ThreadedAudioBackend::Private {
-    QThread thread;
-    AudioSide *side = nullptr;
+    Engine *engine = nullptr;
     quint64 loadCount = 0;
     quint64 seekCount = 0;
+    std::chrono::milliseconds endWait { 3000 };
 };
 
 ThreadedAudioBackend::ThreadedAudioBackend(Factory factory, QObject *parent)
     : AudioBackend(parent)
     , d(new Private)
 {
-    d->side = new AudioSide(this);
-    d->side->moveToThread(&d->thread);
-    d->thread.setObjectName(QStringLiteral("audio"));
-    AudioSide *side = d->side;
-    ThreadedAudioBackend *owner = this;
+    d->engine = new Engine;
+    Engine *engine = d->engine;
+    engine->owner = this;
+    engine->side = new AudioSide(engine);
+    engine->side->moveToThread(&engine->thread);
+    engine->thread.setObjectName(QStringLiteral("audio"));
+    AudioSide *side = engine->side;
 
     // Posted before the thread runs, so it is the first thing handled over there and every later
     // call comes after it (AT-CALLS).
     QMetaObject::invokeMethod(
         side,
-        [side, owner, factory = std::move(factory)] {
+        [side, engine, factory = std::move(factory)] {
             AudioBackend *inner = factory(); // AT-OWN: here, on the audio thread
             side->inner = inner;
             if (!inner)
@@ -66,9 +87,14 @@ ThreadedAudioBackend::ThreadedAudioBackend(Factory factory, QObject *parent)
             // Every report carries the numbers of the last load/stop and seek this side had
             // handled when it was emitted; the caller's thread compares on arrival (AT-STALE,
             // AT-SEEK). The lambdas run on the audio thread (the inner backend's thread).
-            auto post = [side, owner](bool position, auto deliver) {
+            auto post = [side, engine](bool position, auto deliver) {
                 const quint64 load = side->handledLoad;
                 const quint64 seek = side->handledSeek;
+                // AT-END: once the destructor has let go of the object, reports go nowhere.
+                const std::lock_guard<std::mutex> guard(engine->lock);
+                ThreadedAudioBackend *owner = engine->owner;
+                if (!owner)
+                    return;
                 QMetaObject::invokeMethod(
                     owner,
                     [owner, position, load, seek, deliver] {
@@ -94,15 +120,15 @@ ThreadedAudioBackend::ThreadedAudioBackend(Factory factory, QObject *parent)
             });
         },
         Qt::QueuedConnection);
-    d->thread.start();
+    engine->thread.start();
 }
 
 ThreadedAudioBackend::~ThreadedAudioBackend()
 {
     // AT-END: the inner backend goes over there, then the loop ends, then this waits for the
-    // thread. Nothing is delivered after this: the events posted to this object are removed with
-    // it, and the thread that posted them has finished.
-    AudioSide *side = d->side;
+    // thread, for the end wait and no longer.
+    Engine *engine = d->engine;
+    AudioSide *side = engine->side;
     QMetaObject::invokeMethod(
         side,
         [side] {
@@ -111,9 +137,30 @@ ThreadedAudioBackend::~ThreadedAudioBackend()
             QThread::currentThread()->quit();
         },
         Qt::QueuedConnection);
-    d->thread.wait();
-    delete side; // the thread has finished; nothing uses it any more
+    const bool ended = engine->thread.wait(QDeadlineTimer(d->endWait));
+    {
+        // From here nothing is posted to this object. Events already posted to it are removed
+        // with it, so nothing arrives afterwards either way.
+        const std::lock_guard<std::mutex> guard(engine->lock);
+        engine->owner = nullptr;
+    }
+    if (ended) {
+        delete side; // the thread has finished; nothing uses it any more
+        delete engine;
+    } else {
+        // Left behind: the thread, the side and the engine are not freed (a thread cannot be
+        // stopped from outside, and QThread must not be destroyed while it runs). The posted
+        // event above deletes the inner backend and ends the thread if the call ever comes back.
+        qWarning().noquote() << QStringLiteral(
+            "ThreadedAudioBackend: the audio thread did not end within %1 ms and is left behind")
+                                    .arg(d->endWait.count());
+    }
     delete d;
+}
+
+void ThreadedAudioBackend::setEndWait(std::chrono::milliseconds wait)
+{
+    d->endWait = wait;
 }
 
 // Each call is numbered on this thread (only this thread writes the numbers) and the numbers go
@@ -122,7 +169,7 @@ ThreadedAudioBackend::~ThreadedAudioBackend()
 void ThreadedAudioBackend::load(const QString &path)
 {
     const quint64 n = ++d->loadCount;
-    AudioSide *side = d->side;
+    AudioSide *side = d->engine->side;
     QMetaObject::invokeMethod(
         side,
         [side, n, path] {
@@ -135,7 +182,7 @@ void ThreadedAudioBackend::load(const QString &path)
 
 void ThreadedAudioBackend::play()
 {
-    AudioSide *side = d->side;
+    AudioSide *side = d->engine->side;
     QMetaObject::invokeMethod(
         side,
         [side] {
@@ -147,7 +194,7 @@ void ThreadedAudioBackend::play()
 
 void ThreadedAudioBackend::pause()
 {
-    AudioSide *side = d->side;
+    AudioSide *side = d->engine->side;
     QMetaObject::invokeMethod(
         side,
         [side] {
@@ -160,7 +207,7 @@ void ThreadedAudioBackend::pause()
 void ThreadedAudioBackend::stop()
 {
     const quint64 n = ++d->loadCount;
-    AudioSide *side = d->side;
+    AudioSide *side = d->engine->side;
     QMetaObject::invokeMethod(
         side,
         [side, n] {
@@ -174,7 +221,7 @@ void ThreadedAudioBackend::stop()
 void ThreadedAudioBackend::seek(qint64 ms)
 {
     const quint64 n = ++d->seekCount;
-    AudioSide *side = d->side;
+    AudioSide *side = d->engine->side;
     QMetaObject::invokeMethod(
         side,
         [side, n, ms] {
@@ -187,7 +234,7 @@ void ThreadedAudioBackend::seek(qint64 ms)
 
 void ThreadedAudioBackend::setVolume(double linear)
 {
-    AudioSide *side = d->side;
+    AudioSide *side = d->engine->side;
     QMetaObject::invokeMethod(
         side,
         [side, linear] {

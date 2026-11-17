@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <functional>
 
 #include "playback/player.h"
@@ -20,6 +21,10 @@ public:
 
     explicit ThreadedAudioBackend(Factory factory, QObject *parent = nullptr);
     ~ThreadedAudioBackend() override; // AT-END
+
+    // AT-END: how long the destructor waits for the audio thread before it leaves it behind.
+    // 3 seconds unless set.
+    void setEndWait(std::chrono::milliseconds wait);
 
     void load(const QString &path) override;
     void play() override;
