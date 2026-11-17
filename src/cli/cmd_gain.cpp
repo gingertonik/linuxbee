@@ -45,6 +45,11 @@ QString writeReason(const linuxbee::WriteResult &result)
     case Status::InvalidChange:
         return result.problems.isEmpty() ? QStringLiteral("the change was refused")
                                          : result.problems.join(QStringLiteral("; "));
+    case Status::HardLinked:
+    case Status::ChangedOnDisk:
+        // WS-LINK, WS-SAME: the line the writer gave.
+        return result.problems.isEmpty() ? QStringLiteral("the tag library could not save")
+                                         : result.problems.first();
     case Status::Failed:
         return QStringLiteral("the tag library could not save");
     }

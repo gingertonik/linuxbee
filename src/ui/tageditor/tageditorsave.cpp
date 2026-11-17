@@ -50,7 +50,13 @@ bool TagEditorDialog::save()
                 written.append(target.id);
         } else {
             ++failures;
-            failedNames.append(QFileInfo(target.path).fileName());
+            QString name = QFileInfo(target.path).fileName();
+            // WS-LINK, WS-SAME: a file that was refused says why, in round brackets.
+            if ((result.status == WriteResult::Status::HardLinked
+                    || result.status == WriteResult::Status::ChangedOnDisk)
+                && !result.problems.isEmpty())
+                name += QStringLiteral(" (") + result.problems.first() + QLatin1Char(')');
+            failedNames.append(name);
         }
     }
 

@@ -126,6 +126,9 @@ edit. `edits()` gives the edited fields and their text;
    `Could not save F of N: NAMES` (F the number of failures, N the number
    of tracks open, NAMES the file names with `, ` between) and the dialog
    stays open. Saving again writes only what is still to do.
+   A file refused as `HardLinked` or `ChangedOnDisk` (tag-safe-save.md)
+   is named with its reason, the result's first `problems` line, in
+   round brackets after a space: `01.flac (the file has 2 names ...)`.
 
 With nothing edited, Save closes the dialog without calling the saver.
 

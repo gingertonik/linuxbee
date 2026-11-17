@@ -8,4 +8,4 @@ Each states what was decided, the date, the reason, and what it allows. The
 places that rely on it link to it, so `docs/CLEAN-ROOM.md` can point here
 instead of arguing the case again.
 
-There are no decisions yet.
+- [Hard-linked files are not tagged](hard-linked-files.md)

@@ -89,6 +89,27 @@ Not covered: a tag library that writes every byte it means to and
 means the wrong ones. Nothing here reads the audio of the copy
 again.
 
+## WS-REST
+
+(Found by the review of WS-WRITTEN: three wrong ways of moving the
+rest of a file passed every tag test, because the test files were
+smaller than one step of the move and a save was compared only with
+another save of the same build.)
+
+A save that makes the tag larger or smaller moves what follows it.
+What follows the tag is, after the save, **byte for byte what it
+was**: for an MP3 everything after the ID3v2 tag, for a FLAC
+everything after the last metadata block, for an M4A whose tags come
+before the sound the contents of `mdat`. (After the sound of an MP3
+there may be an ID3v1 tag, which the writer adds.) This holds for sound of
+several mebibytes, for a move of less than a step of the writer and
+of more, for sizes that are a whole number of steps and that are not,
+growing and shrinking, save after save on one file.
+
+The locked test makes its own sound, bytes of which no stretch is
+like another, and compares with those bytes as it made them, never
+with the result of another save.
+
 ## WS-NAME
 
 The copy is in the folder of the file itself and is called
@@ -116,8 +137,51 @@ save.
 When the path is a symbolic link, the file it points to is the one
 saved, in its own folder; the link stays a link.
 
-A file with several hard links is a known limit: the save replaces the
-name it was given, and the other names keep the old version.
+**A file with more than one name (hard links) is not saved.**
+(`docs/decisions/hard-linked-files.md`. Until 0.7.0 the save replaced
+the name it was given and the other names kept the old version,
+without a word.) When the file the path leads to has a link count
+above one, `writeTags` answers `HardLinked`, having written nothing
+and made no copy, and `problems` holds one line:
+
+`the file has N names (hard links), and linuxBee does not change the
+tags of such a file; to tag it here, make it a file of its own first:
+cp -p FILE FILE.new && mv FILE.new FILE`
+
+(one line; N is the link count). This comes after W-UNCHANGED and
+W-INVALID: a save that would write nothing is `Unchanged`, and a
+change refused for itself is `InvalidChange`. A symbolic link is not
+another name.
+
+## WS-SAME
+
+(Found by the audit of the tag write path: an edit another program
+made while a save was under way was replaced by the save, in 1 run
+of 10. The window and `linuxbeectl` can both be running.)
+
+**The file that is replaced is the file that was read.**
+
+- *Another program.* What the system says of the file (which file it
+  is, its size, when its contents and when its record were last
+  changed) is taken before the file is read. Just before the swap,
+  after the hook, it is taken again. If anything differs, or the file
+  is gone, the copy is removed, nothing is put in the file's place,
+  and the answer is `ChangedOnDisk` with the one line
+  `the file was changed by another program while it was being saved;
+  nothing was written, try again`. The file is as that program left
+  it.
+- *Another save by linuxBee.* For the whole of a save the file is
+  held with `flock(2)`, exclusive. A save that finds it held does not
+  wait: it answers `ChangedOnDisk` at once, having made no copy, with
+  the line `another save of this file is under way; nothing was
+  written, try again`. The hold ends with the save, however it ends.
+  Where the file system has no such locks, the save goes on without.
+
+Both answers are not `ok()`.
+
+Left: the instant between the second look and the swap; and a
+program that changes the file, puts back its size and both its times,
+within one tick of the system's clock.
 
 ## WS-REFUSED
 
@@ -160,9 +224,13 @@ takes as long as copying it.
 `linuxbeectl tags write` prints nothing new. A save that fails says so
 as before, and the file is as it was.
 
+`HardLinked` and `ChangedOnDisk`: nothing on standard output; on
+standard error one line, `not saved: <path>: <the line>`; exit 3.
+Every other command that saves tags gives the line where it gives its
+reason for a failure.
+
 ## Not in this version
 
 - Clearing up leftovers of files that are never saved again (a scan
   could offer it).
-- A guard against two saves of one file at once.
-- Keeping every hard link in step.
+- Keeping every hard link in step (decided against: WS-LINK).
