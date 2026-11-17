@@ -241,17 +241,14 @@ PlaybackShell::PlaybackShell(MainWindow *window, ActionRegistry *actions, Librar
     });
 
     // PS-COUNT: a play or a skip the player counts goes to the library, at
-    // the shell's clock. A path the library does not know is ignored.
+    // the shell's clock, by its path: the shell looks nothing up for it. A path the library does
+    // not know is ignored there.
     // One the library refused is kept and offered again (PendingPlays).
     d->pending = new PendingPlays(library, this);
-    connect(d->player, &Player::playCounted, this, [this](const QString &path) {
-        if (const auto track = d->library->trackByPath(path))
-            d->pending->play(track->id, d->now());
-    });
-    connect(d->player, &Player::skipCounted, this, [this](const QString &path) {
-        if (const auto track = d->library->trackByPath(path))
-            d->pending->skip(track->id, d->now());
-    });
+    connect(d->player, &Player::playCounted, this,
+        [this](const QString &path) { d->pending->play(path, d->now()); });
+    connect(d->player, &Player::skipCounted, this,
+        [this](const QString &path) { d->pending->skip(path, d->now()); });
     connect(d->pending, &PendingPlays::keptChanged, this, [this](int kept) {
         if (kept == 0)
             d->say(tr("The plays and skips that were waiting are counted"));

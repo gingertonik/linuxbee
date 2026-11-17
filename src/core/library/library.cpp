@@ -328,13 +328,24 @@ bool Library::recordPlay(qint64 id, const QDateTime &when)
     // L-STATS: an unknown id or an invalid time changes nothing.
     if (!when.isValid())
         return false;
-    if (!d->store.byId(id)) // L-FAILED: an unknown id is nothing to do, whoever holds the library
-        return false;
+    bool known = false;
     bool stored = false;
+    QString lookWords;
     {
+        // L-WAIT: the look-up waits the short wait too.
         const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
-        stored = d->store.recordPlay(id, when);
+        known = d->store.byId(id).has_value();
+        lookWords = d->store.lastReadError();
+        if (known)
+            stored = d->store.recordPlay(id, when);
     } // back to the write wait before any signal goes out
+    if (!known) {
+        // L-FAILED: an unknown id is nothing to do, whoever holds the library; a look that could
+        // not be made is not "no such track".
+        if (!lookWords.isEmpty())
+            emit failed(lookWords);
+        return false;
+    }
     if (!stored) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
             emit failed(why); // L-FAILED: a play that cannot be counted is said
@@ -350,13 +361,21 @@ bool Library::recordSkip(qint64 id, const QDateTime &when)
 {
     if (!when.isValid())
         return false;
-    if (!d->store.byId(id)) // L-FAILED: as recordPlay
-        return false;
+    bool known = false;
     bool stored = false;
+    QString lookWords;
     {
         const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
-        stored = d->store.recordSkip(id);
+        known = d->store.byId(id).has_value();
+        lookWords = d->store.lastReadError();
+        if (known)
+            stored = d->store.recordSkip(id);
     } // back to the write wait before any signal goes out
+    if (!known) {
+        if (!lookWords.isEmpty())
+            emit failed(lookWords); // L-FAILED: as recordPlay
+        return false;
+    }
     if (!stored) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
             emit failed(why); // L-FAILED
@@ -364,6 +383,96 @@ bool Library::recordSkip(qint64 id, const QDateTime &when)
     }
     emit tracksUpdated(QList<qint64> { id });
     return true;
+}
+
+// L-STATS recordPlays: the plays and skips of files, in the order they happened, stored in one
+// change under the short wait. Each different path is looked up once; a record whose file the
+// library does not have, or whose time is not valid, is passed over without asking for the lock.
+// What is returned is what the library refused, in the order given.
+QList<PlayRecord> Library::recordPlays(const QList<PlayRecord> &records)
+{
+    struct Counted {
+        qint64 id = 0;
+        qsizetype at = 0; // the position in `records`
+    };
+    QList<Counted> counted;
+    QString refusedWords;
+    bool refused = false;
+    bool lookFailed = false; // a look-up could not be made, so nothing is known of the rest
+    {
+        const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
+        QHash<QString, qint64> ids; // by clean path; 0: the library does not have it
+        for (qsizetype i = 0; i < records.size(); ++i) {
+            const PlayRecord &record = records.at(i);
+            if (!record.when.isValid())
+                continue;
+            const QString path = libraryPath(record.path);
+            auto found = ids.find(path);
+            if (found == ids.end()) {
+                const std::optional<LibraryTrack> track = d->store.byPath(path);
+                if (!track && !d->store.lastReadError().isEmpty()) {
+                    refusedWords = d->store.lastReadError(); // the look could not be made
+                    refused = true;
+                    lookFailed = true;
+                    break;
+                }
+                found = ids.insert(path, track ? track->id : 0);
+            }
+            if (found.value() != 0)
+                counted.append({ found.value(), i });
+        }
+        if (!refused && !counted.isEmpty()) {
+            // The rest in one change: all or none. The first refused step gives it up.
+            const auto refuse = [this, &refusedWords, &refused]() {
+                refusedWords = d->store.lastError();
+                d->store.rollbackBatch();
+                refused = true;
+            };
+            if (!d->store.beginBatch()) {
+                refuse();
+            } else {
+                for (const Counted &one : std::as_const(counted)) {
+                    const PlayRecord &record = records.at(one.at);
+                    const bool done = record.skip ? d->store.recordSkip(one.id)
+                                                  : d->store.recordPlay(one.id, record.when);
+                    // False with no words is a track that went in the meantime: nothing to do.
+                    if (!done && !d->store.lastError().isEmpty()) {
+                        refuse();
+                        break;
+                    }
+                }
+                if (!refused && !d->store.commitBatch())
+                    refuse();
+            }
+        }
+    } // back to the write wait before any signal goes out
+    if (refused) {
+        emit failed(refusedWords.isEmpty() ? QStringLiteral("the database refused the change")
+                                           : refusedWords);
+        QList<PlayRecord> back;
+        if (lookFailed) {
+            // Every record with a valid time: what the library has is not known.
+            for (const PlayRecord &record : records)
+                if (record.when.isValid())
+                    back.append(record);
+        } else {
+            for (const Counted &one : std::as_const(counted))
+                back.append(records.at(one.at));
+        }
+        return back;
+    }
+    if (counted.isEmpty())
+        return { };
+    QList<qint64> changed;
+    QSet<qint64> seen;
+    for (const Counted &one : std::as_const(counted)) {
+        if (!seen.contains(one.id)) {
+            seen.insert(one.id);
+            changed.append(one.id);
+        }
+    }
+    emit tracksUpdated(changed);
+    return { };
 }
 
 // L-STATS setStatistics: the library's own four facts in one go, for an import.

@@ -128,6 +128,13 @@ struct FileMove {
     QString to;
 };
 
+// L-STATS recordPlays: a play or a skip that has happened, of the file at `path`.
+struct PlayRecord {
+    QString path;
+    QDateTime when;
+    bool skip = false;
+};
+
 class Library : public QObject {
     Q_OBJECT
 public:
@@ -171,6 +178,9 @@ public:
     // L-STATS
     bool recordPlay(qint64 id, const QDateTime &when);
     bool recordSkip(qint64 id, const QDateTime &when);
+    // Plays and skips by path, in the order they happened, stored in one change. Returns what the
+    // library refused (empty when all was stored or passed over), to be offered again.
+    QList<PlayRecord> recordPlays(const QList<PlayRecord> &records);
     // Replaces all four values, for an import from another program.
     bool setStatistics(qint64 id, const TrackStatistics &statistics);
 

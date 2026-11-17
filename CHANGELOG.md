@@ -17,6 +17,7 @@ settings and the library file may still change.
 - A file that another program changed while linuxBee was saving it is no longer overwritten: the save is refused, with a message to try again, and the other program's change stays. A second save of the same file, while one is under way, is refused the same way.
 - A play that cannot be counted because another program has the library no longer holds the window for five seconds, and is counted when the library is free again (while linuxBee stays open; up to 1,000 are kept).
 - Sound is decoded and played on a thread of its own, so it goes on while the window is busy.
+- On a library kept on a network disk, a play that could not be counted because another program had the library is no longer lost. Plays that were waiting are counted in one step.
 
 ## 0.7.1 (2026-11-17)
 
