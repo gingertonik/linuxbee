@@ -78,14 +78,14 @@ The whole list is in the [manual](docs/MANUAL.md).
 Install it:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/gingertonik/linuxbee/v1.0/install.sh | sh
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh
 ```
 
 Or read it first:
 
 ```sh
 curl -fsSL -o install.sh \
-  https://raw.githubusercontent.com/gingertonik/linuxbee/v1.0/install.sh
+  https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh
 less install.sh
 sh install.sh
 ```
