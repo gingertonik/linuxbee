@@ -77,7 +77,7 @@ void PlaylistRelinkBytesTest::aFileWithoutAMovedPathIsNotWritten()
 
 void PlaylistRelinkBytesTest::aTrackMovedTwiceInOneCallIsOneMove()
 {
-    // L-MOVED: setPaths is setPath for each in order; the signal tells where the track was before
+    // L-MOVED: recordMoves follows a track through two moves in one call; the signal tells where the track was before
     // the call and where it ended.
     QTemporaryDir dir;
     auto library = Library::open(QStringLiteral(":memory:"));
@@ -90,7 +90,7 @@ void PlaylistRelinkBytesTest::aTrackMovedTwiceInOneCallIsOneMove()
     QSignalSpy updated(library.get(), &Library::tracksUpdated);
     const QString x = dir.path() + QStringLiteral("/x.flac");
     const QString y = dir.path() + QStringLiteral("/y.flac");
-    QCOMPARE(library->setPaths({ { id, x }, { id, y } }), 2);
+    QCOMPARE(library->recordMoves({ { a, x }, { x, y } }), 1);
     QCOMPARE(moved.count(), 1);
     const Moves expected { { a, y } };
     const Moves got = moved.at(0).at(0).value<Moves>();
@@ -98,7 +98,7 @@ void PlaylistRelinkBytesTest::aTrackMovedTwiceInOneCallIsOneMove()
     QCOMPARE(updated.count(), 1);
     QCOMPARE(updated.at(0).at(0).value<QList<qint64>>(), QList<qint64>({ id }));
     // Away and back to where it started in one call: nothing moved for the playlists.
-    QCOMPARE(library->setPaths({ { id, x }, { id, y } }), 2);
+    QCOMPARE(library->recordMoves({ { y, x }, { x, y } }), 0);
     QCOMPARE(moved.count(), 1);
 }
 

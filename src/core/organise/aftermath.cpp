@@ -122,6 +122,7 @@ void takeAlongOtherFiles(OrganiseReport *report)
                 const QString error = transferFile(outcome.source, outcome.target, true);
                 if (error.isEmpty()) {
                     outcome.status = MoveOutcome::Status::Done;
+                    outcome.moved = true;
                     ++report->done;
                 } else {
                     outcome.status = MoveOutcome::Status::Failed;

@@ -350,29 +350,20 @@ struct ToolsShell::Private {
         presenter(&dialog);
     }
 
-    // TS-ORGANISE: a file that was moved keeps its library track, now at the new place.
-    // A copy leaves the library as it was: its source still exists. A track that held the
-    // target goes first, since its file is no longer there, so the path is free to take.
-    // The moves of one run are recorded by one setPaths, so the playlists and the queue are
-    // brought up to date once for the run (TS-ORGANISE, L-MOVED).
+    // TS-ORGANISE: a file that was moved keeps its library track, now at the new place. The
+    // moved outcomes go, in the report's order, to one recordMoves, which does to the tracks
+    // what was done to the files; the playlists and the queue are brought up to date once for
+    // the run (TS-ORGANISE, L-MOVED). The shell looks at nothing else.
     void organisedFiles(const OrganiseReport &report)
     {
-        QList<MoveOutcome> moved;
+        QList<FileMove> moves;
         for (const MoveOutcome &outcome : report.outcomes) {
-            if (outcome.status != MoveOutcome::Status::Done || outcome.target == outcome.source
-                || QFile::exists(outcome.source))
-                continue;
-            if (const std::optional<LibraryTrack> held = library->trackByPath(outcome.target))
-                library->remove({ held->id });
-            moved.append(outcome);
-        }
-        QList<PathMove> moves;
-        for (const MoveOutcome &outcome : std::as_const(moved)) {
-            if (const std::optional<LibraryTrack> track = library->trackByPath(outcome.source))
-                moves.append({ track->id, outcome.target });
+            if (outcome.status == MoveOutcome::Status::Done && outcome.moved
+                && outcome.target != outcome.source)
+                moves.append({ outcome.source, outcome.target });
         }
         if (!moves.isEmpty())
-            library->setPaths(moves);
+            library->recordMoves(moves);
         showMessage(QCoreApplication::translate(
             "linuxbee::ui::ToolsShell", "Organised: %1 done, %2 skipped, %3 failed")
                 .arg(report.done)

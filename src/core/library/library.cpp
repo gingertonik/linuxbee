@@ -284,48 +284,73 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     return true;
 }
 
-// L-MOVED setPaths: setPath for each, in order, with its refusals, and one
-// tracksUpdated and one pathsMoved for the call. A track named twice is
-// reported from the path it held at the start to the path it ends on.
-int Library::setPaths(const QList<PathMove> &moves)
+// L-MOVED recordMoves: the moves of the files, in the order they happened, done to the tracks
+// one after the other, in one transaction. At the end each moved track is missing or not by
+// its file, and one signal of each kind goes out.
+int Library::recordMoves(const QList<FileMove> &moves)
 {
-    int changed = 0;
-    QList<qint64> touchedIds;
-    QSet<qint64> seenIds;
-    QHash<qint64, QString> firstPath; // id -> the path it held before this call
-    for (const PathMove &move : moves) {
-        QString was;
-        bool touched = false;
-        if (!moveTrack(d->store, move.id, move.newPath, &was, &touched) || !touched)
+    struct Start {
+        QString path;
+        bool missing = false;
+    };
+    QHash<qint64, Start> began; // each track that moved: how it was before the call
+    QList<qint64> order; // the moved tracks, in the order they first moved
+    QList<qint64> gone;
+    QSet<qint64> goneSet;
+    const bool batch = d->store.beginBatch();
+    for (const FileMove &move : moves) {
+        const QString from = libraryPath(move.from);
+        const QString to = libraryPath(move.to);
+        if (from.isEmpty() || to.isEmpty() || from == to)
             continue;
-        if (!seenIds.contains(move.id)) {
-            seenIds.insert(move.id);
-            touchedIds.append(move.id);
+        const std::optional<LibraryTrack> moving = d->store.byPath(from);
+        if (const std::optional<LibraryTrack> held = d->store.byPath(to);
+            held && (!moving || held->id != moving->id)) {
+            d->store.removeIds({ held->id });
+            if (const QString why = d->store.lastError(); !why.isEmpty()) {
+                emit failed(why); // L-FAILED
+                continue;
+            }
+            gone.append(held->id);
+            goneSet.insert(held->id);
         }
-        if (!was.isEmpty()) {
-            ++changed;
-            if (!firstPath.contains(move.id))
-                firstPath.insert(move.id, was);
+        if (!moving)
+            continue;
+        if (!began.contains(moving->id)) {
+            began.insert(moving->id, { moving->path, moving->missing });
+            order.append(moving->id);
         }
+        // missing is settled below, once every move is done
+        d->store.setPath(moving->id, to, moving->missing);
     }
-    if (touchedIds.isEmpty())
-        return changed;
-    emit tracksUpdated(touchedIds);
+    QList<qint64> touched;
     QHash<QString, QString> oldToNew;
-    for (auto it = firstPath.constBegin(); it != firstPath.constEnd(); ++it) {
-        const std::optional<LibraryTrack> now = d->store.byId(it.key());
-        if (now && now->path != it.value())
-            oldToNew.insert(it.value(), now->path);
+    for (const qint64 id : std::as_const(order)) {
+        if (goneSet.contains(id))
+            continue;
+        const std::optional<LibraryTrack> now = d->store.byId(id);
+        if (!now)
+            continue;
+        // L-MISSING: by whether a file is at the path now.
+        const bool missing = !QFileInfo::exists(now->path);
+        if (missing != now->missing)
+            d->store.setPath(id, now->path, missing);
+        const Start &was = began.value(id);
+        if (now->path == was.path && missing == was.missing)
+            continue; // it ended where it began
+        touched.append(id);
+        if (now->path != was.path)
+            oldToNew.insert(was.path, now->path);
     }
+    if (batch)
+        d->store.commitBatch();
+    if (!gone.isEmpty())
+        emit tracksRemoved(gone);
+    if (!touched.isEmpty())
+        emit tracksUpdated(touched);
     if (!oldToNew.isEmpty())
         emit pathsMoved(oldToNew);
-    return changed;
-}
-
-// L-MOVED. (Stub.)
-int Library::recordMoves(const QList<FileMove> &)
-{
-    return 0;
+    return static_cast<int>(oldToNew.size());
 }
 
 } // namespace linuxbee
