@@ -101,3 +101,24 @@ file host as a place to fetch the script from.
 - Signed tags or signed release files.
 - Packages for any distribution; an AppImage (planned after 1.0).
 - Building release binaries at all.
+
+## R-CHANGELOG
+
+`CHANGELOG.md` begins with `## Unreleased`, once, and every other
+heading of that level is `## X.Y.Z (date)`, each version once. A line
+for a change goes under `Unreleased`.
+
+**A released section is not changed.** (Found at 0.7.0: a branch cut
+before a release carries its new line just above the older heading;
+git merges it under the heading of the release made meanwhile, and
+reports no conflict.) Where the tag `vX.Y.Z` is there, the section
+`X.Y.Z` is the same, line for line, as in that tag's `CHANGELOG.md`;
+and a section a tag released is not taken out.
+
+Where the tree is not a git checkout, or has no such tags (an
+archive; the shallow checkout of the CI), this is not checked, and the
+test says so. It is checked where the mistake is made: in a worktree,
+at a merge.
+
+A section is released by the tag, not by the bump: between
+`bump-version.sh` and the tag the new section may still be put right.
