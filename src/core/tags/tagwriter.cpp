@@ -1,6 +1,7 @@
 #include "tagwriter.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <memory>
 
 #include <QDateTime>
@@ -21,6 +22,7 @@
 #include <id3v2tag.h>
 #include <mpegfile.h>
 #include <popularimeterframe.h>
+#include <tiostream.h>
 #include <tpropertymap.h>
 #include <tstringlist.h>
 #include <tvariant.h>
@@ -243,16 +245,212 @@ bool writePictures(TagLib::File *file, const QList<Picture> &pictures)
     return file->setComplexProperties(TagLib::String("PICTURE"), list);
 }
 
+// WS-WRITTEN: a file the tag library writes through, byte for byte and with no buffer of its
+// own. Every write is looped until its last byte is down, and one that is not is remembered in
+// `failed()`; the tag library is not believed about writes. The library's own insert and remove
+// move the rest of a file with writes that no override of a write call sees, so both are done
+// here, through the same checked writes.
+class CheckedStream : public TagLib::IOStream {
+public:
+    explicit CheckedStream(const QString &filePath)
+        : m_name(QFile::encodeName(filePath))
+        , m_fd(::open(m_name.constData(), O_RDWR | O_CLOEXEC))
+    {
+    }
+    ~CheckedStream() override
+    {
+        if (m_fd >= 0)
+            ::close(m_fd);
+    }
+
+    bool failed() const { return m_failed; }
+
+    TagLib::FileName name() const override { return m_name.constData(); }
+
+    TagLib::ByteVector readBlock(size_t length) override
+    {
+        TagLib::ByteVector data;
+        if (m_fd < 0 || length == 0)
+            return data;
+        data.resize(static_cast<unsigned int>(length));
+        const size_t got = readAt(data.data(), length, m_pos);
+        data.resize(static_cast<unsigned int>(got));
+        m_pos += static_cast<TagLib::offset_t>(got);
+        return data;
+    }
+
+    void writeBlock(const TagLib::ByteVector &data) override
+    {
+        if (!writeAt(data.data(), data.size(), m_pos))
+            return;
+        m_pos += static_cast<TagLib::offset_t>(data.size());
+    }
+
+    void insert(const TagLib::ByteVector &data, TagLib::offset_t start, size_t replace) override
+    {
+        if (m_fd < 0) {
+            m_failed = true;
+            return;
+        }
+        const TagLib::offset_t end = length();
+        const TagLib::offset_t put = static_cast<TagLib::offset_t>(data.size());
+        if (start < 0 || start >= end) {
+            m_pos = std::max<TagLib::offset_t>(start, 0);
+            writeBlock(data);
+            return;
+        }
+        const TagLib::offset_t cut
+            = std::min<TagLib::offset_t>(static_cast<TagLib::offset_t>(replace), end - start);
+        const TagLib::offset_t tail = start + cut;
+        const TagLib::offset_t moveTo = start + put;
+        if (put > cut)
+            moveBackwards(tail, end, moveTo);
+        else if (put < cut)
+            moveForwards(tail, end, moveTo);
+        if (put < cut && !m_failed)
+            truncate(end - (cut - put));
+        if (m_failed)
+            return;
+        m_pos = start;
+        writeBlock(data);
+    }
+
+    void removeBlock(TagLib::offset_t start, size_t length) override
+    {
+        insert(TagLib::ByteVector(), start, length);
+    }
+
+    bool readOnly() const override { return false; }
+    bool isOpen() const override { return m_fd >= 0; }
+
+    void seek(TagLib::offset_t offset, Position p) override
+    {
+        TagLib::offset_t to = offset;
+        if (p == Current)
+            to = m_pos + offset;
+        else if (p == End)
+            to = length() + offset;
+        if (to >= 0)
+            m_pos = to;
+    }
+
+    TagLib::offset_t tell() const override { return m_pos; }
+
+    TagLib::offset_t length() override
+    {
+        struct stat info { };
+        if (m_fd < 0 || ::fstat(m_fd, &info) != 0) {
+            m_failed = true;
+            return 0;
+        }
+        return static_cast<TagLib::offset_t>(info.st_size);
+    }
+
+    void truncate(TagLib::offset_t length) override
+    {
+        if (m_fd < 0 || length < 0 || ::ftruncate(m_fd, static_cast<off_t>(length)) != 0)
+            m_failed = true;
+    }
+
+private:
+    static constexpr size_t kStep = 1024 * 1024;
+
+    // Up to `size` bytes from `at`; fewer only at the end of the file. A read that fails is a
+    // failure of the stream.
+    size_t readAt(char *into, size_t size, TagLib::offset_t at)
+    {
+        size_t done = 0;
+        while (done < size) {
+            const ssize_t got
+                = ::pread(m_fd, into + done, size - done, static_cast<off_t>(at) + off_t(done));
+            if (got < 0 && errno == EINTR)
+                continue;
+            if (got < 0)
+                m_failed = true;
+            if (got <= 0)
+                break;
+            done += size_t(got);
+        }
+        return done;
+    }
+
+    // All of `size` bytes at `at`, or false and the failure remembered.
+    bool writeAt(const char *from, size_t size, TagLib::offset_t at)
+    {
+        if (m_fd < 0) {
+            m_failed = true;
+            return false;
+        }
+        size_t done = 0;
+        while (done < size) {
+            const ssize_t put
+                = ::pwrite(m_fd, from + done, size - done, static_cast<off_t>(at) + off_t(done));
+            if (put < 0 && errno == EINTR)
+                continue;
+            if (put <= 0) {
+                m_failed = true;
+                return false;
+            }
+            done += size_t(put);
+        }
+        return true;
+    }
+
+    // [from, end) moves to `to` (later in the file), the last block first, so nothing is
+    // written over before it has been read.
+    void moveBackwards(TagLib::offset_t from, TagLib::offset_t end, TagLib::offset_t to)
+    {
+        QByteArray block(int(kStep), '\0');
+        TagLib::offset_t top = end;
+        while (top > from && !m_failed) {
+            const size_t n
+                = size_t(std::min<TagLib::offset_t>(top - from, TagLib::offset_t(kStep)));
+            const TagLib::offset_t at = top - TagLib::offset_t(n);
+            if (readAt(block.data(), n, at) != n) {
+                m_failed = true; // a block that was to be read whole was not
+                return;
+            }
+            writeAt(block.constData(), n, at + (to - from));
+            top = at;
+        }
+    }
+
+    // [from, end) moves to `to` (earlier in the file), the first block first.
+    void moveForwards(TagLib::offset_t from, TagLib::offset_t end, TagLib::offset_t to)
+    {
+        QByteArray block(int(kStep), '\0');
+        TagLib::offset_t at = from;
+        while (at < end && !m_failed) {
+            const size_t n = size_t(std::min<TagLib::offset_t>(end - at, TagLib::offset_t(kStep)));
+            if (readAt(block.data(), n, at) != n) {
+                m_failed = true;
+                return;
+            }
+            writeAt(block.constData(), n, at - (from - to));
+            at += TagLib::offset_t(n);
+        }
+    }
+
+    QByteArray m_name;
+    int m_fd = -1;
+    TagLib::offset_t m_pos = 0;
+    bool m_failed = false;
+};
+
 // Step 5 of spec section 1: edits the property map, then saves. The pictures are
 // written only when the change names them.
 // `wroteV23` is set when the tag written is ID3v2.3 (W-ID3VER, not kept).
+// WS-WRITTEN: false too when any write into the copy did not put down all its bytes.
 bool saveChanges(const QString &filePath, const TrackTags &now, const tags::CheckedChanges &checked,
     const TrackTags &after, const WriteOptions &options, bool picturesChanged, bool &wroteV23)
 {
     wroteV23 = false;
     const KeyFamily family = familyOf(now.format);
-    const QByteArray name = QFile::encodeName(filePath);
-    TagLib::FileRef ref(name.constData(), false);
+    // The stream is declared first: it outlives the FileRef that writes through it.
+    CheckedStream stream(filePath);
+    if (!stream.isOpen())
+        return false;
+    TagLib::FileRef ref(&stream, false);
     if (ref.isNull() || !ref.file() || !ref.file()->isValid())
         return false;
     TagLib::File *file = ref.file();
@@ -308,7 +506,9 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
         if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))
             rewritePopm(tag, keep, after);
     }
-    return id3 ? saveId3(file, options, version) : file->save();
+    const bool saved = id3 ? saveId3(file, options, version) : file->save();
+    // WS-WRITTEN: the tag library says saved; the stream says whether every byte went down.
+    return saved && !stream.failed();
 }
 
 // W-ID3VER, not kept: the new version of the file (read once) against what the save meant

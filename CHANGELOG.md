@@ -6,6 +6,8 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- A tag save with no room left (a full disk, a quota, a size limit) no longer replaces the song with a cut-off file and says saved; it now fails and leaves the song as it was.
+
 ## 0.7.0 (2026-11-17)
 
 - linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.
