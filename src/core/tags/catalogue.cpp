@@ -96,6 +96,7 @@ const QList<FieldKeys> &fieldTable()
         { QStringLiteral("Initial Key"), { QStringLiteral("INITIALKEY") } },
         { QStringLiteral("Encoded By"), { QStringLiteral("ENCODEDBY") } },
         { QStringLiteral("Mix Artist"), { QStringLiteral("REMIXER") } },
+        { QStringLiteral("Love"), { QStringLiteral("LOVE RATING"), QStringLiteral("LOVERATING") } },
     };
     return table;
 }
@@ -118,6 +119,16 @@ void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &ta
             const QStringList values = withoutBlanks(upper.value(key));
             if (values.isEmpty())
                 continue;
+            // R-LOVE: the first value decides. A value that is not L or B claims nothing,
+            // so the key stays in `other`.
+            if (entry.field == QLatin1String("Love")) {
+                const QString letter = values.first().trimmed().toUpper();
+                if (letter == QLatin1String("L") || letter == QLatin1String("B")) {
+                    tags.fields.insert(entry.field, { letter });
+                    claimed.insert(key);
+                }
+                break;
+            }
             tags.fields.insert(entry.field, values);
             claimed.insert(key);
             break;
@@ -165,6 +176,9 @@ QString writeKey(const QString &field, KeyFamily family)
     const bool vorbis = family == KeyFamily::Vorbis;
     const bool id3 = family == KeyFamily::Id3v2;
     // W-TABLE: the fields whose key differs by family.
+    if (field == QLatin1String("Love"))
+        return family == KeyFamily::Mp4Ape ? QStringLiteral("LOVERATING")
+                                           : QStringLiteral("LOVE RATING");
     if (field == QLatin1String("Publisher"))
         return vorbis ? QStringLiteral("ORGANIZATION") : QStringLiteral("LABEL");
     if (field == QLatin1String("Grouping"))

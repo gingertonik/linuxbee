@@ -10,6 +10,7 @@ settings and the library file may still change.
 - Organise says when the library could not record its moves, and then records none of the run.
 - The desktop entry no longer offers linuxBee for opening audio files, which
   it could not open yet.
+- Love (a track marked loved or banned in its tags) is read from and written to files as a field, and can be used in templates and auto-playlist rules.
 
 ## 0.6.0 (2026-11-17)
 
