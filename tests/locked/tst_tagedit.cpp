@@ -28,12 +28,16 @@ TrackTags tags(std::initializer_list<std::pair<const char16_t *, QStringList>> f
 QList<TrackTags> album()
 {
     return {
-        tags({ { u"Title", { s(u"Hunter") } }, { u"Artist", { s(u"Bj\u00f6rk") } }, { u"Album", { s(u"Homogenic") } },
-            { u"Track#", { s(u"1") } }, { u"Genre", { s(u"Electronic"), s(u"Trip Hop") } }, { u"Year", { s(u"1997") } } }),
-        tags({ { u"Title", { s(u"J\u00f3ga") } }, { u"Artist", { s(u"Bj\u00f6rk") } }, { u"Album", { s(u"Homogenic") } },
-            { u"Track#", { s(u"2") } }, { u"Genre", { s(u"Electronic"), s(u"Trip Hop") } }, { u"Rating", { s(u"4.5") } } }),
-        tags({ { u"Title", { s(u"Unravel") } }, { u"Artist", { s(u"Bj\u00f6rk"), s(u"Guy Sigsworth") } },
-            { u"Album", { s(u"Homogenic") } }, { u"Track#", { s(u"3") } }, { u"Genre", { s(u"Trip Hop"), s(u"Electronic") } } }),
+        tags({ { u"Title", { s(u"Hunter") } }, { u"Artist", { s(u"Bj\u00f6rk") } },
+            { u"Album", { s(u"Homogenic") } }, { u"Track#", { s(u"1") } },
+            { u"Genre", { s(u"Electronic"), s(u"Trip Hop") } }, { u"Year", { s(u"1997") } } }),
+        tags({ { u"Title", { s(u"J\u00f3ga") } }, { u"Artist", { s(u"Bj\u00f6rk") } },
+            { u"Album", { s(u"Homogenic") } }, { u"Track#", { s(u"2") } },
+            { u"Genre", { s(u"Electronic"), s(u"Trip Hop") } }, { u"Rating", { s(u"4.5") } } }),
+        tags({ { u"Title", { s(u"Unravel") } },
+            { u"Artist", { s(u"Bj\u00f6rk"), s(u"Guy Sigsworth") } },
+            { u"Album", { s(u"Homogenic") } }, { u"Track#", { s(u"3") } },
+            { u"Genre", { s(u"Trip Hop"), s(u"Electronic") } } }),
     };
 }
 
@@ -57,15 +61,18 @@ void TagEditTest::fields()
 {
     // E-FIELDS
     QCOMPARE(tagEditorFields(),
-        QStringList({ s(u"Title"), s(u"Artist"), s(u"Album Artist"), s(u"Album"), s(u"Year"), s(u"Track#"),
-            s(u"Track Count"), s(u"Disc#"), s(u"Disc Count"), s(u"Genre"), s(u"Composer"), s(u"Grouping"),
-            s(u"Publisher"), s(u"BPM"), s(u"Rating"), s(u"Comment") }));
+        QStringList({ s(u"Title"), s(u"Artist"), s(u"Album Artist"), s(u"Album"), s(u"Year"),
+            s(u"Track#"), s(u"Track Count"), s(u"Disc#"), s(u"Disc Count"), s(u"Genre"),
+            s(u"Composer"), s(u"Grouping"), s(u"Publisher"), s(u"BPM"), s(u"Rating"), s(u"Love"),
+            s(u"Comment") }));
     for (const QString &f : tagEditorFields())
         QVERIFY2(tagFieldNames().contains(f), qPrintable(f)); // every one is a catalogue field
     // E-SPLIT: which fields hold lists
-    for (const char16_t *f : { u"Artist", u"Genre", u"Composer", u"Conductor", u"Lyricist", u"Mood", u"Mix Artist", u"Original Artist" })
+    for (const char16_t *f : { u"Artist", u"Genre", u"Composer", u"Conductor", u"Lyricist", u"Mood",
+             u"Mix Artist", u"Original Artist" })
         QVERIFY2(isListField(s(f)), qPrintable(s(f)));
-    for (const char16_t *f : { u"Title", u"Album", u"Album Artist", u"Year", u"Track#", u"Comment", u"Rating", u"Publisher", u"Nonsense", u"" })
+    for (const char16_t *f : { u"Title", u"Album", u"Album Artist", u"Year", u"Track#", u"Comment",
+             u"Rating", u"Publisher", u"Nonsense", u"" })
         QVERIFY2(!isListField(s(f)), qPrintable(s(f)));
     QVERIFY(isListField(s(u"genre")));
 }
@@ -83,9 +90,12 @@ void TagEditTest::state()
     st = fieldState(a, s(u"Composer"));
     QVERIFY(st.kind == FieldState::Kind::Blank);
     QCOMPARE(st.text, QString());
-    QVERIFY(fieldState(a, s(u"Year")).kind == FieldState::Kind::Mixed); // one has it, the others do not
-    QVERIFY(fieldState(a, s(u"Artist")).kind == FieldState::Kind::Mixed); // one more value on the third
-    QVERIFY(fieldState(a, s(u"Genre")).kind == FieldState::Kind::Mixed); // the same values in another order differ
+    QVERIFY(
+        fieldState(a, s(u"Year")).kind == FieldState::Kind::Mixed); // one has it, the others do not
+    QVERIFY(
+        fieldState(a, s(u"Artist")).kind == FieldState::Kind::Mixed); // one more value on the third
+    QVERIFY(fieldState(a, s(u"Genre")).kind
+        == FieldState::Kind::Mixed); // the same values in another order differ
     st = fieldState(a.mid(0, 2), s(u"Genre"));
     QVERIFY(st.kind == FieldState::Kind::Same);
     QCOMPARE(st.text, s(u"Electronic; Trip Hop"));
@@ -150,7 +160,8 @@ void TagEditTest::problems_data()
     row("number spaces", u"Track#", u" 12 ", u"");
     row("leading zero", u"Disc#", u"02", u"");
     row("four digits", u"Track Count", u"9999", u"");
-    row("five digits", u"Track Count", u"10000", u"Track Count must be a whole number from 1 to 9999.");
+    row("five digits", u"Track Count", u"10000",
+        u"Track Count must be a whole number from 1 to 9999.");
     row("zero", u"Track#", u"0", u"Track# must be a whole number from 1 to 9999.");
     row("slash", u"Track#", u"3/12", u"Track# must be a whole number from 1 to 9999.");
     row("letters", u"Disc#", u"A", u"Disc# must be a whole number from 1 to 9999.");
@@ -186,13 +197,16 @@ void TagEditTest::buildOne()
     QList<TagChanges> c = buildEdits(one, { });
     QCOMPARE(c.size(), 1);
     QVERIFY(c.at(0).isEmpty());
-    c = buildEdits(one, { { s(u"Title"), s(u"Hunter (Live)") }, { s(u"Album"), s(u" Homogenic ") }, // the same once trimmed
-                            { s(u"Year"), s(u"") }, { s(u"Composer"), s(u"Bj\u00f6rk; Sjon") }, { s(u"Comment"), s(u"  ") },
-                            { s(u"Rating"), s(u"5.0") }, { s(u"Genre"), s(u"Trip Hop; Electronic") } });
+    c = buildEdits(one,
+        { { s(u"Title"), s(u"Hunter (Live)") },
+            { s(u"Album"), s(u" Homogenic ") }, // the same once trimmed
+            { s(u"Year"), s(u"") }, { s(u"Composer"), s(u"Bj\u00f6rk; Sjon") },
+            { s(u"Comment"), s(u"  ") }, { s(u"Rating"), s(u"5.0") },
+            { s(u"Genre"), s(u"Trip Hop; Electronic") } });
     QCOMPARE(c.size(), 1);
-    const QMap<QString, QStringList> expected = { { s(u"Title"), { s(u"Hunter (Live)") } }, { s(u"Year"), { } },
-        { s(u"Composer"), { s(u"Bj\u00f6rk"), s(u"Sjon") } }, { s(u"Rating"), { s(u"5") } },
-        { s(u"Genre"), { s(u"Trip Hop"), s(u"Electronic") } } };
+    const QMap<QString, QStringList> expected = { { s(u"Title"), { s(u"Hunter (Live)") } },
+        { s(u"Year"), { } }, { s(u"Composer"), { s(u"Bj\u00f6rk"), s(u"Sjon") } },
+        { s(u"Rating"), { s(u"5") } }, { s(u"Genre"), { s(u"Trip Hop"), s(u"Electronic") } } };
     QCOMPARE(c.at(0).fields, expected); // Album and Comment are not named: nothing would change
     QVERIFY(c.at(0).other.isEmpty());
     QVERIFY(!c.at(0).pictures.has_value());
@@ -202,12 +216,16 @@ void TagEditTest::buildMany()
 {
     // E-BUILD, several tracks: each gets only what changes for it.
     const QList<TrackTags> a = album();
-    QList<TagChanges> c = buildEdits(a, { { s(u"Album"), s(u"Homogenic") }, { s(u"Year"), s(u"1997") },
-                                             { s(u"Artist"), s(u"Bj\u00f6rk") }, { s(u"Rating"), s(u"") } });
+    QList<TagChanges> c = buildEdits(a,
+        { { s(u"Album"), s(u"Homogenic") }, { s(u"Year"), s(u"1997") },
+            { s(u"Artist"), s(u"Bj\u00f6rk") }, { s(u"Rating"), s(u"") } });
     QCOMPARE(c.size(), 3);
     QVERIFY(c.at(0).isEmpty()); // the first already says all of it
-    QCOMPARE(c.at(1).fields, (QMap<QString, QStringList> { { s(u"Year"), { s(u"1997") } }, { s(u"Rating"), { } } }));
-    QCOMPARE(c.at(2).fields, (QMap<QString, QStringList> { { s(u"Year"), { s(u"1997") } }, { s(u"Artist"), { s(u"Bj\u00f6rk") } } }));
+    QCOMPARE(c.at(1).fields,
+        (QMap<QString, QStringList> { { s(u"Year"), { s(u"1997") } }, { s(u"Rating"), { } } }));
+    QCOMPARE(c.at(2).fields,
+        (QMap<QString, QStringList> {
+            { s(u"Year"), { s(u"1997") } }, { s(u"Artist"), { s(u"Bj\u00f6rk") } } }));
     // A field that is not edited is not touched, however mixed it is.
     for (const TagChanges &one : c)
         QVERIFY(!one.fields.contains(s(u"Title")) && !one.fields.contains(s(u"Track#")));
@@ -218,10 +236,13 @@ void TagEditTest::buildSkips()
 {
     // E-BUILD: an edit that E-CHECK refuses changes nothing; the rest still apply.
     const QList<TrackTags> one = album().mid(0, 1);
-    const QList<TagChanges> c = buildEdits(one, { { s(u"Track#"), s(u"1/12") }, { s(u"Rating"), s(u"11") },
-                                                   { s(u"Nonsense"), s(u"x") }, { s(u"album"), s(u"Post") }, { s(u"Track Count"), s(u"010") } });
+    const QList<TagChanges> c = buildEdits(one,
+        { { s(u"Track#"), s(u"1/12") }, { s(u"Rating"), s(u"11") }, { s(u"Nonsense"), s(u"x") },
+            { s(u"album"), s(u"Post") }, { s(u"Track Count"), s(u"010") } });
     QCOMPARE(c.size(), 1);
-    QCOMPARE(c.at(0).fields, (QMap<QString, QStringList> { { s(u"Album"), { s(u"Post") } }, { s(u"Track Count"), { s(u"10") } } }));
+    QCOMPARE(c.at(0).fields,
+        (QMap<QString, QStringList> {
+            { s(u"Album"), { s(u"Post") } }, { s(u"Track Count"), { s(u"10") } } }));
 }
 
 QTEST_APPLESS_MAIN(TagEditTest)
