@@ -80,6 +80,9 @@ command-line tool, or both.
 - Play/Pause, Stop, Previous Track and Next Track, a seek bar, volume and
   mute, in the player bar and the Controls menu.
 - Shuffle, Repeat and Stop After Current.
+- Controls > Replay Gain: Off, Track Gain or Album Gain, applied to the
+  track that is playing at once and kept for next time. A boost stops at
+  full volume.
 - Play Now, Queue Next and Queue Last for the selected tracks.
 - Files sent to the trash leave Playing Tracks, except the one playing. A file
   that is playing when it is sent to the trash plays to its end.
@@ -162,8 +165,6 @@ The gaps a MusicBee user will notice first:
   made by putting a file in its folder.
 - **Drag and drop.** Tracks cannot be dragged, for example onto a playlist.
 - **Gapless playback, crossfade and an equaliser.**
-- **ReplayGain in playback.** `linuxbeectl gain` writes the tags, but the
-  player does not apply them yet.
 - **Importing a MusicBee library.** Only the settings file can be imported.
   The import code is in the core, with no command or window that runs it.
 - **Undo for Organise.** Organise cannot be undone. Undo covers tag changes

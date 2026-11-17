@@ -7,7 +7,7 @@
 ██████ ██████ ██  ██  ████  ██  ██ █████  ██████ ██████
 
   A music manager for the rest of us.
-  Version 1.0 | November 2026 | pre-release
+  Version pre-1.0 | November 2026
 
   THE MUSIC STAYS. THE HABITS COME WITH.
 
@@ -98,7 +98,7 @@ them. `--dry-run` shows the plan. `--uninstall` takes back exactly what it
 installed, and leaves settings, library, playlists and music alone.
 
 If you prefer to build from source: CMake 3.25+, Ninja, a C++20 compiler,
-Qt 6.5+ and clang-format, then
+Qt 6.5+, TagLib 2, ffmpeg and clang-format, then
 
 ```sh
 sh tools/check.sh
@@ -118,7 +118,7 @@ linuxbeectl path build --field "Album Artist=Adele" --field "Album=21" \
 The last line prints `Adele/21/Someone like You.mp3`. Settings live in
 `~/.config/linuxbee/linuxbee/linuxbee.ini`, the library in
 `~/.local/share/linuxbee/linuxbee/library.db`, playlists beside it. Yes,
-`linuxbee` appears twice in each path; the manual says why. To carry over from
+`linuxbee` appears twice in each path. To carry over from
 a MusicBee 3 settings file: `linuxbeectl settings import FILE` prints what it
 would take, `--apply --to INI` writes it.
 
@@ -136,8 +136,8 @@ Organise cannot be undone.
 **Can it download cover art?** No. Covers are read from the files, and only
 the album headings show them.
 
-**Gapless, crossfade, equaliser?** Not built. ReplayGain tags get written; the
-player does not apply them yet.
+**Gapless, crossfade, equaliser?** Not built. ReplayGain is applied: Controls >
+Replay Gain, Off, Track Gain or Album Gain. A boost stops at full volume.
 
 **Drag and drop?** Not yet. Tracks cannot be dragged onto a playlist, and an
 auto-playlist is made by dropping a `.lbauto` file in its folder.
