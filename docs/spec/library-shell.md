@@ -232,6 +232,51 @@ the shell's commands, the command's line is not the usual one:
 
 Nothing else is done: the selection and the view stay.
 
+## SH-REFUSED: every other refusal is said too
+
+(Found while reading for this: nothing in the window listened to the
+library's `failed` except the commands of SH-FAILED and Organise, for
+the length of their own call. A play that could not be counted, files
+that could not be added, a saved tag the library could not read again
+and a background scan that could not be stored were refused without a
+word in the window.)
+
+The shell has one `RefusalNotice` (`shell/refusalnotice.h`), its
+child, on the library and the window's status bar, for as long as the
+shell lives. It listens to `failed` always.
+
+- **When.** Not during the library's call: when control next returns
+  to the event loop. The command that made the call has by then said
+  its own line.
+- **Once.** All the refusals gathered until then are one line. The
+  count starts again afterwards.
+- **Never a dialog**, and no window: a play that could not be counted
+  must not stop the user's work.
+- **The line.** With `<what>` the library's words for the last
+  refusal gathered, and `<tail>` being `: <what>` for one refusal and
+  `, N times: <what>` for N:
+  - if a line has been put in the status bar since the first refusal
+    gathered, and is still there, and it contains `library could not
+    be changed` in any case of letters: nothing is said. That command
+    worded it itself, and better;
+  - if such a line is there and does not contain it: that line,
+    followed by `; the library could not be changed<tail>`. The line
+    is true as far as it goes (the tags were saved; none was added);
+  - otherwise (no line since, or it was cleared again):
+    `The library could not be changed<tail>`. A line from before the
+    refusal is about something else, and is replaced.
+- The shell's `lastMessage()` is its own last line and is not changed
+  by this. `lastLine()` and `count()` are the notice's.
+- The status bar or the library may be destroyed before the notice,
+  or the notice with refusals gathered: nothing is said, nothing
+  breaks.
+
+Known: a command whose line is letter for letter the line already
+in the status bar is not seen to have shown one (the status bar says
+nothing of it), so the refusal then replaces the line. `<what>` is the database's own wording ("database is
+locked"), not a sentence for a user. A play that could not be counted
+is said and is still lost; it is not kept for later.
+
 ## SH-MESSAGE
 
 After a command has done something, one line is shown in the window's
@@ -245,6 +290,14 @@ status bar and kept as `lastMessage()`:
 | sending to a section | `Moved 2 to Inbox` |
 
 The numbers are what the library answered, not what was asked for.
+
+**A scan the library refused.** When the library emitted `failed`
+while the shell's scan was running, the scan's line is followed by
+`; the library could not be changed, and what was not stored will be
+found by the next scan` (after ` (stopped)`, when that is there). A
+part of a scan is stored whole or not at all (L-PARTS), so the next
+scan does find it. A refusal from before the scan began is not the
+scan's.
 
 ## SH-PLAY
 
