@@ -127,6 +127,33 @@ and what was done stays done.
 - A failure makes that entry `Failed`, with a message, leaves its source
   where it was, and does not stop the run.
 
+### O-ACROSS: a move to another file system
+
+(Found by an outside review of the code, 2026-11-16: the move was
+left to the toolkit's own fallback, which keeps neither the time nor
+any of the checks below.)
+
+A move is tried as a rename by the system's own call, which never
+copies. On one file system that is all: the file is the same file
+under its new name. It never replaces a file that is at the target.
+
+Only when the system says the target is on another file system is
+the file copied, in this order:
+
+1. the bytes are copied to the target;
+2. the copy is flushed to the disk (`fsync`), and its folder too;
+3. the copy has the source's size, or the move fails;
+4. the copy is given the source's modification time and mode;
+5. only then is the source removed.
+
+A failure at any step leaves the source as it was (bytes, time and
+mode), removes whatever of the target was written, and is reported
+as that entry's failure. Any other refusal of the rename (no
+permission, no such file) is a failure at once, with no copy tried.
+
+A moved file keeps its modification time in both cases, so a later
+scan does not take it for a changed file.
+
 `done`, `skipped` and `failed` count the outcomes, O-OTHER files included.
 
 ### O-REPLACED
