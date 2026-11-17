@@ -319,7 +319,10 @@ for the whole five seconds.) `recordPlay` and `recordSkip` come from
 no command: a track ended. They wait the short wait, a quarter of a
 second (`setQuickWait` sets another length), and are then refused as
 any change is. The caller keeps what was refused and offers it again
-(playback-shell.md, PS-COUNT). Every other change waits as above.
+(playback-shell.md, PS-COUNT). So does `applyScan` when
+`ScanOptions::nobodyWaits` is set, which the folder monitor's scans
+set and a scan the user asked for never does. Every other change
+waits as above.
 
 ### L-FAILED
 

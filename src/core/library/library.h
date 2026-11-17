@@ -49,6 +49,9 @@ struct ScanOptions {
     // Called with the number of files looked at so far and the total.
     // Returning false stops the scan; what was stored stays stored.
     std::function<bool(int done, int total)> progress;
+    // L-WAIT: true for a scan nobody asked for (the folder monitor's): it waits the short
+    // wait for the library, not the long one.
+    bool nobodyWaits = false;
 };
 
 struct ScanReport {
