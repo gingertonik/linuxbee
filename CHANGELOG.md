@@ -6,6 +6,7 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- linuxBee can be installed for one user with `install.sh`, and removed with `--uninstall`.
 - A change made while another program has the library open waits for it, and a scan that cannot
   store says so and stores nothing.
 - Organise says when the library could not record its moves, and then records none of the run.
