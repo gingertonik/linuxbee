@@ -175,6 +175,39 @@ The gaps a MusicBee user will notice first:
 
 ## Try it
 
+### Install a release
+
+```sh
+curl -fsSL https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh | sh
+```
+
+That address takes you to the `install.sh` of the release marked latest. To
+read the script before running it:
+
+```sh
+curl -fsSL -o install.sh https://github.com/gingertonik/linuxbee/releases/latest/download/install.sh
+less install.sh
+sh install.sh
+```
+
+The script builds a release from the tagged source in a temporary folder and
+installs into `~/.local`. Each release carries its own copy of the script,
+stamped with the tag and the commit it was cut from, and the script refuses if
+the tag does not point at that commit.
+
+On Arch and the Arch family it checks the dependencies by version. Anywhere
+else it stops and prints what is missing, with the package-manager command to
+get it. It refuses to run as root and never uses sudo: it installs into your
+home only, and prints package commands rather than running them.
+
+- `install.sh --dry-run` prints the plan and writes nothing.
+- `install.sh --uninstall` removes what the installer put there, from its own
+  manifest.
+- Settings, the library, playlists and music files are never touched by the
+  uninstall.
+
+### Build from source
+
 After `sh tools/check.sh` prints `rc=0`, two programs are in `build/dev`:
 
 - `build/dev/src/app/linuxbee` opens the window.
