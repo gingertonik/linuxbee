@@ -57,6 +57,38 @@ Forcing to the disk is part of the save, not a courtesy.
 No locked test checks this rule, because a test cannot make `fsync`
 fail. It is checked by reading the code.
 
+## WS-WRITTEN
+
+(Found by the audit of the tag write path, in 0.7.0 as released: with
+no room for the grown file the tag library reported a save, the copy
+was cut off where the room ended, and it was put in the song's place.
+The command said "saved". Shown for MP3, FLAC, Ogg, M4A and WAV.)
+
+**A copy that was not written in full is never put in the song's
+place.** The tag library is not believed about this: it does not
+report a write that failed or was cut short. Every write made into
+the copy in step 3 is accounted for by the writer itself, and if any
+one of them did not put down all its bytes, wherever in the save it
+came and whatever was written after it, the save is `Failed`: the
+copy is removed, the original is byte for byte what it was, and
+nothing is left beside it.
+
+So for any amount of room there are two outcomes and no third: `Ok`,
+and the file is the whole new version; or `Failed`, and the file is
+the song as it was.
+
+This covers a full disk, a quota, a limit on file size, and an error
+of the medium, when the system reports them at the write. Where it
+reports them only when the data is forced out (a file system that
+allocates late, a network share), step 4 fails, which is WS-SYNC.
+
+The copy of step 2 is the same: a copy that could not be made whole
+is removed, and the save is `Failed`.
+
+Not covered: a tag library that writes every byte it means to and
+means the wrong ones. Nothing here reads the audio of the copy
+again.
+
 ## WS-NAME
 
 The copy is in the folder of the file itself and is called
