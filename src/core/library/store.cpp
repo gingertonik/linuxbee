@@ -18,7 +18,7 @@ namespace {
 
 // L-SCHEMA: this version of the schema. A file with a lower number is brought
 // up to date when opened; a higher one is refused.
-constexpr int kSchemaVersionValue = 1;
+constexpr int kSchemaVersionValue = 2;
 
 // L-STORE: "all times are stored and returned in UTC, to the second", so a
 // time is one integer: whole seconds since the epoch. kNoTime is a time that
@@ -160,9 +160,9 @@ const QLatin1String kSelectTrack(
 // is bound, so no path, tag, category or time is ever part of the text.
 const QLatin1String kInsertTrack(
     "INSERT INTO tracks (path, category, size_bytes, modified_secs, date_added_secs, play_count, "
-    "skip_count, last_played_secs, missing, picture_count, tags_json)"
+    "skip_count, last_played_secs, missing, picture_count, tags_json, reader)"
     " VALUES (:path, :category, :size, :modified, :added, :plays, :skips, :lastPlayed, :missing, "
-    ":pictures, :tags)");
+    ":pictures, :tags, :reader)");
 
 LibraryTrack rowFromRead(const QSqlQuery &query)
 {
@@ -183,11 +183,12 @@ LibraryTrack rowFromRead(const QSqlQuery &query)
     return track;
 }
 
-// L-SCHEMA: create what a version-0 file has no rows for. All of it is this
-// program's own text: nothing here carries a path, a tag or any other data.
+// L-SCHEMA: create what a version-0 file has no rows for, and take a version-1 file up to version
+// 2. All of it is this program's own text: nothing here carries a path, a tag or any other data.
 // L-WAIT, L-OPEN: the write lock is taken first and waited for. Another start may have made the
-// tables while this one waited, so the version is looked at again once the lock is held; then
-// there is nothing to make and this succeeds.
+// tables or run the step while this one waited, so the version is looked at again once the lock is
+// held, and the steps run from what is found then; a file already at this version needs none and
+// this succeeds. The steps and the new `user_version` are one transaction.
 bool createSchema(QSqlDatabase &database, QString *error)
 {
     QSqlQuery query(database);
@@ -196,39 +197,55 @@ bool createSchema(QSqlDatabase &database, QString *error)
             QStringLiteral("Cannot start writing a new library: %1").arg(query.lastError().text()));
         return false;
     }
+    int found = 0;
     {
         QSqlQuery again(database);
-        if (again.exec(QStringLiteral("PRAGMA user_version")) && again.next()
-            && again.value(0).toInt() >= kSchemaVersionValue) {
+        if (!again.exec(QStringLiteral("PRAGMA user_version")) || !again.next()) {
+            const QString reason = again.lastError().text();
             again.finish();
             database.rollback();
-            return true;
+            setError(error, QStringLiteral("Cannot read the library version: %1").arg(reason));
+            return false;
         }
+        found = again.value(0).toInt();
+        again.finish();
     }
-    const QString statements[] = {
-        QStringLiteral("CREATE TABLE tracks ("
-                       "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                       "path TEXT NOT NULL UNIQUE, "
-                       "category TEXT NOT NULL, "
-                       "size_bytes INTEGER NOT NULL, "
-                       "modified_secs INTEGER NOT NULL, "
-                       "date_added_secs INTEGER NOT NULL, "
-                       "play_count INTEGER NOT NULL DEFAULT 0, "
-                       "skip_count INTEGER NOT NULL DEFAULT 0, "
-                       "last_played_secs INTEGER NOT NULL DEFAULT (-1), "
-                       "missing INTEGER NOT NULL DEFAULT 0, "
-                       "picture_count INTEGER NOT NULL DEFAULT 0, "
-                       "tags_json TEXT NOT NULL)"),
-        QStringLiteral("CREATE INDEX tracks_by_category ON tracks (category)"),
-        // The schema number lives in SQLite's user_version. It is this
-        // program's own number, so it is written out and not bound.
-        QStringLiteral("PRAGMA user_version = %1").arg(kSchemaVersionValue),
-    };
-    for (const QString &statement : statements) {
+    if (found >= kSchemaVersionValue) {
+        database.rollback();
+        return true;
+    }
+    QStringList statements;
+    if (found < 1) {
+        statements += QStringLiteral("CREATE TABLE tracks ("
+                                     "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                                     "path TEXT NOT NULL UNIQUE, "
+                                     "category TEXT NOT NULL, "
+                                     "size_bytes INTEGER NOT NULL, "
+                                     "modified_secs INTEGER NOT NULL, "
+                                     "date_added_secs INTEGER NOT NULL, "
+                                     "play_count INTEGER NOT NULL DEFAULT 0, "
+                                     "skip_count INTEGER NOT NULL DEFAULT 0, "
+                                     "last_played_secs INTEGER NOT NULL DEFAULT (-1), "
+                                     "missing INTEGER NOT NULL DEFAULT 0, "
+                                     "picture_count INTEGER NOT NULL DEFAULT 0, "
+                                     "tags_json TEXT NOT NULL, "
+                                     "reader INTEGER NOT NULL DEFAULT 0)");
+        statements += QStringLiteral("CREATE INDEX tracks_by_category ON tracks (category)");
+    } else {
+        // L-SCHEMA, version 2: every track already held is given 0, lower than any reader's.
+        statements
+            += QStringLiteral("ALTER TABLE tracks ADD COLUMN reader INTEGER NOT NULL DEFAULT 0");
+    }
+    // The schema number lives in SQLite's user_version. It is this program's own number, so it is
+    // written out and not bound.
+    statements += QStringLiteral("PRAGMA user_version = %1").arg(kSchemaVersionValue);
+    for (const QString &statement : std::as_const(statements)) {
         if (!query.exec(statement)) {
             const QString reason = query.lastError().text();
             database.rollback();
-            setError(error, QStringLiteral("Cannot create the library tables: %1").arg(reason));
+            setError(error,
+                found < 1 ? QStringLiteral("Cannot create the library tables: %1").arg(reason)
+                          : QStringLiteral("Cannot bring the library up to date: %1").arg(reason));
             return false;
         }
     }
@@ -407,8 +424,8 @@ ScanKnown Store::scanKnown() const
     if (!d->opened)
         return known;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    if (!query.exec(
-            QStringLiteral("SELECT id, path, size_bytes, modified_secs, missing FROM tracks")))
+    if (!query.exec(QStringLiteral(
+            "SELECT id, path, size_bytes, modified_secs, missing, reader FROM tracks")))
         return known;
     while (query.next()) {
         ScanKnown::Entry entry;
@@ -416,6 +433,7 @@ ScanKnown Store::scanKnown() const
         entry.sizeBytes = query.value(2).toLongLong();
         entry.modified = toDateTime(query.value(3).toLongLong());
         entry.missing = query.value(4).toBool();
+        entry.reader = query.value(5).toInt();
         known.byPath.insert(query.value(1).toString(), entry);
     }
     return known;
@@ -563,6 +581,7 @@ qint64 Store::insert(const LibraryTrack &track)
     query.bindValue(QStringLiteral(":missing"), track.missing);
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
+    query.bindValue(QStringLiteral(":reader"), kReaderVersion);
     if (!query.exec()) {
         d->refused(query.lastError().text());
         return -1;
@@ -776,11 +795,13 @@ bool Store::updateReading(qint64 id, const LibraryTrack &track)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("UPDATE tracks SET size_bytes = :size, modified_secs = :modified, "
-                                 "picture_count = :pictures, tags_json = :tags WHERE id = :id"));
+                                 "picture_count = :pictures, tags_json = :tags, reader = :reader "
+                                 "WHERE id = :id"));
     query.bindValue(QStringLiteral(":size"), track.sizeBytes);
     query.bindValue(QStringLiteral(":modified"), toSecs(track.modified));
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
+    query.bindValue(QStringLiteral(":reader"), kReaderVersion);
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
         d->refused(query.lastError().text());

@@ -146,6 +146,14 @@ void walkForUnreadable(const QString &folder, UnreadableWalk *walk)
         walk->folders.append(folder);
 }
 
+// L-SCAN, the reader's number: the properties of the sound, as the library keeps them.
+bool sameSound(const AudioInfo &a, const AudioInfo &b)
+{
+    return a.durationMs == b.durationMs && a.bitrateKbps == b.bitrateKbps
+        && a.sampleRateHz == b.sampleRateHz && a.channels == b.channels
+        && a.bitsPerSample == b.bitsPerSample;
+}
+
 // L-PARTS: what the library was known to hold of a track when it was looked
 // at, put into `judged` under the track's id. `path` is the path as stored.
 void judge(ScanFindings *found, const QString &path, const ScanKnown::Entry &entry)
@@ -161,7 +169,8 @@ void judge(ScanFindings *found, const QString &path, const ScanKnown::Entry &ent
 // L-PARTS: what looking at one file finds, put into `found`. A file the
 // library does not know is read and is `fresh`; a known file that is marked
 // missing and is there is `found`, and is read again when it differs; a known
-// file as stored is unchanged; one that differs is read again.
+// file as stored, read by this reader or a later one, is unchanged; one that differs, or that an
+// older reader read, is read again (L-SCAN, the reader's number).
 void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found)
 {
     const auto entry = known.byPath.constFind(QDir::cleanPath(path));
@@ -176,30 +185,33 @@ void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found
     }
     const QFileInfo info(path);
     const bool asStored = info.size() == entry->sizeBytes && fileModified(info) == entry->modified;
+    const bool readByOlder = entry->reader < kReaderVersion;
     if (entry->missing) {
         // L-SCAN: a known track marked missing whose file is there is found,
         // and is read again when it differs. It is not also counted as
         // unchanged or updated.
         found->found.append(entry->id);
         judge(found, entry.key(), *entry);
-        if (!asStored) {
+        if (!asStored || readByOlder) {
             ScanFindings::Reread again;
             again.id = entry->id;
             again.wasMissing = true;
+            again.onlyTheReader = asStored;
             if (readAsTrack(path, &again.reading))
                 found->reread.append(again);
         }
         return;
     }
-    // L-SCAN: a known file whose size and time are as stored is unchanged,
-    // and is not read.
-    if (asStored) {
+    // L-SCAN: a known file whose size and time are as stored, and which this reader or a later one
+    // read, is unchanged, and is not read.
+    if (asStored && !readByOlder) {
         ++found->unchanged;
         return;
     }
-    // L-SCAN: a known file that differs is read again.
+    // L-SCAN: a known file that differs, or that an older reader read, is read again.
     ScanFindings::Reread again;
     again.id = entry->id;
+    again.onlyTheReader = asStored;
     if (!readAsTrack(path, &again.reading)) {
         found->notAudio.append(path); // the file is there and is not audio
         return;
@@ -406,12 +418,31 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // L-SCAN: a known file that differs is read again. Its id, category, date
     // added and statistics stay, which is what updateReading leaves. One that
     // was marked missing is found, and is not also updated.
+    // L-SCAN, the reader's number: one read again for the number alone, not marked missing, that
+    // reads as the library holds it is stored (so its number is) and is `unchanged`: not
+    // `updated`, and no signal names it.
+    int rereadUnchanged = 0;
     for (const ScanFindings::Reread &again : findings.reread) {
-        if (stillFits(again.id) && d->store.updateReading(again.id, again.reading)
-            && !again.wasMissing)
-            report.updated.append(again.id);
-        else if (!d->store.lastError().isEmpty())
+        if (!stillFits(again.id)) {
+            if (!d->store.lastError().isEmpty())
+                return refuse();
+            continue;
+        }
+        bool asHeld = false;
+        if (again.onlyTheReader && !again.wasMissing) {
+            const std::optional<LibraryTrack> held = d->store.byId(again.id);
+            asHeld = held && held->tags.fields == again.reading.tags.fields
+                && held->pictureCount == again.reading.pictureCount
+                && sameSound(held->tags.audio, again.reading.tags.audio);
+        }
+        if (d->store.updateReading(again.id, again.reading) && !again.wasMissing) {
+            if (asHeld)
+                ++rereadUnchanged;
+            else
+                report.updated.append(again.id);
+        } else if (!d->store.lastError().isEmpty()) {
             return refuse();
+        }
     }
     for (const qint64 id : findings.nowMissing) {
         if (stillFits(id) && d->store.setMissing(id, true))
@@ -419,7 +450,7 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         else if (!d->store.lastError().isEmpty())
             return refuse();
     }
-    report.unchanged = findings.unchanged;
+    report.unchanged = findings.unchanged + rereadUnchanged;
     report.notAudio = findings.notAudio;
     report.unreadableNames = findings.unreadableNames;
     report.unreadableIn = findings.unreadableIn;
