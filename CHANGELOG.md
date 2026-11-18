@@ -6,6 +6,8 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- **Undo of a tag change could write the old tags into the wrong file**, when the edited file had been moved (by Organise, for one) and another file had its old name. Undo now follows a file the library moved, and leaves alone any file that is not the one it edited, saying so. One thing is given up for this: a file that another program saved after the change is also left alone, where Undo used to write over it.
+
 ## 0.8.0 (2026-11-18)
 
 - **Before the first start of this version, copy `~/.local/share/linuxbee` and `~/.config/linuxbee` somewhere safe.** This update moves the profile and changes the library file, and there is no way back without that copy.

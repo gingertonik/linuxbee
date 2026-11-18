@@ -9,7 +9,9 @@
 
 #include <optional>
 
-// Contract: docs/spec/tag-undo.md (UN-RECORD, UN-STEP).
+#include <sys/stat.h>
+
+// Contract: docs/spec/tag-undo.md (UN-RECORD, UN-STEP, UN-SAME, UN-MOVED).
 namespace linuxbee {
 
 namespace {
@@ -23,9 +25,42 @@ struct KeptPicture {
     QString fileName;
 };
 
+// UN-SAME: what a file is, as `stat` says it: device, inode, size and modification time
+// (with the nanoseconds).
+struct Identity {
+    quint64 device = 0;
+    quint64 inode = 0;
+    qint64 size = 0;
+    qint64 seconds = 0;
+    qint64 nanoseconds = 0;
+
+    bool operator==(const Identity &other) const
+    {
+        return device == other.device && inode == other.inode && size == other.size
+            && seconds == other.seconds && nanoseconds == other.nanoseconds;
+    }
+};
+
+// What is at `path` now. Nothing when `stat` finds nothing there.
+std::optional<Identity> identityOf(const QString &path)
+{
+    struct stat info { };
+    if (::stat(QFile::encodeName(path).constData(), &info) != 0)
+        return std::nullopt;
+    Identity identity;
+    identity.device = quint64(info.st_dev);
+    identity.inode = quint64(info.st_ino);
+    identity.size = qint64(info.st_size);
+    identity.seconds = qint64(info.st_mtim.tv_sec);
+    identity.nanoseconds = qint64(info.st_mtim.tv_nsec);
+    return identity;
+}
+
 // What the entries one file's changes named held before the first write that named them.
 struct KeptFile {
     QString path;
+    // The file as the last write of the step left it. Nothing when it could not be read.
+    std::optional<Identity> identity;
     QMap<QString, QStringList> fields;
     QMap<QString, QStringList> other;
     std::optional<QList<KeptPicture>> pictures;
@@ -215,6 +250,8 @@ WriteResult TagUndo::write(const QString &path, const TagChanges &changes, const
         d->sweep(); // nothing is kept for it, so the picture files made for it go
         return result;
     }
+    // UN-SAME: what the file is, straight after the write the step keeps it for.
+    kept.identity = identityOf(path);
 
     // A file written twice keeps, for each entry, what it held before the first write that named
     // it.
@@ -229,6 +266,7 @@ WriteResult TagUndo::write(const QString &path, const TagChanges &changes, const
         }
         if (kept.pictures && !there->pictures)
             there->pictures = kept.pictures;
+        there->identity = kept.identity; // as the last write left it
         d->sweep();
         return result;
     }
@@ -281,6 +319,14 @@ TagUndo::Outcome TagUndo::undo(const Writer &writer)
         return outcome;
     const Step step = d->committed;
     for (const KeptFile &file : step.files) {
+        // UN-SAME: something at the path that is not the file that was edited is not written to.
+        // Nothing at the path goes to the writer as before, which fails.
+        if (const std::optional<Identity> now = identityOf(file.path)) {
+            if (!file.identity || !(*now == *file.identity)) {
+                outcome.changed.append(file.path);
+                continue;
+            }
+        }
         TagChanges change;
         change.fields = file.fields;
         change.other = file.other;
@@ -310,10 +356,30 @@ TagUndo::Outcome TagUndo::undo(const Writer &writer)
     return outcome;
 }
 
-// UN-MOVED. fix-83: to be built.
+// UN-MOVED: every file of the pending and of the committed step whose path is a key gets the new
+// path. Where the file at the new path has the size that was kept, what it is is taken from
+// there (a move to another disk is a copy, and a copy is another inode); where not, nothing is
+// taken, and UN-SAME finds it changed.
 void TagUndo::moved(const QHash<QString, QString> &oldToNew)
 {
-    Q_UNUSED(oldToNew);
+    if (oldToNew.isEmpty())
+        return;
+    bool pathsChanged = false;
+    for (Step *step : { &d->pending, &d->committed }) {
+        for (KeptFile &file : step->files) {
+            const auto it = oldToNew.constFind(file.path);
+            if (it == oldToNew.constEnd())
+                continue;
+            file.path = it.value();
+            if (step == &d->committed)
+                pathsChanged = true;
+            const std::optional<Identity> there = identityOf(file.path);
+            if (there && file.identity && there->size == file.identity->size)
+                file.identity = there;
+        }
+    }
+    if (pathsChanged)
+        emit changed();
 }
 
 }

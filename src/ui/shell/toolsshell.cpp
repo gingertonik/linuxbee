@@ -332,6 +332,14 @@ struct ToolsShell::Private {
             : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Undid %1: %2 files put back")
                   .arg(name)
                   .arg(put);
+        // UN-SAME: files that are no longer the file that was edited were left as they are.
+        if (outcome.changed.size() == 1)
+            text += QCoreApplication::translate(
+                "linuxbee::ui::ToolsShell", "; 1 changed or moved since, and left as it is");
+        else if (!outcome.changed.isEmpty())
+            text += QCoreApplication::translate(
+                "linuxbee::ui::ToolsShell", "; %1 changed or moved since, and left as they are")
+                        .arg(outcome.changed.size());
         if (!outcome.failed.isEmpty())
             text += QCoreApplication::translate(
                 "linuxbee::ui::ToolsShell", "; %1 could not be put back")
@@ -439,6 +447,12 @@ ToolsShell::ToolsShell(MainWindow *window, ActionRegistry *actions, Library *lib
     d->libraryShell = libraryShell;
     d->settings = settings;
     d->undo = std::make_unique<TagUndo>(d->house.pictures());
+    // TS-UNDO, UN-MOVED: the undo is told of every move the library reports, so a change is
+    // undone in the file where the move has put it. The undo dies with the shell, so the
+    // connection ends with it.
+    TagUndo *const undo = d->undo.get();
+    connect(library, &Library::pathsMoved, undo,
+        [undo](const QHash<QString, QString> &oldToNew) { undo->moved(oldToNew); });
     d->presenter
         = presenter ? std::move(presenter) : Presenter([](QDialog *dialog) { dialog->exec(); });
 
