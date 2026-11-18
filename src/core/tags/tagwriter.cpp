@@ -373,8 +373,9 @@ struct Replaced {
 
 // W-ONLY, named: the frames of the key are taken out, and the new values are written as the tag
 // library writes that key. Comments and lyrics are one frame a value (the library would make
-// several into one user text frame), and the frame for value n takes the language and the
-// description of the n-th frame it replaces; beyond them, the first's.
+// several into one user text frame), and a value gets a frame of its own only where it takes
+// the place of a frame that was there (language and description, alike counting once); the
+// values beyond the places are added to the last frame written, after a line feed.
 void writeNamedKey(
     TagLib::ID3v2::Tag *tag, const TagLib::String &key, const TagLib::StringList &values)
 {
@@ -382,6 +383,19 @@ void writeNamedKey(
     TagLib::String role;
     if (listOfPeopleFor(key, listId, role)) {
         rewriteListOfPeople(tag, listId, role, values);
+        // The key may be held in another frame too (some taggers write an arranger or a
+        // producer as a user text frame): that frame is a frame of the key, and is taken
+        // out. The value is in the list alone.
+        std::vector<TagLib::ID3v2::Frame *> others;
+        for (TagLib::ID3v2::Frame *frame : tag->frameList()) {
+            const TagLib::ByteVector id = frame->frameID();
+            if (id == "TIPL" || id == "TMCL" || id == "IPLS")
+                continue;
+            if (FrameProperties::of(frame).contains(key))
+                others.push_back(frame);
+        }
+        for (TagLib::ID3v2::Frame *frame : others)
+            tag->removeFrame(frame, true);
         return;
     }
 
@@ -408,15 +422,35 @@ void writeNamedKey(
             tag->addFrame(frame);
         return;
     }
-    size_t at = 0;
-    for (const TagLib::String &value : values) {
+    // The places are the language and description of each frame replaced, in order, two alike
+    // counting once. Value n goes to place n; the values beyond the places are added to the
+    // last frame written, after a line feed. With no frame replaced there is one place, the
+    // frame as the tag library makes it.
+    std::vector<Replaced> places;
+    for (const Replaced &from : replaced) {
+        bool seen = false;
+        for (const Replaced &place : places)
+            seen = seen
+                || (place.language == from.language && place.description == from.description);
+        if (!seen)
+            places.push_back(from);
+    }
+    const size_t count = places.empty() ? 1 : places.size();
+    for (size_t at = 0; at < count && at < values.size(); ++at) {
+        TagLib::String text = values[static_cast<unsigned int>(at)];
+        if (at + 1 == count) {
+            for (size_t more = at + 1; more < values.size(); ++more) {
+                text += TagLib::String("\n");
+                text += values[static_cast<unsigned int>(more)];
+            }
+        }
         TagLib::StringList one;
-        one.append(value);
+        one.append(text);
         TagLib::ID3v2::Frame *frame = factory->createFrameForProperty(key, one);
         if (!frame)
             continue;
-        if (!replaced.empty()) {
-            const Replaced &from = replaced[at < replaced.size() ? at : 0];
+        if (!places.empty()) {
+            const Replaced &from = places[at];
             if (auto *comment = dynamic_cast<TagLib::ID3v2::CommentsFrame *>(frame)) {
                 comment->setLanguage(from.language);
                 comment->setDescription(from.description);
@@ -427,7 +461,6 @@ void writeNamedKey(
             }
         }
         tag->addFrame(frame);
-        ++at;
     }
 }
 
@@ -440,18 +473,19 @@ void saveId3Properties(TagLib::File *file, TagLib::ID3v2::Tag *tag, const TagLib
 {
     TagLib::StringList named = namedKeys(was, now);
 
-    // A value the file was read as having that the ID3v2 tag has no frame for came from its
-    // ID3v1 tag: it is written into the ID3v2 tag too, named or not.
+    // A value the file was read as having that the ID3v2 tag has no frame for came from another
+    // tag (APEv2, or ID3v1): it is written into the ID3v2 tag too, named or not, or it would no
+    // longer be shown once the file is read from the ID3v2 tag.
     auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file);
-    if (mpeg && mpeg->hasID3v1Tag()) {
+    {
         TagLib::StringList heldKeys;
         for (const TagLib::ID3v2::Frame *frame : tag->frameList()) {
             for (const auto &entry : FrameProperties::of(frame))
                 heldKeys.append(entry.first);
         }
-        for (const auto &entry : mpeg->ID3v1Tag()->properties()) {
+        for (const auto &entry : now) {
             const TagLib::String &key = entry.first;
-            if (!named.contains(key) && !heldKeys.contains(key) && !valuesOf(now, key).isEmpty())
+            if (!named.contains(key) && !heldKeys.contains(key) && !entry.second.isEmpty())
                 named.append(key);
         }
     }
