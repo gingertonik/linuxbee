@@ -15,6 +15,18 @@
 // TagLib type appears in this header.
 namespace linuxbee {
 
+// W-RATING, "the frames whole": one POPM frame of an ID3v2 tag, as it stands in the file.
+struct RatingFrame {
+    QString address; // whose rating it is
+    int rating = 0; // the byte itself, 0 to 255
+    quint32 counter = 0; // the play counter
+
+    bool operator==(const RatingFrame &other) const
+    {
+        return address == other.address && rating == other.rating && counter == other.counter;
+    }
+};
+
 struct TagChanges {
     // Catalogue field name -> its new values. An empty list removes the
     // field. A field that is not named here is left exactly as it is.
@@ -23,8 +35,16 @@ struct TagChanges {
     QMap<QString, QStringList> other;
     // When set, the file's embedded pictures become exactly this list.
     std::optional<QList<Picture>> pictures;
+    // W-RATING, "the frames whole": when set, the POPM frames of the file's ID3v2 tag become
+    // exactly this list, in order, whatever the Rating entry says. Meaningless for a file with
+    // no ID3v2 tag family.
+    std::optional<QList<RatingFrame>> ratingFrames;
 
-    bool isEmpty() const { return fields.isEmpty() && other.isEmpty() && !pictures.has_value(); }
+    bool isEmpty() const
+    {
+        return fields.isEmpty() && other.isEmpty() && !pictures.has_value()
+            && !ratingFrames.has_value();
+    }
 };
 
 struct WriteOptions {
@@ -72,6 +92,11 @@ struct WriteResult {
 
 WriteResult writeTags(
     const QString &filePath, const TagChanges &changes, const WriteOptions &options = { });
+
+// W-RATING, "the frames whole": the POPM frames of the file's ID3v2 tag (MP3, WAV), in order.
+// Nothing for a file that is not of the ID3v2 family or cannot be read; an empty list for one
+// with no such frame.
+std::optional<QList<RatingFrame>> readRatingFrames(const QString &filePath);
 
 // W-RATING: the POPM byte written for a star rating (0.5 to 5 in halves).
 // Returns 0 for anything else.

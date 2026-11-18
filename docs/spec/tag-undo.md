@@ -71,7 +71,9 @@ lists are empty. An undo is not itself a step: there is no redo.
 Undo writes the earlier values of the entries the change named. It does
 not look at what tags the file holds now (it does look at whether it is
 the same file: UN-SAME), and it does not bring back bytes:
-a tag is written the way `writeTags` writes it (tag-writing.md).
+a tag is written the way `writeTags` writes it (tag-writing.md). The
+rating frames of an ID3v2 tag are the one thing brought back whole:
+UN-RATING.
 
 `changed()` is emitted whenever `canUndo()`, `name()` or `paths()` may
 answer differently: at the `end()` of a step that kept a file, and after
@@ -80,6 +82,43 @@ an `undo()` that had a step. Not for a step that kept nothing.
 When the object goes, the step is forgotten and its picture files are
 removed. Only files this object made are ever removed from the scratch
 folder; the folder itself is left.
+
+## UN-RATING: the rating frames come back whole
+
+(Found by the audit of undo, 2026-11-18. In an ID3v2 tag the rating is
+one byte of a `POPM` frame. The frame also holds an address, which
+says whose rating it is, and a play counter, and a file can have one
+such frame for each player that rated it. Undo wrote a fresh frame
+from the stars. So a play counter kept in a frame with no rating was
+deleted; a frame taken out came back with no address and a counter of
+0; a second player's frame did not come back; and a byte of 200 came
+back as 196.)
+
+When a change names Rating and the file has an ID3v2 tag (MP3, WAV):
+
+- what is kept for the file (UN-RECORD 3) is also **every `POPM` frame
+  as it was**: its address, its rating byte and its counter, in the
+  order of the tag. A file with no such frame keeps "none". UN-RECORD
+  4 holds: a file written twice keeps the frames it had before the
+  first write that named Rating;
+- undo puts the file's `POPM` frames back as exactly those: as many,
+  in that order, each with its address, byte and counter. Whatever
+  `POPM` frames the file has by then go. A file that had none has
+  none;
+- that is so too when the file reads the same stars now as it did
+  before the step, and its frames are not what they were: the result
+  is `Ok`, not `Unchanged`;
+- the frames travel in the change `undo` hands to the writer, so a
+  caller's writer that passes the change on to `writeTags` brings
+  them back (tag-writing.md, W-RATING, "the frames whole").
+
+A change that does not name Rating keeps no frames, and its undo does
+not touch them. In every other format the rating is a key like any
+other, and UN-RECORD is all there is.
+
+This is about undo only. What a rating change does to the frames is
+W-RATING, as it was: one frame is left, with the address and counter
+of the first, and removing the rating removes the frame.
 
 ## UN-SAME: only into the file that was edited
 
