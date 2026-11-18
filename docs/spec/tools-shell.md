@@ -112,7 +112,10 @@ the step before it.
    when any was no longer the file that was edited (UN-SAME),
    `; K changed or moved since, and left as they are` (for one,
    `; 1 changed or moved since, and left as it is`); and after that,
-   when any failed, `; K could not be put back`.
+   when any failed, `; K could not be put back (Undo tries again)`.
+   Those files are still in the step (tag-undo.md, UN-KEEP), so
+   `edit.undo` again is this point again, for them alone, with `0
+   files put back` when none went.
 
 The shell tells its `TagUndo` of every move the library reports
 (`Library::pathsMoved` to `TagUndo::moved`, UN-MOVED), so a change is

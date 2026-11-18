@@ -64,9 +64,10 @@ order first written.
 `undo(writer)` hands each file, in that order, its kept entries as a
 change, unless the file is no longer the one that was edited (UN-SAME:
 it goes in `changed` and is not written). `Ok` and `Unchanged` put the
-file in `restored`; anything else in `failed`. The step is then forgotten, whatever the results, and its
-picture files are removed. With no step, `undo` does nothing and both
-lists are empty. An undo is not itself a step: there is no redo.
+file in `restored`; anything else in `failed`. A file that was put
+back leaves the step; a file that was not stays in it (UN-KEEP). With
+no step, `undo` does nothing and the lists are empty. An undo is not
+itself a step: there is no redo.
 
 Undo writes the earlier values of the entries the change named. It does
 not look at what tags the file holds now (it does look at whether it is
@@ -119,6 +120,32 @@ other, and UN-RECORD is all there is.
 This is about undo only. What a rating change does to the frames is
 W-RATING, as it was: one frame is left, with the address and counter
 of the first, and removing the rating removes the frame.
+
+## UN-KEEP: a file that was not put back stays in the step
+
+(Found by the audit of undo, 2026-11-18. Until then the step was
+forgotten after an undo whatever the results. A file that could not be
+written, on a full disk or marked read-only, could not be tried
+again, and a cover removed from it, kept only for the undo, was
+deleted.)
+
+After `undo`:
+
+- every file in `restored` has left the step;
+- every file in `failed` and every file in `changed` is still in it,
+  with all that was kept for it, its picture files too, and in the
+  order it had;
+- when no file is left, the step is forgotten and its picture files
+  are removed, as before. While one is left, `canUndo()` is true,
+  `name()` is the step's name and `paths()` are the files left.
+
+The next `undo` hands on only the files left. It can be asked as often
+as wanted; a file that fails again is kept again.
+
+Nothing else about the one step changes. The first file kept in a new
+step forgets what is left of this one, and its picture files; so does
+the end of the object. `changed()` is emitted after every `undo` that
+had a step.
 
 ## UN-SAME: only into the file that was edited
 
@@ -185,8 +212,7 @@ written). Changes that need none are recorded and undone as usual.
 - More than one step; redo.
 - Undo for a file move (the organiser), a conversion, or a delete (the
   trash is its undo).
-- Keeping the step when a file could not be put back: a file in
-  `failed` or `changed` is not offered again.
+- Saying which file could not be put back, and why.
 - Looking at the tags themselves to tell whether an unnamed change
   since would be lost: any save since is a change.
 - Keeping a step over a restart.
