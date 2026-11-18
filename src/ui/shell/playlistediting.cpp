@@ -352,6 +352,13 @@ bool PlaylistEditing::addSelected()
         return false;
     }
 
+    // PE-ADD, Y-EDIT: a playlist that was not read whole and true is not written to.
+    if (const QString problem = d->playlists->editProblem(id); !problem.isEmpty()) {
+        d->report(QStringLiteral("Could not add to the playlist ") + quoted(id)
+            + QStringLiteral(": ") + problem);
+        return false;
+    }
+
     // PE-ADD: one call for the whole selection, duplicates allowed. The paths are not empty and the
     // playlist exists, so 0 here can only mean the store could not write.
     const int added = d->playlists->append(id, paths, true);
