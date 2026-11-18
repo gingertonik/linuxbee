@@ -109,6 +109,7 @@ ImportedLibrary parseItunesLibrary(const QByteArray &xml)
         track.artist = stringOf(dict, QStringLiteral("Artist"));
         track.album = stringOf(dict, QStringLiteral("Album"));
         track.rating = ratingOf(dict);
+        track.love = stringOf(dict, QStringLiteral("Love")).trimmed();
         track.playCount = countOf(dict, QStringLiteral("Play Count"));
         track.skipCount = countOf(dict, QStringLiteral("Skip Count"));
         track.dateAdded = dateOf(dict, QStringLiteral("Date Added"));

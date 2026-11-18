@@ -18,6 +18,7 @@ settings and the library file may still change.
 - A play that cannot be counted because another program has the library no longer holds the window for five seconds, and is counted when the library is free again (while linuxBee stays open; up to 1,000 are kept).
 - Sound is decoded and played on a thread of its own, so it goes on while the window is busy.
 - On a library kept on a network disk, a play that could not be counted because another program had the library is no longer lost. Plays that were waiting are counted in one step.
+- `linuxbeectl library import FILE --map Z:=/` brings the date added, play counts, skip counts and last played from a library exported by MusicBee, and checks its ratings and Love against the files. It changes nothing unless `--apply` is given, and never a music file.
 
 ## 0.7.1 (2026-11-17)
 

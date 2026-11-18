@@ -99,23 +99,27 @@ bool parseValue(QXmlStreamReader &r, int depth, Value *out, QString *error)
         out->text = text;
     } else if (name == QLatin1String("integer")) {
         bool ok = false;
-        out->integer = text.trimmed().toLongLong(&ok);
-        if (!ok)
-            return fail(error, QStringLiteral("\"%1\" is not an integer").arg(text));
-        out->type = Value::Type::Integer;
+        const qint64 number = text.trimmed().toLongLong(&ok);
+        // I-PARSE: not a whole number is no integer, and the file is still read.
+        if (ok) {
+            out->integer = number;
+            out->type = Value::Type::Integer;
+        }
     } else if (name == QLatin1String("real")) {
         bool ok = false;
         text.trimmed().toDouble(&ok);
-        if (!ok)
-            return fail(error, QStringLiteral("\"%1\" is not a real number").arg(text));
-        out->type = Value::Type::Real;
-        out->text = text.trimmed();
+        // I-PARSE: no number is no real, and the file is still read.
+        if (ok) {
+            out->type = Value::Type::Real;
+            out->text = text.trimmed();
+        }
     } else if (name == QLatin1String("date")) {
         const QDateTime when = QDateTime::fromString(text.trimmed(), Qt::ISODate);
-        if (!when.isValid())
-            return fail(error, QStringLiteral("\"%1\" is not a date").arg(text));
-        out->type = Value::Type::Date;
-        out->date = when.toUTC();
+        // I-PARSE: no date is no date value, and the file is still read.
+        if (when.isValid()) {
+            out->type = Value::Type::Date;
+            out->date = when.toUTC();
+        }
     } else if (name == QLatin1String("data")) {
         out->type = Value::Type::Data;
         out->text = text;

@@ -108,6 +108,11 @@ public:
     bool recordSkip(qint64 id);
     // L-STATS: the library's own four facts in one statement, for an import.
     bool setStatistics(qint64 id, const TrackStatistics &statistics);
+    // L-STATS mergeStatistics: one track, merged by the statement itself from what the row holds
+    // now: the date added given when valid, the larger of each count, the later last played.
+    // True when the row changed. False with lastError() empty: no such track, or nothing to
+    // change; with words, the database refused.
+    bool mergeStatistics(qint64 id, const TrackStatistics &statistics);
 
 private:
     // Closes and removes this store's own connection, which Qt keys by name.

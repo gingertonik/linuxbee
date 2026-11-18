@@ -135,6 +135,12 @@ struct PlayRecord {
     bool skip = false;
 };
 
+// L-STATS mergeStatistics: what an import brings for one track.
+struct StatisticsMerge {
+    qint64 id;
+    TrackStatistics statistics;
+};
+
 class Library : public QObject {
     Q_OBJECT
 public:
@@ -183,6 +189,10 @@ public:
     QList<PlayRecord> recordPlays(const QList<PlayRecord> &records);
     // Replaces all four values, for an import from another program.
     bool setStatistics(qint64 id, const TrackStatistics &statistics);
+    // L-STATS: an import stored in one change, all or none: the date added given, the larger
+    // count, the later play, compared by the database. Returns the tracks changed, or -1 when
+    // refused (nothing stored, `failed` said once).
+    int mergeStatistics(const QList<StatisticsMerge> &merges);
 
 signals:
     void tracksAdded(const QList<qint64> &ids);

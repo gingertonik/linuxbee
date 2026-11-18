@@ -493,6 +493,40 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     return true;
 }
 
+// L-STATS mergeStatistics: an import stored in one change under the write lock, which waits the
+// long wait (someone asked). Each track is merged by the database from what it holds now.
+int Library::mergeStatistics(const QList<StatisticsMerge> &merges)
+{
+    if (merges.isEmpty())
+        return 0; // nothing asked of the library
+    // L-FAILED: the first step the database refuses gives the whole change up and says so once.
+    const auto refuse = [this]() {
+        const QString why = d->store.lastError();
+        d->store.rollbackBatch();
+        emit failed(why.isEmpty() ? QStringLiteral("the database refused the change") : why);
+        return -1;
+    };
+    if (!d->store.beginBatch())
+        return refuse();
+    QList<qint64> changed;
+    QSet<qint64> seen;
+    for (const StatisticsMerge &merge : merges) {
+        if (d->store.mergeStatistics(merge.id, merge.statistics)) {
+            if (!seen.contains(merge.id)) {
+                seen.insert(merge.id);
+                changed.append(merge.id);
+            }
+        } else if (!d->store.lastError().isEmpty()) {
+            return refuse();
+        }
+    }
+    if (!d->store.commitBatch())
+        return refuse();
+    if (!changed.isEmpty())
+        emit tracksUpdated(changed);
+    return static_cast<int>(changed.size());
+}
+
 // L-MOVED recordMoves: the moves of the files, in the order they happened, done to the tracks
 // one after the other, in one transaction. At the end each moved track is missing or not by
 // its file, and one signal of each kind goes out. The run is whole or not at all: the first

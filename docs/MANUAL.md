@@ -30,6 +30,18 @@ command-line tool, or both.
   its right end. Stop asks first, and the files found so far stay in the
   library. File > Stop Scan does the same. `linuxbeectl library` scans
   folders into a library file, and counts or lists it.
+- `linuxbeectl library import FILE --map Z:=/` brings the date added, play
+  counts, skip counts and last played from a library exported by MusicBee,
+  and checks its ratings and Love against the files. It changes nothing
+  unless `--apply` is given, and never a music file. Scan your music into
+  the library first: the import only decorates tracks the library has, and
+  never adds one. `--map OLD=NEW` says where a folder of the file is now,
+  and may be given several times; for MusicBee run under Wine, `--map Z:=/`
+  is the whole machine. Ratings and Love are only compared with what the
+  library read from the files, and listed where they differ. `--list` shows
+  every entry of every list instead of the first ten. For example:
+  `linuxbeectl library --db library.db import "iTunes Music Library.xml"
+  --map Z:=/` shows what would change, and the same with `--apply` stores it.
 - The navigator shows the library sections (Music, Inbox, Audiobooks,
   Podcasts, Videos), the playlists and Playing Tracks.
 - The track list shows one track in one row. It sorts by column and narrows
