@@ -53,6 +53,38 @@ restoring it puts it back.
 
 A refusal or a failure does not stop the rest.
 
+## FD-TAKEN: a name in the trash with no record
+
+(Found by the write-path audit, part 6, 2026-11-18. The desktop
+library knows which names are taken by the records in `info` alone. A
+file in `files` with no record, left by another tool or after its
+record was removed by hand, was replaced by a new file of the same
+name, and was gone: the one way this command destroyed a file.)
+
+Before a file is handed to the library, each trash it can go to is
+looked at: the one of the data folder, and on the file's own disk
+`.Trash/UID` and `.Trash-UID` at the top. Where `files` has something
+of the file's name (a file, a link, a folder) and `info` has no record
+for it, **the name is held**: an empty record is made for it, new
+(never one that is there), for as long as the library works. The
+library then gives the file another name, as it does for any name
+that is taken.
+
+- When the library is done, whatever it answered, each record made
+  here is taken away again, while it is still the empty file made
+  here. The file that had no record has none afterwards, and not a
+  byte of it changed.
+- **When a name cannot be held** (`info` cannot be written), the file
+  is not handed over: it stays where it is, and the answer is that the
+  trash did not take it.
+- The thing in `files` that is the file being sent itself (FD-STAYED's
+  case) is not held against.
+
+Known and left: a program killed between the two steps leaves an
+empty record for a file that had none. Another tool that puts a file
+of that name into the trash in that same moment is not guarded
+against.
+
 ## FD-SEND: "it went" is said only when it went
 
 The desktop library's own answer is not enough: it has said "moved"
