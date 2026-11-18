@@ -360,6 +360,13 @@ QStringList PlaylistStore::tracks(const QString &id) const
     return readLocations(fileFor(m_folder, id));
 }
 
+// Y-EDIT. fix-86: to be built.
+QString PlaylistStore::editProblem(const QString &id) const
+{
+    Q_UNUSED(id);
+    return { };
+}
+
 bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
 {
     if (!exists(id))
