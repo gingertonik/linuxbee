@@ -210,6 +210,25 @@ linuxbeectl playlist convert [--relative] [--plain] [--force] IN OUT
   already (--force writes over it)`, exit 3. With `--force` it is
   written over. In both refusals nothing is on standard output and no
   byte of OUT or IN changes.
+- **The path written is the path checked.** OUT is read in two
+  steps, and the path that comes out, which has no link left in it,
+  is the one every check looks at and the one that is written:
+  1. as text: made absolute, `.` and `..` taken out without asking
+     the disk;
+  2. then by the system: when something is at that path, its real
+     path, every link followed; when nothing is, the real path of
+     its folder and the name.
+  A link that leads to nothing is not written through, with `--force` as without it
+  (without it, the answer is that something is there already):
+  `failed: OUT: it is a link to nothing`, exit 3, and nothing is
+  made where it points. A link to a file that is there is followed:
+  the file is written and the link stays a link.
+  (The review of fix-87, 2026-11-18: the toolkit's writer follows a
+  link by reading its text and cleaning that as text. For a link
+  whose own text goes through `..`, that is another file than the
+  one the system finds, so the file checked was not the file
+  written, and the file being read was written over.)
+  `--relative` is relative to the folder of that path.
 - Exit 2 for a usage mistake, including a file name that is not `.m3u`,
   `.m3u8` or `.pls`. Exit 3, with `failed: FILE: ...` on standard error,
   when IN cannot be read or OUT cannot be written. OUT is not left

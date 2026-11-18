@@ -198,6 +198,24 @@ linuxbeectl settings import --apply --to INI FILE
   missing or a link elsewhere, was two different files to the two,
   and the MusicBee file was written over while the command said
   "failed".)
+- **SI-CLI-PATH.** **The path written is the path checked.** `--to` is read in two
+  steps, and the path that comes out, which has no link left in it,
+  is the one every check looks at and the one that is written:
+  1. as text: made absolute, `.` and `..` taken out without asking
+     the disk;
+  2. then by the system: when something is at that path, its real
+     path, every link followed; when nothing is, the real path of
+     its folder and the name.
+  A link that leads to nothing is not written through, ever:
+  `failed: INI: it is a link to nothing`, exit 3, and nothing is
+  made where it points. A link to a file that is there is followed:
+  the file is written and the link stays a link.
+  (The review of fix-87, 2026-11-18: the toolkit's writer follows a
+  link by reading its text and cleaning that as text. For a link
+  whose own text goes through `..`, that is another file than the
+  one the system finds, so the file checked was not the file
+  written, and the file being read was written over.)
+  SI-CLI-SELF and SI-CLI-TARGET are asked of that path.
 - Exit 2 for a usage mistake: no or an unknown subcommand, no file or
   more than one, `--apply` without `--to`, `--to` without `--apply`.
 

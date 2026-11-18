@@ -1,6 +1,7 @@
 #!/bin/sh
 # LOCKED ACCEPTANCE TEST. Written by the reviewer, not the builder.
 # Usage: cli_settings_self.sh /path/to/linuxbeectl   (LINUXBEE_TEST_DATA must be set)
+# Corrected after the review of fix-87 (the block marked so): a link whose own text goes through "..".
 # docs/spec/settings-import.md, SI-CLI-SELF: the file being imported is never the one written, under any
 # spelling. The fault (the write-path audit, part 8, F1): `--to D/sub/../FILE`, with sub missing or a link,
 # got past the check, and the MusicBee file was written over as an INI file while the command said "failed".
@@ -37,6 +38,48 @@ fresh; self "with a dot in the path" "$work/s/./deep/../MusicBee3Settings.ini"
 fresh; ln -s MusicBee3Settings.ini "$work/s/link.ini"; self "a link to it" "$work/s/link.ini"
 fresh; ln "$src" "$work/s/second.ini"; self "its second name" "$work/s/second.ini"
 [ "$(cksum < "$work/s/second.ini")" = "$want" ] && pass "its second name: as it was" || fail "its second name: written"
+
+# --- The correction (the review of fix-87): the path written is the path checked. ---
+# nothing LABEL TO: refused as a link to nothing, the source as it was
+nothing() {
+    said=$(timeout 10 "$bin" settings import --apply --to "$2" "$src" 2> "$work/err"); rc=$?
+    [ "$rc" = 3 ] && [ -z "$said" ] && pass "$1: refused, exit 3" || fail "$1: rc $rc stdout [$(printf '%s' "$said" | tail -n 1)]"
+    [ "$(cat "$work/err")" = "failed: $2: it is a link to nothing" ] && pass "$1: says why" || fail "$1: stderr [$(cat "$work/err")]"
+    [ "$(cksum < "$src")" = "$want" ] && pass "$1: the MusicBee file is as it was" || fail "$1: the MusicBee file was written over"
+}
+
+# A link whose own text goes through a folder that is not there, and comes out at the MusicBee file. To
+# the system it leads nowhere; read as text it is the file. It was followed as text, and the file written.
+fresh; mkdir -p "$work/s/r"; ln -s ../gone/../MusicBee3Settings.ini "$work/s/r/d.ini"
+nothing "a link through a folder that is not there" "$work/s/r/d.ini"
+[ -L "$work/s/r/d.ini" ] && pass "that link is as it was" || fail "that link is as it was"
+
+# The same link, and the folder in it is a link elsewhere, where another settings file has the name. That
+# one is the file the system names: it is written, and the MusicBee file is not.
+fresh; mkdir -p "$work/s/r" "$work/s/q/x"; printf '[x]\na=1\n' > "$work/s/q/MusicBee3Settings.ini"
+ln -s q/x "$work/s/hop"; ln -s ../hop/../MusicBee3Settings.ini "$work/s/r/d.ini"
+said=$(timeout 10 "$bin" settings import --apply --to "$work/s/r/d.ini" "$src" 2> /dev/null); rc=$?
+[ "$rc" = 0 ] && pass "a link through a linked folder: exit 0" || fail "a link through a linked folder: rc $rc"
+[ "$(cksum < "$src")" = "$want" ] && pass "a link through a linked folder: the MusicBee file is as it was" || fail "a link through a linked folder: the MusicBee file was written over"
+grep -q '^edit.editField=F2$' "$work/s/q/MusicBee3Settings.ini" && grep -q '^a=1$' "$work/s/q/MusicBee3Settings.ini" && pass "a link through a linked folder: the file the system names was written, and kept its key" || fail "a link through a linked folder: the file the system names was not written"
+[ -L "$work/s/r/d.ini" ] && pass "a link through a linked folder: the link is a link still" || fail "a link through a linked folder: the link is gone"
+
+# --to spelled through a linked folder and back, with another settings file where the system would go.
+# Read as text it is the MusicBee file: refused, and the other file is not touched either.
+fresh; mkdir -p "$work/s/q/x"; printf '[x]\na=1\n' > "$work/s/q/MusicBee3Settings.ini"; other=$(cksum < "$work/s/q/MusicBee3Settings.ini")
+ln -s q/x "$work/s/hop"
+self "through a linked folder and back, another settings file beyond" "$work/s/hop/../MusicBee3Settings.ini"
+[ "$(cksum < "$work/s/q/MusicBee3Settings.ini")" = "$other" ] && pass "the settings file beyond is as it was" || fail "the settings file beyond was written"
+
+# A link to nothing is refused, and nothing is made where it points.
+fresh; ln -s nowhere.ini "$work/s/dangling.ini"
+nothing "a link to nothing" "$work/s/dangling.ini"
+[ ! -e "$work/s/nowhere.ini" ] && pass "a link to nothing: nothing was made where it points" || fail "a link to nothing: a file was made where it points"
+
+# A link to a settings file that is there: the file is written, and the link stays a link.
+fresh; printf '[player]\nvolume=35\n' > "$work/s/real.ini"; ln -s real.ini "$work/s/tolink.ini"
+timeout 10 "$bin" settings import --apply --to "$work/s/tolink.ini" "$src" > /dev/null 2>&1; rc=$?
+[ "$rc" = 0 ] && [ -L "$work/s/tolink.ini" ] && grep -q '^edit.editField=F2$' "$work/s/real.ini" && grep -q '^volume=35$' "$work/s/real.ini" && pass "a link to a settings file: the file is written, the link stays" || fail "a link to a settings file: rc $rc"
 
 # The other side: a path with .. in it that is another file is written, where the cleaned path says.
 fresh
