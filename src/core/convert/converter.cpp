@@ -98,6 +98,79 @@ QString comparablePath(const QString &path)
     return folder + QLatin1Char('/') + info.fileName();
 }
 
+// C-WHOLE: a length is "shorter" than `reference` only by more than this many
+// milliseconds: 1000 from 2 s up, half the length from 0.5 s to 2 s, 250 below.
+qint64 allowanceMs(qint64 reference)
+{
+    if (reference >= 2000)
+        return 1000;
+    if (reference >= 500)
+        return reference / 2;
+    return 250;
+}
+
+bool isShorter(qint64 length, qint64 reference)
+{
+    return length < reference - allowanceMs(reference);
+}
+
+// C-REPLACE 1: the sound of `path` counted by playing it through. The length
+// in milliseconds, or -1 when it cannot be counted (not started, ended badly,
+// no sample rate or no samples). The output is read as it comes: an hour of
+// Opus is some 180,000 lines.
+qint64 playedLengthMs(const QString &ffmpegPath, const QString &path)
+{
+    QString program = QStringLiteral("ffprobe");
+    const int slash = ffmpegPath.lastIndexOf(QLatin1Char('/'));
+    if (slash >= 0) {
+        const QFileInfo beside(ffmpegPath.left(slash + 1) + QStringLiteral("ffprobe"));
+        if (beside.isFile())
+            program = beside.absoluteFilePath();
+    }
+
+    QProcess probe;
+    probe.setProgram(program);
+    probe.setArguments({ QStringLiteral("-v"), QStringLiteral("error"),
+        QStringLiteral("-select_streams"), QStringLiteral("a:0"), QStringLiteral("-show_entries"),
+        QStringLiteral("frame=nb_samples:stream=sample_rate"), QStringLiteral("-of"),
+        QStringLiteral("default=nw=1"), QFileInfo(path).absoluteFilePath() });
+    probe.setStandardErrorFile(QProcess::nullDevice());
+    probe.start();
+    if (!probe.waitForStarted())
+        return -1;
+
+    qint64 samples = 0;
+    qint64 rate = 0;
+    QByteArray pending;
+    const auto consume = [&](const QByteArray &chunk) {
+        pending.append(chunk);
+        for (int newline = pending.indexOf('\n'); newline >= 0; newline = pending.indexOf('\n')) {
+            const QByteArray line = pending.left(newline).trimmed();
+            pending.remove(0, newline + 1);
+            bool ok = false;
+            if (line.startsWith("nb_samples=")) {
+                const qint64 n = line.mid(11).toLongLong(&ok);
+                if (ok && n > 0)
+                    samples += n;
+            } else if (line.startsWith("sample_rate=")) {
+                const qint64 n = line.mid(12).toLongLong(&ok);
+                if (ok && rate == 0)
+                    rate = n;
+            }
+        }
+    };
+    while (probe.state() != QProcess::NotRunning) {
+        probe.waitForReadyRead(100);
+        consume(probe.readAllStandardOutput());
+    }
+    probe.waitForFinished(-1);
+    consume(probe.readAllStandardOutput() + "\n");
+    if (probe.exitStatus() != QProcess::NormalExit || probe.exitCode() != 0 || rate <= 0
+        || samples <= 0)
+        return -1;
+    return samples * 1000 / rate;
+}
+
 // C-EXISTS: the destination exists already. Returns the result when the job
 // ends here. Otherwise `destination` is the name the converted file goes to.
 std::optional<ConvertResult> resolveExisting(
@@ -195,6 +268,19 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (std::optional<ConvertResult> done = resolveExisting(job, source, destination))
         return *done;
 
+    // C-REPLACE: with Overwrite onto a file that is there, the length of that
+    // file as readTags gives it (0 when it is not music).
+    const bool replaces
+        = job.ifExists == ConvertJob::IfExists::Overwrite && QFileInfo::exists(destination);
+    qint64 oldLengthMs = 0;
+    if (replaces) {
+        ReadOptions oldOptions;
+        oldOptions.pictures = false;
+        const ReadResult old = readTags(destination, oldOptions);
+        if (old.status == ReadResult::Status::Ok)
+            oldLengthMs = old.tags.audio.durationMs;
+    }
+
     // Step 5: C-PROGRESS starts at exactly 0, before anything is written.
     if (progress && !progress(0.0))
         return withStatus(ConvertResult::Status::Cancelled, QStringLiteral("cancelled"));
@@ -288,10 +374,31 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
                 QStringLiteral("the converted file could not be read"));
         }
         if (source.tags.audio.durationMs > 0
-            && made.tags.audio.durationMs < source.tags.audio.durationMs - 1000) {
+            && isShorter(made.tags.audio.durationMs, source.tags.audio.durationMs)) {
             QFile::remove(partPath);
             return withStatus(ConvertResult::Status::Failed,
                 QStringLiteral("the converted file is shorter than the source"));
+        }
+    }
+
+    // C-REPLACE: what replaces a file is played through first.
+    if (replaces) {
+        const qint64 played = playedLengthMs(job.ffmpegPath, partPath);
+        if (played < 0) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file could not be played through to check it"));
+        }
+        if (source.tags.audio.durationMs > 0 && isShorter(played, source.tags.audio.durationMs)) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file is shorter than the source"));
+        }
+        if (oldLengthMs > 0 && isShorter(played, oldLengthMs)) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file is shorter than the file it would replace; "
+                               "remove that file first if this is meant"));
         }
     }
 
