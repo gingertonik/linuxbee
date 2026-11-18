@@ -196,6 +196,11 @@ PlaylistStore::PlaylistStore(const QString &folder, QObject *parent)
 {
 }
 
+void PlaylistStore::setFileOpener(FileOpener opener)
+{
+    m_opener = std::move(opener);
+}
+
 QString PlaylistStore::folder() const
 {
     return m_folder;

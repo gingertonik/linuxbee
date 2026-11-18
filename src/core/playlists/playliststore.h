@@ -1,9 +1,13 @@
 #pragma once
 #include <QHash>
+#include <QIODevice>
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>
+
+#include <functional>
+#include <memory>
 
 // The user's own playlists: one .m3u8 file each, in a folder, with
 // sub-folders as playlist folders. Contract: docs/spec/playlists.md (Y-STORE).
@@ -48,6 +52,12 @@ public:
     // Y-RELINK: returns how many playlists were written.
     int relink(const QHash<QString, QString> &oldToNew);
 
+    // Y-EDIT, one read: how a playlist file is opened for reading. It answers a device that is open
+    // for reading, or nothing when the file cannot be opened. None given: the file itself. For the
+    // test, which hands in a device whose reads fail.
+    using FileOpener = std::function<std::unique_ptr<QIODevice>(const QString &path)>;
+    void setFileOpener(FileOpener opener);
+
     // Y-NAME: empty when the name can be used, otherwise what is wrong.
     static QString validateName(const QString &name);
 
@@ -57,6 +67,7 @@ signals:
 
 private:
     QString m_folder;
+    FileOpener m_opener;
 };
 
 }
