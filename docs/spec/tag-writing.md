@@ -138,6 +138,14 @@ TagLib does it. `readTags` returns them as separate values again.
   If the file has a `POPM` frame, its address text and its play counter are
   kept. A new frame has an empty address and a counter of 0. Removing the
   rating removes the frame.
+
+  **The frames whole.** A change can carry the `POPM` frames
+  themselves: the address, rating byte and counter of each, in order.
+  The tag's `POPM` frames then become exactly these (none, for an
+  empty list), whatever the change's Rating entry says. Such a change
+  is `Unchanged` (W-UNCHANGED) only when the file's frames are these
+  already. It is what undo uses (tag-undo.md, UN-RATING); for a file
+  with no ID3v2 tag family it means nothing and is left out.
 - Every other format: the RATING key, holding stars times 20 as a whole
   number (`70` for 3.5 stars).
 
