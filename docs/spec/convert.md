@@ -254,6 +254,12 @@ file is read with `readTags`, whether or not tags are to be copied:
   (`durationMs` of each, as `readTags` gives them): `Failed`, `the
   converted file is shorter than the source`. A source whose length
   is not known (0) is not compared.
+- **A source under two seconds:** the allowance is half the length
+  compared with, and never under a quarter of a second. (With a flat
+  second, a source of a second or less was not compared at all.) So:
+  1000 ms from 2 s up; half the length from 0.5 s to 2 s; 250 ms
+  below. This allowance is the one meant wherever this section or
+  C-REPLACE says "shorter".
 
 Either way the part file is removed and the destination is as it was
 (C-CLEAN).
@@ -265,16 +271,60 @@ than 71 ms above what ffmpeg decodes.
 
 Known and left:
 
-- The length is the one the result's own header states. A file cut
-  off *after* it was finished states its whole length and passes. An
-  encoder that stops early does not leave such a file: the formats
-  here write their length at the end.
+- Where no file is replaced, the length is the one the result's own
+  header states. A result that states its whole length and plays
+  short passes there, and is said to be `converted`; nothing of the
+  user's is lost by it. Where a file is replaced: C-REPLACE.
 - A source whose header overstates its length by more than a second
   (an old MP3 of changing bitrate with no length header) cannot be
   converted: it fails with the second message. None was among the 251.
 - What ffmpeg writes to standard error while ending well is not
   shown. It did so for 28 of the 251, and each of those decoded to
   its whole length, so a complaint alone does not fail a job.
+
+### C-REPLACE: what replaces a file is played through first
+
+(Found by the review of fix-85, 2026-11-18, with a real ffmpeg that
+ended well every time. A FLAC with a bad stretch, converted to Opus
+or AAC, gives a file whose header states the whole length and which
+plays seconds short. An MP3 that was itself cut off, and says
+nothing of it, converts whole to a short file. With Overwrite each
+replaced the good conversion that was there.)
+
+When the destination is there and this run is to replace it
+(C-EXISTS, Overwrite), then after C-WHOLE and before the tags:
+
+1. **The part file's sound is counted** by playing it through: the
+   samples of every frame of its first audio stream as `ffprobe`
+   decodes them, over the sample rate. `ffprobe` is the one in the
+   folder of `ffmpegPath` when that names a folder and one is there,
+   else the one on the path. Where it cannot be counted (no
+   `ffprobe`, it fails, or no frame comes): `Failed`, `the converted
+   file could not be played through to check it`.
+2. The count is shorter than the source's length (`durationMs`; not
+   compared when 0): `Failed`, `the converted file is shorter than
+   the source`.
+3. The count is shorter than the length of the file that is there
+   (`durationMs` as `readTags` gives it; not compared when the file
+   cannot be read as music or its length is 0): `Failed`, `the
+   converted file is shorter than the file it would replace; remove
+   that file first if this is meant`.
+
+Each time the part file is removed and the file that is there is as
+it was (C-CLEAN).
+
+Point 3 refuses a wanted case too: a source that was cut shorter on
+purpose, converted again over its older, longer conversion. The
+message says what to do. The other way round, a good file lost
+unseen, cannot be mended afterwards.
+
+The cost is one decode of the result, and only where a file is
+replaced. A conversion to a new name needs no `ffprobe` and is not
+played through.
+
+Known and left: the file that is there is measured by its header,
+and the source too. A source whose own header overstates it fails as
+in C-WHOLE.
 
 ### C-CLEAN
 
