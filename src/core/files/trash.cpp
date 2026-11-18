@@ -5,6 +5,10 @@
 #include <QFileInfo>
 #include <QSet>
 #include <QStandardPaths>
+#include <QStorageInfo>
+
+#include <cerrno>
+#include <vector>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -87,6 +91,101 @@ static void takeBackSecondName(
         ::close(infoFd);
 }
 
+// FD-TAKEN: the desktop library knows which names in a trash are taken by the records in `info`
+// alone, so a file in `files` with no record would be written over. Where there is such a name, an
+// empty record is made for it (new, never one that is there) and kept open while the library
+// works; letGo takes each record made here away again, only while the name still holds the very
+// file made here and it is still empty. Both folders are opened so that a link is refused.
+namespace {
+
+class NameHolds {
+public:
+    NameHolds() = default;
+    NameHolds(const NameHolds &) = delete;
+    NameHolds &operator=(const NameHolds &) = delete;
+    ~NameHolds() { letGo(); }
+
+    // False when a name in this trash is taken with no record and the record cannot be made.
+    bool hold(const QString &trash, const QByteArray &name, const struct stat *source)
+    {
+        // A trash that cannot be opened is one the library cannot write into either.
+        const int trashFd = ::open(QFile::encodeName(trash).constData(), O_RDONLY | O_DIRECTORY);
+        if (trashFd < 0)
+            return true;
+        const int filesFd = ::openat(trashFd, "files", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+        const int infoFd = ::openat(trashFd, "info", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+        ::close(trashFd);
+        bool ok = true;
+        struct stat there;
+        // lstat: a link or a folder of that name counts, and so does a link that points at nothing.
+        const bool taken = filesFd >= 0
+            && ::fstatat(filesFd, name.constData(), &there, AT_SYMLINK_NOFOLLOW) == 0
+            && !(source && there.st_dev == source->st_dev && there.st_ino == source->st_ino);
+        if (filesFd >= 0)
+            ::close(filesFd);
+        if (taken) {
+            if (infoFd < 0) {
+                ok = false;
+            } else {
+                const size_t before = m_held.size();
+                ok = keep(infoFd, name + QByteArrayLiteral(".trashinfo"));
+                if (ok && m_held.size() > before)
+                    return true; // the folder stays open with the record that was made
+            }
+        }
+        if (infoFd >= 0)
+            ::close(infoFd);
+        return ok;
+    }
+
+    void letGo()
+    {
+        for (const Held &held : m_held) {
+            struct stat now;
+            if (::fstatat(held.infoFd, held.record.constData(), &now, AT_SYMLINK_NOFOLLOW) == 0
+                && S_ISREG(now.st_mode) && now.st_dev == held.made.st_dev
+                && now.st_ino == held.made.st_ino && now.st_size == 0) {
+                ::unlinkat(held.infoFd, held.record.constData(), 0);
+            }
+            ::close(held.fd);
+            ::close(held.infoFd);
+        }
+        m_held.clear();
+    }
+
+private:
+    struct Held {
+        int infoFd;
+        int fd;
+        QByteArray record;
+        struct stat made;
+    };
+
+    // The record of the name, made empty and new. True also when one is already there.
+    bool keep(int infoFd, const QByteArray &record)
+    {
+        struct stat st;
+        if (::fstatat(infoFd, record.constData(), &st, AT_SYMLINK_NOFOLLOW) == 0)
+            return true;
+        const int fd = ::openat(
+            infoFd, record.constData(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+        if (fd < 0)
+            return errno == EEXIST;
+        Held held { infoFd, fd, record, { } };
+        if (::fstat(fd, &held.made) != 0) {
+            ::unlinkat(infoFd, record.constData(), 0); // the empty file this call just made
+            ::close(fd);
+            return false;
+        }
+        m_held.push_back(held);
+        return true;
+    }
+
+    std::vector<Held> m_held;
+};
+
+}
+
 // Sends one file to the desktop's trash, or to the stand-in for it, and says what became of it.
 // QFile::moveToTrash fails while the trash folders are missing, as on a fresh account, so they are
 // made first, the way a file manager makes them.
@@ -108,8 +207,33 @@ SendResult sendToTrashWith(const QString &path, QString *pathInTrash, const Tras
     }
     // The folder's real path and the file's name: the trash record names where the file was.
     const QString real = folder + QLatin1Char('/') + QFileInfo(path).fileName();
+    // FD-TAKEN: every trash the file can go to, the one of the data folder and the two on the
+    // file's own disk, all three whichever the library picks. A name that is there without a record
+    // is held.
+    struct stat sent;
+    const bool haveSent = ::lstat(QFile::encodeName(real).constData(), &sent) == 0;
+    QStringList trashes { trash };
+    const QString top = QStorageInfo(folder).rootPath();
+    if (!top.isEmpty()) {
+        const QString uid = QString::number(::getuid());
+        struct stat shared;
+        if (::lstat(QFile::encodeName(QDir::cleanPath(top + QStringLiteral("/.Trash"))).constData(),
+                &shared)
+                == 0
+            && S_ISDIR(shared.st_mode)) {
+            trashes.append(QDir::cleanPath(top + QStringLiteral("/.Trash/") + uid));
+        }
+        trashes.append(QDir::cleanPath(top + QStringLiteral("/.Trash-") + uid));
+    }
+    NameHolds holds;
+    const QByteArray bareName = QFile::encodeName(QFileInfo(path).fileName());
+    for (const QString &one : trashes) {
+        if (!holds.hold(one, bareName, haveSent ? &sent : nullptr))
+            return SendResult::NotTaken;
+    }
     QString placeNamed;
     const bool said = mover ? mover(real, &placeNamed) : QFile::moveToTrash(real, &placeNamed);
+    holds.letGo(); // whatever the library answered
     if (!said)
         return SendResult::NotTaken;
     // FD-SEND 3: a file still at the path was not moved, whatever was said.
