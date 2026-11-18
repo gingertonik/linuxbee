@@ -158,7 +158,7 @@ bytes in UTF-8. A folder path is names joined by `/`, each one valid.
 
 ```
 linuxbeectl playlist show FILE
-linuxbeectl playlist convert [--relative] [--plain] IN OUT
+linuxbeectl playlist convert [--relative] [--plain] [--force] IN OUT
 ```
 
 - `show` prints one line per entry: location, a tab, the duration in
@@ -166,6 +166,18 @@ linuxbeectl playlist convert [--relative] [--plain] IN OUT
 - `convert` reads IN and writes OUT in the format of OUT's extension, then
   prints `N entries`. `--relative` writes locations relative to OUT's
   folder. `--plain` leaves out the `#EXT` lines.
+- **`convert` never writes the file it reads.** When OUT is IN (the
+  same file by another spelling, through a linked folder, by a link
+  to it or by a second name of it): `failed: OUT: this is the file
+  being read`, exit 3, with `--force` as without it. (A list read and
+  written again is not the same list: comments, a relative path and
+  the line ends are not kept. Until 0.8.0 this was done without a
+  word.)
+- **`convert` writes over a file only when asked.** When anything is
+  at OUT (a link to nothing counts): `failed: OUT: the file is there
+  already (--force writes over it)`, exit 3. With `--force` it is
+  written over. In both refusals nothing is on standard output and no
+  byte of OUT or IN changes.
 - Exit 2 for a usage mistake, including a file name that is not `.m3u`,
   `.m3u8` or `.pls`. Exit 3, with `failed: FILE: ...` on standard error,
   when IN cannot be read or OUT cannot be written. OUT is not left

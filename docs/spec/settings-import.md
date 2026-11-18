@@ -185,6 +185,19 @@ linuxbeectl settings import --apply --to INI FILE
   An empty file is an empty settings file. A settings file keeps every
   key the import does not set, though its keys may come back in another
   order.
+- **SI-CLI-SELF.** The file being imported is never the one written.
+  `--to` is read as a cleaned path (made absolute, `.` and `..` taken
+  out as text), and **that one path is the one looked at and the one
+  written**. When it is the imported file (the same file to the
+  system: by another spelling, by a link, by a second name):
+  `failed: INI: this is the file being imported`, exit 3, nothing on
+  standard output, no folder made, and the file's bytes are what they
+  were. INI in the messages is `--to` as it was given.
+  (Until 0.8.0 the check asked the system about the path as given
+  and the writer cleaned it as text. `D/sub/../FILE`, with `sub`
+  missing or a link elsewhere, was two different files to the two,
+  and the MusicBee file was written over while the command said
+  "failed".)
 - Exit 2 for a usage mistake: no or an unknown subcommand, no file or
   more than one, `--apply` without `--to`, `--to` without `--apply`.
 
