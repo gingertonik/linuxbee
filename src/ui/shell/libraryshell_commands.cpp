@@ -121,6 +121,11 @@ void LibraryShell::removeSelected()
     // SH-REMOVE: in a playlist the tracks leave the playlist, in one change, and nothing is
     // asked. The library and the files are not touched.
     if (const QString playlist = playlistOf(d->node); !playlist.isEmpty()) {
+        // Y-EDIT: a playlist the store will not edit is not asked to; the list stays as it is.
+        if (const QString problem = d->playlists->editProblem(playlist); !problem.isEmpty()) {
+            showMessage(tr("Could not remove from the playlist: %1").arg(problem));
+            return;
+        }
         QSet<QString> selected;
         for (const qint64 id : ids) {
             if (const std::optional<LibraryTrack> track = d->library->track(id))
@@ -134,7 +139,11 @@ void LibraryShell::removeSelected()
         }
         if (positions.isEmpty())
             return;
-        d->playlists->removeAt(playlist, positions);
+        // "Removed" is said only when the store removed something.
+        if (d->playlists->removeAt(playlist, positions) == 0) {
+            showMessage(tr("Could not remove from the playlist: the file could not be written"));
+            return;
+        }
         const qsizetype n = selected.size();
         showMessage(n == 1 ? tr("Removed 1 track from the playlist")
                            : tr("Removed %1 tracks from the playlist").arg(n));

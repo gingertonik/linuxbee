@@ -74,6 +74,9 @@ changes nothing, when the row does not offer that command.
   `Added 1 track to "ID"` or `Added N tracks to "ID"`. When the store
   could not write, false and
   `Could not add to the playlist "ID": the file could not be written`.
+- Before that call the store is asked `editProblem(ID)` (playlists.md,
+  Y-EDIT). A problem ends it with false, nothing added, and
+  `Could not add to the playlist "ID": PROBLEM`.
 - The navigator's choice and the selection stay as they were, also for
   a new playlist.
 

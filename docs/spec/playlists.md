@@ -136,6 +136,38 @@ disk, so a file put there by hand shows up.
 - Files are written whole and then moved into place (`QSaveFile`), so a
   crash cannot leave half a playlist.
 
+### Y-EDIT: a list that was not read whole and true is not written
+
+(Found by the write-path audit, part 4, 2026-11-18. A playlist that
+could be written but not read was taken as empty: one track added,
+and the file held that track alone. And a `.m3u8` that is not UTF-8,
+which Y-DECODE reads with U+FFFD in the place of what it cannot read,
+was written back that way by any edit: every entry with such a letter
+then named no file, for good.)
+
+`editProblem(id)` says whether a playlist's entries can be changed:
+
+| The file | Answer |
+|---|---|
+| no such playlist (Y-STORE) | `there is no such playlist` |
+| cannot be opened or read | `the file could not be read` |
+| is not UTF-8: a byte sequence that is not valid UTF-8, a UTF-16 byte order mark at the start, or a zero byte anywhere | `the file is not UTF-8` |
+| anything else, an empty file too | empty: it can be edited |
+
+`append`, `removeAt`, `moveTrack` and `setTracks` do nothing to a
+playlist that has a problem: they answer 0 or false, not a byte of the
+file changes, nothing is left beside it, and `tracksChanged` is not
+emitted.
+
+Reading is as it was: `tracks` gives what Y-DECODE makes of the file,
+so such a playlist is still shown and played as far as it can be.
+`relink` works on the bytes and never decodes; it is as it was.
+`rename`, `moveToFolder` and `remove` do not touch the entries and are
+as they were.
+
+Not in this version: converting such a file to UTF-8 for the user;
+editing it by its byte lines.
+
 ### Y-RELINK
 
 `relink(oldToNew)` (library.md, L-MOVED): in every playlist of the

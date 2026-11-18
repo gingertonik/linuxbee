@@ -360,9 +360,40 @@ QStringList PlaylistStore::tracks(const QString &id) const
     return readLocations(fileFor(m_folder, id));
 }
 
-bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
+// Y-EDIT: empty when the entries can be changed, otherwise why not. The file is read whole and
+// its bytes are judged; nothing is decoded for use here.
+QString PlaylistStore::editProblem(const QString &id) const
 {
     if (!exists(id))
+        return QStringLiteral("there is no such playlist");
+    QFile file(fileFor(m_folder, id));
+    if (!file.open(QIODevice::ReadOnly))
+        return QStringLiteral("the file could not be read");
+    const QByteArray data = file.readAll();
+    const bool readFailed = file.error() != QFileDevice::NoError;
+    file.close();
+    if (readFailed)
+        return QStringLiteral("the file could not be read");
+
+    const QString notUtf8 = QStringLiteral("the file is not UTF-8");
+    // A UTF-16 byte order mark, either end first.
+    if (data.startsWith(QByteArrayLiteral("\xFF\xFE"))
+        || data.startsWith(QByteArrayLiteral("\xFE\xFF")))
+        return notUtf8;
+    // A zero byte anywhere.
+    if (data.contains('\0'))
+        return notUtf8;
+    // Decode and encode again: a byte sequence that is not UTF-8, a letter cut off at the end
+    // included, comes back as U+FFFD and so as other bytes. A UTF-8 byte order mark is set aside.
+    const QByteArray body = data.startsWith(QByteArrayLiteral("\xEF\xBB\xBF")) ? data.mid(3) : data;
+    if (QString::fromUtf8(body).toUtf8() != body)
+        return notUtf8;
+    return { };
+}
+
+bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
+{
+    if (!exists(id) || !editProblem(id).isEmpty())
         return false;
     const Written written = writeLocations(fileFor(m_folder, id), paths);
     if (written == Written::Failed)
@@ -374,7 +405,7 @@ bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
 
 int PlaylistStore::append(const QString &id, const QStringList &paths, bool allowDuplicates)
 {
-    if (!exists(id))
+    if (!exists(id) || !editProblem(id).isEmpty())
         return 0;
     QStringList all = tracks(id);
     QStringList seen = all;
@@ -397,7 +428,7 @@ int PlaylistStore::append(const QString &id, const QStringList &paths, bool allo
 
 int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
 {
-    if (!exists(id))
+    if (!exists(id) || !editProblem(id).isEmpty())
         return 0;
     const QStringList all = tracks(id);
     QSet<int> doomed;
@@ -421,7 +452,7 @@ int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
 
 bool PlaylistStore::moveTrack(const QString &id, int from, int to)
 {
-    if (!exists(id))
+    if (!exists(id) || !editProblem(id).isEmpty())
         return false;
     QStringList all = tracks(id);
     // The entry ends up at the position given; a position outside the list fails.
