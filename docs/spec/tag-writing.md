@@ -231,6 +231,35 @@ the tag library nothing.
   (W-ID3V1); and what W-ID3VER says of a tag written in another version
   than it had.
 
+**In an MPEG-4 file** the same holds of its items. The locked test
+`tests/locked/tst_tagwrite_only_mp4.cpp` holds it; it too reads the
+items itself and asks the tag library nothing.
+
+- **The items of a key** are the items the tag library reads that key
+  from. A freeform item in Apple's name space (`com.apple.iTunes`) is an
+  item of the key that is its name in capitals: an item named
+  `replaygain_track_gain` is an item of REPLAYGAIN_TRACK_GAIN, and so
+  is one named `REPLAYGAIN_TRACK_GAIN` beside it.
+- **Named:** every item of the key is taken out, and one item is
+  written for the new values. It is written under the name the tag
+  library gives that key; but where the file already had the key under
+  that name in other letters (small, or mixed), under the file's own
+  spelling. A key that is taken out leaves no item of it.
+- **Not named:** the item is, after the save, what a save that changes
+  nothing leaves of it. In a file the tag library has written before,
+  that is the same bytes in the same order. (At its first save of a
+  file another program wrote, whatever is saved, the tag library puts
+  the items in the order of their names, drops an item that holds no
+  data, and writes some numbers in more bytes than they had; `cnID` was
+  seen. That happens once and changes no value. One thing it does then
+  is a loss: see "Not in this version".)
+- An item the tag library reads no key from (one in another name space;
+  `rtng`, a shop's advisory mark) is never named by a key. `pictures`
+  names the item `covr`; an empty list leaves no such item, not an
+  empty one.
+- A value the tag library cannot write for a key leaves the items of
+  that key as they are.
+
 Known, and left:
 
 - Where a new frame stands among the others is the tag library's choice.
@@ -373,11 +402,16 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 - Writing APEv2 tags into MP3 files; synchronised lyrics; custom tags;
   the artist roles; album rating, Love and the other MusicBee-only tags.
 - Undo.
-- W-ONLY for MPEG-4, Vorbis comments and APEv2 tags. A save there still
-  hands the tag library all the file's tags at once, and what does not
-  come back from it as it went in is written anew though nobody named
-  it: an MPEG-4 freeform atom whose name is not in capitals gets a twin
-  in capitals, and a Vorbis comment with an empty value is dropped.
+- W-ONLY for Vorbis comments and APEv2 tags. A save there still hands
+  the tag library all the file's tags at once, and what does not come
+  back from it as it went in is written anew though nobody named it:
+  a Vorbis comment with an empty value is dropped.
+- Keeping an MPEG-4 freeform item the tag library cannot hold. An item
+  marked as text is read as text, and text ends at a zero byte: the
+  item `Encoding Params`, which iTunes fills with bytes that are not
+  text, is cut to its first four bytes at the first save of such a
+  file, whatever is saved. Any tagger built on this tag library does
+  the same.
 
 ## Open parity questions
 
