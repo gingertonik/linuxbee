@@ -6,6 +6,14 @@ settings and the library file may still change.
 
 ## Unreleased
 
+## 0.8.0 (2026-11-18)
+
+- **Before the first start of this version, copy `~/.local/share/linuxbee` and `~/.config/linuxbee` somewhere safe.** This update moves the profile and changes the library file, and there is no way back without that copy.
+- The profile moves at the first start: settings to `~/.config/linuxbee/`, the library to `~/.local/share/linuxbee/`. Close every linuxBee window and `linuxbeectl` first. If the start is refused with status 6 (`was not taken over`), nothing was lost: the message names both places.
+- The library file gets a new layout when it is first opened. **linuxBee 0.7.1 and older cannot open it afterwards.**
+- New: `linuxbeectl library import` brings the date added, play counts, skip counts and last played over from a library exported by MusicBee. It shows what it would do and changes nothing until `--apply` is given, and it never changes a music file.
+- The fault 0.7.1 still warned of is fixed: saving one field no longer rewrites other tags of the file (MP3, WAV and M4A; see below).
+- Still known: Remove Tags (and `linuxbeectl tagtool remove --all`) refuses a file that holds one field under two names (a label as both `LABEL` and `PUBLISHER`, a track total as `TOTALTRACKS`). It says so and changes nothing.
 - A scan that cannot store what it finds, because another program has the library, stops at once and says so; it no longer holds the window for five seconds at every part.
 - A change the library database refuses (a play that cannot be counted among them) stores
   nothing, and a change with nothing to do asks for no lock. Remapping a folder is all or
