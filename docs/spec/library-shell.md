@@ -131,6 +131,13 @@ no file is touched. The message is `Removed N tracks from the
 playlist` (`Removed 1 track from the playlist`), N being the tracks,
 not the entries.
 
+"Removed" is said only when the store removed something. A playlist
+the store will not edit (`PlaylistStore::editProblem`, playlists.md,
+Y-EDIT) is not asked to: the message is `Could not remove from the
+playlist: PROBLEM`. When `removeAt` answers 0 for any other reason,
+it is `Could not remove from the playlist: the file could not be
+written`. Either way the list on show stays as it is.
+
 **In Playing Tracks.** (The owner's ruling, 2026-11-16: "delete in
 playing tracks should take it out of the queue".) The shell emits
 `queueRemovalRequested(paths)` once, with the paths of the selected

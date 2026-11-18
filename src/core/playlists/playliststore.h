@@ -35,6 +35,8 @@ public:
     bool createFolder(const QString &folder, QString *error = nullptr);
 
     QStringList tracks(const QString &id) const; // absolute paths, in order
+    // Y-EDIT: empty when the playlist's entries can be changed, otherwise why not.
+    QString editProblem(const QString &id) const;
     bool setTracks(const QString &id, const QStringList &paths);
     // Returns how many were added. Without allowDuplicates, a path the
     // playlist has already (or that appears twice in `paths`) is skipped.
