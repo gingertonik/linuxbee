@@ -6,6 +6,8 @@
 #include <QSaveFile>
 #include <QTextStream>
 
+#include <sys/stat.h>
+
 #include <optional>
 
 #include "command.h"
@@ -17,7 +19,7 @@ using linuxbee::cli::usageError;
 
 const char *const kUsage
     = "usage: linuxbeectl playlist show FILE\n"
-      "       linuxbeectl playlist convert [--relative] [--plain] IN OUT\n"
+      "       linuxbeectl playlist convert [--relative] [--plain] [--force] IN OUT\n"
       "FILE, IN and OUT are read and written by their extension: .m3u, .m3u8 or .pls.";
 
 // Y-CLI: exit 3 with "failed: FILE: ..." on standard error.
@@ -62,8 +64,29 @@ int showPlaylist(const QString &file)
     return 0;
 }
 
+// Y-CLI: OUT is the file IN is: the same device and inode when both can be asked
+// (stat follows links, so a link to the file is the file), otherwise the same cleaned path.
+bool sameFile(const QString &a, const QString &b)
+{
+    struct stat first;
+    struct stat second;
+    if (::stat(QFile::encodeName(a).constData(), &first) == 0
+        && ::stat(QFile::encodeName(b).constData(), &second) == 0)
+        return first.st_dev == second.st_dev && first.st_ino == second.st_ino;
+    return QDir::cleanPath(QFileInfo(a).absoluteFilePath())
+        == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
+}
+
+// Y-CLI: anything at OUT counts, a link to nothing too (lstat does not follow it).
+bool somethingIsAt(const QString &file)
+{
+    struct stat info;
+    return ::lstat(QFile::encodeName(file).constData(), &info) == 0;
+}
+
 int convertPlaylist(const QStringList &positional, const QCommandLineParser &parser,
-    const QCommandLineOption &relativeOption, const QCommandLineOption &plainOption)
+    const QCommandLineOption &relativeOption, const QCommandLineOption &plainOption,
+    const QCommandLineOption &forceOption)
 {
     if (positional.size() != 3)
         return usageError(QStringLiteral("linuxbeectl: playlist convert takes IN and OUT.\n%1")
@@ -82,6 +105,13 @@ int convertPlaylist(const QStringList &positional, const QCommandLineParser &par
         return fileError(in, QStringLiteral("cannot be read"));
     const QByteArray data = source.readAll();
     source.close();
+
+    // Y-CLI: never onto the file read, with --force as without it; onto another file
+    // that is there only with --force.
+    if (sameFile(in, out))
+        return fileError(out, QStringLiteral("this is the file being read"));
+    if (!parser.isSet(forceOption) && somethingIsAt(out))
+        return fileError(out, QStringLiteral("the file is there already (--force writes over it)"));
 
     linuxbee::PlaylistWriteOptions options;
     options.extended = !parser.isSet(plainOption);
@@ -109,7 +139,9 @@ int runPlaylist(const QStringList &arguments)
         QStringLiteral("Write locations relative to the folder of OUT."));
     QCommandLineOption plainOption(
         QStringLiteral("plain"), QStringLiteral("Leave out the #EXT lines."));
-    parser.addOptions({ relativeOption, plainOption });
+    QCommandLineOption forceOption(
+        QStringLiteral("force"), QStringLiteral("Write over an OUT that is there already."));
+    parser.addOptions({ relativeOption, plainOption, forceOption });
 
     // parse(), not process(): process() exits 1 on an unknown option, and
     // Y-CLI requires 2. The parser expects the program name first.
@@ -129,7 +161,7 @@ int runPlaylist(const QStringList &arguments)
         return showPlaylist(positional.at(1));
     }
     if (subcommand == QLatin1String("convert"))
-        return convertPlaylist(positional, parser, relativeOption, plainOption);
+        return convertPlaylist(positional, parser, relativeOption, plainOption, forceOption);
     return usageError(QStringLiteral("linuxbeectl: playlist has no subcommand \"%1\".\n%2")
             .arg(subcommand, QLatin1String(kUsage)));
 }

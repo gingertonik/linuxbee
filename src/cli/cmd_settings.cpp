@@ -6,6 +6,8 @@
 #include <QSettings>
 #include <QTextStream>
 
+#include <sys/stat.h>
+
 #include "command.h"
 #include "settingsimport/settingsimport.h"
 
@@ -42,6 +44,20 @@ QString targetRefusal(const QString &ini)
     if (probe.status() != QSettings::NoError)
         return QStringLiteral("it cannot be read as an INI settings file");
     return QString();
+}
+
+// SI-CLI-SELF: the two paths are one file when both can be asked and have the same device and
+// inode (stat follows links, so a link or a second name is the file), and otherwise when
+// their cleaned absolute paths are the same.
+bool sameFile(const QString &a, const QString &b)
+{
+    struct stat first;
+    struct stat second;
+    if (::stat(QFile::encodeName(a).constData(), &first) == 0
+        && ::stat(QFile::encodeName(b).constData(), &second) == 0)
+        return first.st_dev == second.st_dev && first.st_ino == second.st_ino;
+    return QDir::cleanPath(QFileInfo(a).absoluteFilePath())
+        == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
 }
 
 // SI-CLI: linuxbeectl settings import. Prints what would be carried over, line by
@@ -95,20 +111,20 @@ int runSettings(const QStringList &arguments)
     // printed, so a write that fails leaves standard output empty, as a failed read does.
     int written = 0;
     if (apply) {
+        // --to as it was given, for the messages; the cleaned path is the one that is
+        // looked at, the one whose folder is made and the one that is written.
         const QString ini = parser.value(toOption);
+        const QString to = QDir::cleanPath(QFileInfo(ini).absoluteFilePath());
         // SI-CLI-SELF: the file being imported is never the one written, under
         // any spelling or through a link.
-        const QString source = QFileInfo(path).canonicalFilePath();
-        const QFileInfo targetInfo(ini);
-        const QString targetPath = targetInfo.exists() ? targetInfo.canonicalFilePath() : QString();
-        if (!targetPath.isEmpty() && targetPath == source)
+        if (sameFile(path, to))
             return failed(ini, QStringLiteral("this is the file being imported"));
         // SI-CLI-TARGET: refused before a folder is made or anything is written.
-        const QString refusal = targetRefusal(ini);
+        const QString refusal = targetRefusal(to);
         if (!refusal.isEmpty())
             return failed(ini, refusal);
-        QDir().mkpath(QFileInfo(ini).absolutePath());
-        QSettings target(ini, QSettings::IniFormat);
+        QDir().mkpath(QFileInfo(to).absolutePath());
+        QSettings target(to, QSettings::IniFormat);
         written = linuxbee::applySettingsImport(plan, target);
         target.sync();
         if (target.status() != QSettings::NoError)
