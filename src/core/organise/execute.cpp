@@ -3,6 +3,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSet>
+
+#include <sys/stat.h>
+
+#include <utility>
 
 #include "aftermath.h"
 #include "files/trash.h"
@@ -69,6 +74,18 @@ bool recordTargetPath(const QString &inTrash, const QString &waitingName)
     return file.write(text) == text.size();
 }
 
+using FileId = std::pair<quint64, quint64>;
+
+// The device and inode of what a path names (links followed), or false.
+bool fileIdOf(const QString &path, FileId *id)
+{
+    struct stat st { };
+    if (::stat(QFile::encodeName(path).constData(), &st) != 0)
+        return false;
+    *id = { static_cast<quint64>(st.st_dev), static_cast<quint64>(st.st_ino) };
+    return true;
+}
+
 MoveOutcome failedWith(MoveOutcome outcome, const QString &message)
 {
     outcome.status = MoveOutcome::Status::Failed;
@@ -78,7 +95,8 @@ MoveOutcome failedWith(MoveOutcome outcome, const QString &message)
 
 // O-EXECUTE for one Ready entry. The source and the target are checked again
 // first, because the disk may have changed since planning.
-MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options)
+MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options,
+    const QSet<FileId> &filesOfTheRun, const FileId &ownSource, bool ownKnown)
 {
     MoveOutcome outcome;
     outcome.status = MoveOutcome::Status::Done;
@@ -92,6 +110,14 @@ MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options)
         return failedWith(outcome, QStringLiteral("a folder is at the target"));
     if (targetThere && !move.replaces)
         return failedWith(outcome, QStringLiteral("something is at the target"));
+    // The second lock (O-EXECUTE): by what it is, not by its path, the file
+    // at the target is not another file of this run.
+    FileId there;
+    if (targetThere && fileIdOf(move.target, &there) && filesOfTheRun.contains(there)
+        && !(ownKnown && there == ownSource)) {
+        return failedWith(
+            outcome, QStringLiteral("the file at the target is another file of this run"));
+    }
     if (!QDir().mkpath(QFileInfo(move.target).absolutePath()))
         return failedWith(outcome, QStringLiteral("could not create the folder"));
 
@@ -161,6 +187,19 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
 {
     OrganiseReport report;
     const int count = static_cast<int>(plan.size());
+
+    // What each entry's source is, noted before anything moves.
+    QSet<FileId> filesOfTheRun;
+    QList<FileId> sourceIds;
+    QList<bool> sourceKnown;
+    for (const PlannedMove &entry : plan) {
+        FileId id;
+        const bool known = fileIdOf(entry.source, &id);
+        sourceIds.append(known ? id : FileId());
+        sourceKnown.append(known);
+        if (known)
+            filesOfTheRun.insert(id);
+    }
     for (int index = 0; index < count; ++index) {
         if (progress && !progress(index, count)) {
             report.cancelled = true;
@@ -177,7 +216,8 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
             report.outcomes.append(outcome);
             continue;
         }
-        const MoveOutcome outcome = carryOut(move, options);
+        const MoveOutcome outcome
+            = carryOut(move, options, filesOfTheRun, sourceIds.at(index), sourceKnown.at(index));
         if (outcome.status == MoveOutcome::Status::Done)
             ++report.done;
         else
