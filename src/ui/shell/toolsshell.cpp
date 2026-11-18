@@ -342,7 +342,7 @@ struct ToolsShell::Private {
                         .arg(outcome.changed.size());
         if (!outcome.failed.isEmpty())
             text += QCoreApplication::translate(
-                "linuxbee::ui::ToolsShell", "; %1 could not be put back")
+                "linuxbee::ui::ToolsShell", "; %1 could not be put back (Undo tries again)")
                         .arg(outcome.failed.size());
         showMessage(text);
     }

@@ -1,6 +1,6 @@
-// LOCKED ACCEPTANCE TEST (Edit > Undo takes the last tag change back). Written by the reviewer, not the builder.
-// The builder makes these pass by changing src/, never by editing this file.
-// A test believed to be wrong is reported, with the reason, and left alone.
+// LOCKED ACCEPTANCE TEST (Edit > Undo takes the last tag change back). Written by the reviewer, not
+// the builder. The builder makes these pass by changing src/, never by editing this file. A test
+// believed to be wrong is reported, with the reason, and left alone.
 //
 // Expected values are rules in docs/spec/tools-shell.md (TS-UNDO) and
 // docs/spec/tag-undo.md. Offscreen, with the real window, library and
@@ -77,14 +77,16 @@ struct Rig {
         for (const QString &p : { a, b, tone })
             if (library->addFile(p, QStringLiteral("Music"), now) == 0)
                 QTest::qFail("a fixture did not go into the library", __FILE__, __LINE__);
-        lib = std::make_unique<LibraryShell>(&window, &actions, library.get(), &playlists, &settings, ShellHooks { });
-        tools = std::make_unique<ToolsShell>(&window, &actions, library.get(), lib.get(), &settings, [this](QDialog *dialog) {
-            ++presented;
-            last = dialog;
-            kind = QString::fromLatin1(dialog->metaObject()->className());
-            if (work)
-                work(dialog);
-        });
+        lib = std::make_unique<LibraryShell>(
+            &window, &actions, library.get(), &playlists, &settings, ShellHooks { });
+        tools = std::make_unique<ToolsShell>(
+            &window, &actions, library.get(), lib.get(), &settings, [this](QDialog *dialog) {
+                ++presented;
+                last = dialog;
+                kind = QString::fromLatin1(dialog->metaObject()->className());
+                if (work)
+                    work(dialog);
+            });
     }
     QString made(const QString &name)
     {
@@ -94,7 +96,9 @@ struct Rig {
     QString put(const char *from, const char *to)
     {
         const QString target = dir.path() + QLatin1Char('/') + QLatin1String(to);
-        if (!QFile::copy(QStringLiteral(LINUXBEE_TEST_DATA) + QLatin1Char('/') + QLatin1String(from), target))
+        if (!QFile::copy(
+                QStringLiteral(LINUXBEE_TEST_DATA) + QLatin1Char('/') + QLatin1String(from),
+                target))
             QTest::qFail("could not copy a fixture", __FILE__, __LINE__);
         return target;
     }
@@ -131,7 +135,8 @@ void type(QDialog *dialog, const char16_t *name, const QString &text)
         else
             QTest::keyClicks(edit, text);
     } else {
-        QTest::qFail(qPrintable(QStringLiteral("no line edit named ") + s(name)), __FILE__, __LINE__);
+        QTest::qFail(
+            qPrintable(QStringLiteral("no line edit named ") + s(name)), __FILE__, __LINE__);
     }
 }
 
@@ -150,10 +155,10 @@ QList<qint64> updated(const QSignalSpy &spy)
     return ids;
 }
 
-#define NEED_UNDO(r) \
-    do { \
-        if (!(r).tools->tagUndo()) \
-            QFAIL("the shell has no undo"); \
+#define NEED_UNDO(r)                                                                               \
+    do {                                                                                           \
+        if (!(r).tools->tagUndo())                                                                 \
+            QFAIL("the shell has no undo");                                                        \
     } while (false)
 
 // Changes the album of the selected tracks in the tag editor.
@@ -189,7 +194,8 @@ private slots:
 
 void ToolsShellUndoTest::theEditorAndBack()
 {
-    // TS-UNDO: a change made in the tag editor, and Edit > Undo: the files and the library are as before.
+    // TS-UNDO: a change made in the tag editor, and Edit > Undo: the files and the library are as
+    // before.
     (void)&sorted;
     Rig r;
     NEED_UNDO(r);
@@ -224,7 +230,8 @@ void ToolsShellUndoTest::theEditorAndBack()
 
 void ToolsShellUndoTest::aToolAndBack()
 {
-    // TS-UNDO: the same for a tagging tool; the step has the tool's name, and only the files written are in it.
+    // TS-UNDO: the same for a tagging tool; the step has the tool's name, and only the files
+    // written are in it.
     Rig r;
     NEED_UNDO(r);
     r.select({ r.a, r.b });
@@ -247,7 +254,8 @@ void ToolsShellUndoTest::aToolAndBack()
 
 void ToolsShellUndoTest::nothingToUndo()
 {
-    // TS-UNDO: with no step the command says so. A dialog that was closed without a change keeps the step before it.
+    // TS-UNDO: with no step the command says so. A dialog that was closed without a change keeps
+    // the step before it.
     Rig r;
     NEED_UNDO(r);
     r.run(u"edit.undo");
@@ -309,7 +317,9 @@ void ToolsShellUndoTest::picturesComeBack()
     r.run(u"tools.tagging.removeTags");
     QCOMPARE(readTags(r.a).tags.pictures.size(), 0);
     // TT-WARN: the question no longer says it cannot be undone.
-    QCOMPARE(asked, s(u"Remove the embedded pictures from 1 file? Undo brings them back, until the next tag change or until the program closes."));
+    QCOMPARE(asked,
+        s(u"Remove the embedded pictures from 1 file? Undo brings them back, until the next tag "
+          u"change or until the program closes."));
     r.run(u"edit.undo");
     const TrackTags after = readTags(r.a).tags;
     QCOMPARE(after.pictures.size(), 1);
@@ -329,7 +339,8 @@ void ToolsShellUndoTest::aFileThatWentAway()
     r.run(u"edit.undo");
     QCOMPARE(readTags(r.a).tags.first(s(u"Album")), before);
     QCOMPARE(album(r, r.a), before);
-    QCOMPARE(r.tools->lastMessage(), s(u"Undid Edit Tags: 1 file put back; 1 could not be put back"));
+    QCOMPARE(r.tools->lastMessage(),
+        s(u"Undid Edit Tags: 1 file put back; 1 could not be put back (Undo tries again)"));
 }
 
 QTEST_MAIN(ToolsShellUndoTest)

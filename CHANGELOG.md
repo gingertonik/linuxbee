@@ -15,6 +15,7 @@ settings and the library file may still change.
 - **Sending a file to the trash could destroy a file already in the trash**: one of the same name that had no record there (left by another tool, or after its record was removed by hand). The new file now gets another name, as for any name that is taken.
 - `settings import` no longer writes the settings file of a running linuxBee; the import was lost when the program closed.
 - **Undo of a rating change on an MP3 or WAV brings the rating frames back as they were:** a play counter, the frame of another player and the exact rating byte were lost.
+- **Undo keeps a file it could not put back, and its removed cover,** so that Undo can be tried again; they were dropped at the first failure.
 
 ## 0.8.0 (2026-11-18)
 

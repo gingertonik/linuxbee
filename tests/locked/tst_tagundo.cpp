@@ -402,8 +402,8 @@ void TagUndoTest::whenItCannotBeKept()
 
 void TagUndoTest::undoThatFails()
 {
-    // UN-STEP: a file that cannot be written is named; the others are put back; the step is
-    // forgotten.
+    // UN-STEP: a file that cannot be written is named; the others are put back. UN-KEEP: the
+    // file that was not put back is what is left of the step.
     const QString a = copy("basic.flac", "a.flac");
     const QString b = copy("basic.mp3", "b.mp3");
     const QString c = copy("basic.ogg", "c.ogg");
@@ -416,7 +416,8 @@ void TagUndoTest::undoThatFails()
     const TagUndo::Outcome out = undo.undo();
     QCOMPARE(out.restored, QStringList({ a, c }));
     QCOMPARE(out.failed, QStringList({ b }));
-    QVERIFY(!undo.canUndo());
+    QVERIFY(undo.canUndo());
+    QCOMPARE(undo.paths(), QStringList({ b }));
     QCOMPARE(tagsOf(a).fields.value(s(u"Title")), QStringList({ s(u"Flac Title") }));
     QCOMPARE(tagsOf(c).fields.value(s(u"Title")), QStringList({ s(u"Ogg Title") }));
 }
