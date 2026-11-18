@@ -70,6 +70,10 @@ struct ScanReport {
     QString refused;
 };
 
+// L-SCAN: the reader's number. Raised by one whenever what the reader makes of a file changes
+// (2: Love is read), so that a library read by an older one is read again.
+inline constexpr int kReaderVersion = 2;
+
 // L-PARTS: what a scan needs to know of the library.
 struct ScanKnown {
     struct Entry {
@@ -77,6 +81,7 @@ struct ScanKnown {
         qint64 sizeBytes = 0;
         QDateTime modified;
         bool missing = false;
+        int reader = kReaderVersion; // the reader that read it
     };
     QHash<QString, Entry> byPath; // every track, by its stored path
 };
@@ -86,6 +91,7 @@ struct ScanFindings {
     struct Reread {
         qint64 id = 0;
         bool wasMissing = false; // then it is `found`, and not counted as updated
+        bool onlyTheReader = false; // as stored, and read again for the reader's number alone
         LibraryTrack reading; // path, tags, size, time, picture count
     };
     // What the library was known to hold of a track when its file was looked at.

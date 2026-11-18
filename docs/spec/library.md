@@ -76,7 +76,7 @@ the code, 2026-11-16, and measured before this was written.)
 
 ### L-SCHEMA
 
-The schema version is SQLite's `user_version`. This version is 1. A file
+The schema version is SQLite's `user_version`. This version is 2. A file
 with a lower version is brought up to date when opened; a file with a
 higher version is refused.
 
@@ -85,12 +85,22 @@ before it, added with the first change that needs it. A step runs with
 the write lock held and in one transaction with the new
 `user_version`, so a file is at one version or the next, never
 between, and two programs started together do not both run it
-(L-OPEN). Nothing here needs version 2 yet, so there is no step.
+(L-OPEN).
+
+**Version 2** holds, for each track, the number of the reader that
+read its file (L-SCAN, "the reader's number"). The step from 1 gives
+every track the number 0, which is lower than any reader's: nothing
+else of a track changes, and no file is read. While another program
+holds the write lock the step cannot run: the library does not open,
+says why, and is left at version 1. Several programs that open a
+version 1 file together all open it; one of them ran the step. A
+program of version 1 refuses a file of version 2, as any older
+program refuses a newer file.
 
 A step from one version to the next is added with the first version
 that needs one: it runs when the file is opened, under the write lock
 and in one transaction, so that a file is at one version or the
-other and never between. Version 1 has none to run.
+other and never between.
 
 The table layout is the implementation's own business. Nothing outside
 `src/core/library/` may read the file directly.
@@ -124,8 +134,23 @@ the folders, each file once, in ascending order of path.
 - A file the library does not know is read and added with `options.category`
   and `dateAdded = options.now`. If it cannot be read as audio, its path
   goes into `notAudio` and nothing is stored.
-- A known file whose size and modification time are as stored is
-  `unchanged` and is not read.
+- A known file whose size and modification time are as stored, and
+  which was read by this reader or a later one, is `unchanged` and is
+  not read.
+- **The reader's number.** (Found 2026-11-17: a library scanned
+  before this program read Love showed no heart on any track, and
+  no scan could bring one, since every file was as stored.) What the
+  reader makes of a file changes when the program learns a tag. The
+  reader has a number, `kReaderVersion`, raised by one with each such
+  change (it is 2; 1 read no Love), and the library holds for each
+  track the number of the reader that read it, stored with every
+  reading: a scan, `addFile`, `refresh`. A known file as stored that
+  was read by an older reader is read again. If what is read is what
+  the library holds (the fields, the properties of the sound, the
+  count of pictures) the track is `unchanged`, no signal names it,
+  and the reader's number is stored so that it is not read a third
+  time; if it differs, it is `updated`. So the first scan after such
+  a change reads every file, once, and names only what changed.
 - A known file that differs is read again (`updated`). Its id, category,
   date added and statistics stay.
 - A known track marked missing whose file is there is `found` (and read
@@ -153,14 +178,17 @@ on the library's own thread. The three functions below are those two
 kinds apart, so that a window can do the slow kind on another thread.
 
 - `scanKnown()` is what the looking needs to know: for every track of
-  the library, by its stored path, its id, size, modification time and
-  whether it is marked missing. It reads no track (L-COUNT).
+  the library, by its stored path, its id, size, modification time,
+  whether it is marked missing, and the number of the reader that read
+  it (`reader`; an entry made by hand has this reader's). It reads no
+  track (L-COUNT).
 - `findForScan(folders, known, options)` looks at the files as L-SCAN
   says, and at the names as L-NAMES says, against `known`. It touches no
   library and may be called on any thread. It answers `ScanFindings`:
   the files not known, read (`fresh`); the known files that differ, read
-  again (`reread`, each with the id and whether the track was marked
-  missing); the ids marked missing whose file is there (`found`); the
+  again (`reread`, each with the id, whether the track was marked
+  missing, and `onlyTheReader`: the file is as stored and was read
+  again for the reader's number alone); the ids marked missing whose file is there (`found`); the
   ids not missing, inside the folders, whose file has gone
   (`nowMissing`); the count `unchanged`; `notAudio`; the unreadable
   names; and `cancelled`. `options.progress` is called and obeyed as in
@@ -169,7 +197,8 @@ kinds apart, so that a window can do the slow kind on another thread.
   each `fresh` file is added with `options.category` and `options.now`
   (one whose path the library holds by now is left alone); each `reread`
   replaces the reading and counts as `updated` unless the track was
-  marked missing; `found` and `nowMissing` set the mark. It refuses what
+  marked missing, or it is `onlyTheReader` and reads as the library
+  holds it, which counts as `unchanged`; `found` and `nowMissing` set the mark. It refuses what
   `scan` refuses (an invalid `now`, an unknown category) by doing
   nothing, and it signals as L-SIGNALS says: at most one signal of each
   kind for one call.
