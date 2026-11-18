@@ -275,6 +275,26 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
             ConvertResult::Status::Failed, encoderMessage(ffmpeg.readAllStandardError()));
     }
 
+    // C-WHOLE: the encoder is not taken at its word. The part file is read
+    // whether or not tags are copied; one that cannot be read, or that is more
+    // than a second shorter than a source of known length, is refused.
+    {
+        ReadOptions lookOptions;
+        lookOptions.pictures = false;
+        const ReadResult made = readTags(partPath, lookOptions);
+        if (made.status != ReadResult::Status::Ok) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file could not be read"));
+        }
+        if (source.tags.audio.durationMs > 0
+            && made.tags.audio.durationMs < source.tags.audio.durationMs - 1000) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file is shorter than the source"));
+        }
+    }
+
     // Step 8: the tags go onto the part file, before it is moved.
     ConvertResult result;
     if (job.copyTags) {
