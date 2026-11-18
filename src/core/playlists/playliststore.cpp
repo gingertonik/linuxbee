@@ -3,11 +3,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QIODevice>
 #include <QSaveFile>
 #include <QSet>
 
 #include <algorithm>
 #include <functional>
+#include <memory>
+#include <optional>
 
 #include "formatdetail.h"
 
@@ -146,13 +149,8 @@ template <typename T> void sortAsText(QList<T> *items, const std::function<QStri
 
 // Y-STORE: the store's own files hold one absolute location per line and no
 // "#EXT" lines. Reading is Y-DECODE for UTF-8.
-QStringList readLocations(const QString &path)
+QStringList locationsOf(const QByteArray &data)
 {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
-        return { };
-    const QByteArray data = file.readAll();
-    file.close();
     QStringList out;
     for (const QString &line : playlists::decodeLines(data, PlaylistFormat::M3u8)) {
         if (!line.isEmpty())
@@ -161,24 +159,88 @@ QStringList readLocations(const QString &path)
     return out;
 }
 
+QStringList readLocations(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return { };
+    const QByteArray data = file.readAll();
+    file.close();
+    return locationsOf(data);
+}
+
+// Y-EDIT, one read, and a whole one: the file is opened (through the opener, or itself when none
+// is given) and read in a loop to its end. A read that fails is a failure, not an end, and the
+// count read must be the size the file had when it was opened. The answer is the bytes, or
+// nothing when they could not be had. An opener that answers nothing means "could not be opened":
+// the file is not tried then.
+std::optional<QByteArray> readWhole(const PlaylistStore::FileOpener &opener, const QString &path)
+{
+    std::unique_ptr<QIODevice> device;
+    if (opener) {
+        device = opener(path);
+    } else {
+        auto file = std::make_unique<QFile>(path);
+        if (file->open(QIODevice::ReadOnly))
+            device = std::move(file);
+    }
+    if (!device || !device->isOpen())
+        return std::nullopt;
+    const qint64 expected = device->size();
+    QByteArray data;
+    char chunk[16384];
+    for (;;) {
+        const qint64 got = device->read(chunk, sizeof chunk);
+        if (got < 0)
+            return std::nullopt;
+        if (got == 0)
+            break;
+        data.append(chunk, got);
+    }
+    if (data.size() != expected)
+        return std::nullopt;
+    return data;
+}
+
+// Y-EDIT: empty when bytes that were read can be edited, otherwise why not. The bytes are judged;
+// nothing is decoded for use here. Nothing at all means the read did not give them.
+QString problemWith(const std::optional<QByteArray> &read)
+{
+    if (!read)
+        return QStringLiteral("the file could not be read");
+    const QByteArray &data = *read;
+    const QString notUtf8 = QStringLiteral("the file is not UTF-8");
+    // A UTF-16 byte order mark, either end first.
+    if (data.startsWith(QByteArrayLiteral("\xFF\xFE"))
+        || data.startsWith(QByteArrayLiteral("\xFE\xFF")))
+        return notUtf8;
+    // A zero byte anywhere.
+    if (data.contains('\0'))
+        return notUtf8;
+    // Decode and encode again: a byte sequence that is not UTF-8, a letter cut off at the end
+    // included, comes back as U+FFFD and so as other bytes. A UTF-8 byte order mark is set aside.
+    const QByteArray body = data.startsWith(QByteArrayLiteral("\xEF\xBB\xBF")) ? data.mid(3) : data;
+    if (QString::fromUtf8(body).toUtf8() != body)
+        return notUtf8;
+    return { };
+}
+
 enum class Written { Failed, Unchanged, Written };
 
 // Files are written whole and then moved into place (QSaveFile), so a crash
 // cannot leave half a playlist. Nothing is written when the file already
 // holds exactly this, so a call that changes nothing changes nothing.
-Written writeLocations(const QString &path, const QStringList &locations)
+// `asRead` is what the file held when the caller read it: the one read of the call, so the
+// comparison does not read the file again.
+Written writeLocationsOver(
+    const QString &path, const QStringList &locations, const std::optional<QByteArray> &asRead)
 {
     QByteArray data;
     for (const QString &location : locations)
         data += location.toUtf8() + '\n';
 
-    QFile current(path);
-    if (current.open(QIODevice::ReadOnly)) {
-        const QByteArray asIs = current.readAll();
-        current.close();
-        if (asIs == data)
-            return Written::Unchanged;
-    }
+    if (asRead && *asRead == data)
+        return Written::Unchanged;
 
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
@@ -186,6 +248,19 @@ Written writeLocations(const QString &path, const QStringList &locations)
     if (file.write(data) != data.size() || !file.commit())
         return Written::Failed;
     return Written::Written;
+}
+
+// For the callers that did not read the file for editing (create): as it was, the file is read
+// here for the comparison.
+Written writeLocations(const QString &path, const QStringList &locations)
+{
+    std::optional<QByteArray> asIs;
+    QFile current(path);
+    if (current.open(QIODevice::ReadOnly)) {
+        asIs = current.readAll();
+        current.close();
+    }
+    return writeLocationsOver(path, locations, asIs);
 }
 
 }
@@ -365,42 +440,23 @@ QStringList PlaylistStore::tracks(const QString &id) const
     return readLocations(fileFor(m_folder, id));
 }
 
-// Y-EDIT: empty when the entries can be changed, otherwise why not. The file is read whole and
-// its bytes are judged; nothing is decoded for use here.
+// Y-EDIT: empty when the entries can be changed, otherwise why not. The file is read once and
+// whole, and its bytes are judged.
 QString PlaylistStore::editProblem(const QString &id) const
 {
     if (!exists(id))
         return QStringLiteral("there is no such playlist");
-    QFile file(fileFor(m_folder, id));
-    if (!file.open(QIODevice::ReadOnly))
-        return QStringLiteral("the file could not be read");
-    const QByteArray data = file.readAll();
-    const bool readFailed = file.error() != QFileDevice::NoError;
-    file.close();
-    if (readFailed)
-        return QStringLiteral("the file could not be read");
-
-    const QString notUtf8 = QStringLiteral("the file is not UTF-8");
-    // A UTF-16 byte order mark, either end first.
-    if (data.startsWith(QByteArrayLiteral("\xFF\xFE"))
-        || data.startsWith(QByteArrayLiteral("\xFE\xFF")))
-        return notUtf8;
-    // A zero byte anywhere.
-    if (data.contains('\0'))
-        return notUtf8;
-    // Decode and encode again: a byte sequence that is not UTF-8, a letter cut off at the end
-    // included, comes back as U+FFFD and so as other bytes. A UTF-8 byte order mark is set aside.
-    const QByteArray body = data.startsWith(QByteArrayLiteral("\xEF\xBB\xBF")) ? data.mid(3) : data;
-    if (QString::fromUtf8(body).toUtf8() != body)
-        return notUtf8;
-    return { };
+    return problemWith(readWhole(m_opener, fileFor(m_folder, id)));
 }
 
 bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
 {
-    if (!exists(id) || !editProblem(id).isEmpty())
+    if (!exists(id))
         return false;
-    const Written written = writeLocations(fileFor(m_folder, id), paths);
+    const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
+    if (!problemWith(read).isEmpty())
+        return false;
+    const Written written = writeLocationsOver(fileFor(m_folder, id), paths, read);
     if (written == Written::Failed)
         return false;
     if (written == Written::Written)
@@ -410,9 +466,12 @@ bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
 
 int PlaylistStore::append(const QString &id, const QStringList &paths, bool allowDuplicates)
 {
-    if (!exists(id) || !editProblem(id).isEmpty())
+    if (!exists(id))
         return 0;
-    QStringList all = tracks(id);
+    const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
+    if (!problemWith(read).isEmpty())
+        return 0;
+    QStringList all = locationsOf(*read);
     QStringList seen = all;
     int added = 0;
     for (const QString &path : paths) {
@@ -424,7 +483,7 @@ int PlaylistStore::append(const QString &id, const QStringList &paths, bool allo
     }
     if (added == 0)
         return 0;
-    if (writeLocations(fileFor(m_folder, id), all) != Written::Failed) {
+    if (writeLocationsOver(fileFor(m_folder, id), all, read) != Written::Failed) {
         emit tracksChanged(id);
         return added;
     }
@@ -433,9 +492,12 @@ int PlaylistStore::append(const QString &id, const QStringList &paths, bool allo
 
 int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
 {
-    if (!exists(id) || !editProblem(id).isEmpty())
+    if (!exists(id))
         return 0;
-    const QStringList all = tracks(id);
+    const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
+    if (!problemWith(read).isEmpty())
+        return 0;
+    const QStringList all = locationsOf(*read);
     QSet<int> doomed;
     for (const int position : positions) {
         if (position >= 0 && position < all.size())
@@ -448,7 +510,7 @@ int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
         if (!doomed.contains(i))
             kept.append(all.at(i));
     }
-    if (writeLocations(fileFor(m_folder, id), kept) != Written::Failed) {
+    if (writeLocationsOver(fileFor(m_folder, id), kept, read) != Written::Failed) {
         emit tracksChanged(id);
         return all.size() - kept.size();
     }
@@ -457,9 +519,12 @@ int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
 
 bool PlaylistStore::moveTrack(const QString &id, int from, int to)
 {
-    if (!exists(id) || !editProblem(id).isEmpty())
+    if (!exists(id))
         return false;
-    QStringList all = tracks(id);
+    const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
+    if (!problemWith(read).isEmpty())
+        return false;
+    QStringList all = locationsOf(*read);
     // The entry ends up at the position given; a position outside the list fails.
     if (from < 0 || from >= all.size() || to < 0 || to >= all.size())
         return false;
@@ -467,7 +532,7 @@ bool PlaylistStore::moveTrack(const QString &id, int from, int to)
         return true; // nowhere to go: nothing changes
     const QString moved = all.takeAt(from);
     all.insert(to, moved);
-    if (writeLocations(fileFor(m_folder, id), all) != Written::Failed) {
+    if (writeLocationsOver(fileFor(m_folder, id), all, read) != Written::Failed) {
         emit tracksChanged(id);
         return true;
     }
