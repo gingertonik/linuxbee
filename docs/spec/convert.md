@@ -173,6 +173,7 @@ A quality is printed with no trailing zeros: `0`, `6.5`.
 6. Create the destination's folders.
 7. Run ffmpeg, writing to the part file (C-CLEAN), reporting progress
    (C-PROGRESS).
+   Then the part file is looked at (C-WHOLE).
 8. Copy the tags to the part file (C-TAGS).
 9. Move the part file onto the destination, replacing it when C-EXISTS said
    to overwrite. Call the progress function with 1. `Converted`, with
@@ -237,6 +238,44 @@ Whenever it returns false the job stops: ffmpeg is killed and the result is
   line it wrote to standard error, trimmed, or `ffmpeg failed` when it wrote
   nothing.
 
+### C-WHOLE: the encoder is not taken at its word
+
+(Found by the write-path audit, part 3, 2026-11-18: an encoder that
+ended well was believed whatever it had written. With Overwrite a
+short result replaced the user's file, which was deleted. With no
+tags to copy, a result that was no sound at all went through.)
+
+After ffmpeg has ended well and before anything else is done, the part
+file is read with `readTags`, whether or not tags are to be copied:
+
+- it cannot be read as music (or is not there): `Failed`, `the
+  converted file could not be read`;
+- **its length is more than one second less than the source's**
+  (`durationMs` of each, as `readTags` gives them): `Failed`, `the
+  converted file is shorter than the source`. A source whose length
+  is not known (0) is not compared.
+
+Either way the part file is removed and the destination is as it was
+(C-CLEAN).
+
+Why a second, and not a share of the length: an hour-long file may
+not lose half a minute unseen. Lengths are read from headers; over
+251 real files (MP3, FLAC, M4A, Opus) the length read was never more
+than 71 ms above what ffmpeg decodes.
+
+Known and left:
+
+- The length is the one the result's own header states. A file cut
+  off *after* it was finished states its whole length and passes. An
+  encoder that stops early does not leave such a file: the formats
+  here write their length at the end.
+- A source whose header overstates its length by more than a second
+  (an old MP3 of changing bitrate with no length header) cannot be
+  converted: it fails with the second message. None was among the 251.
+- What ffmpeg writes to standard error while ending well is not
+  shown. It did so for 28 of the 251, and each of those decoded to
+  its whole length, so a complaint alone does not fail a job.
+
 ### C-CLEAN
 
 ffmpeg writes to a part file in the destination's folder. Its name is
@@ -280,6 +319,15 @@ linuxbeectl convert [--preset ID | --format F] [--bitrate K] [--quality Q]
   the input's name with the new extension. With `--template T` it is
   `buildRelativePath` (`docs/spec/paths.md`) of T over the input's
   `TrackFieldSource` (`docs/spec/track-fields.md`), with the default rules.
+- **C-OWN: a run never writes onto one of its own inputs, nor onto
+  the result of an earlier input**, whatever `--if-exists` says (the
+  rule of B-DEST in convert-batch.md, which the window has). With
+  `--out-dir`, every input is taken before any destination is chosen;
+  a destination that is taken gets `_1` before its extension, or
+  `_2`, and so on, the first that is free, and is then taken itself.
+  A path is known by its real folder, so a folder named through a
+  link is the same folder. Not for `--output`, which has one input
+  (C-STEPS 3 refuses the source itself).
 - One line per input on standard output, in order:
   `converted: INPUT -> OUTPUT`, `skipped: INPUT -> OUTPUT` or
   `tags updated: INPUT -> OUTPUT`.
