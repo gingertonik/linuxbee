@@ -85,6 +85,17 @@ empty record for a file that had none. Another tool that puts a file
 of that name into the trash in that same moment is not guarded
 against.
 
+**How the other disk is held.** No test in a temporary folder reaches a
+second disk. `tools/second-disk-trash.sh BUILD-FOLDER` does: in a user
+name space of its own it mounts a memory disk, makes each kind of
+trash on it (`.Trash-UID`; `.Trash/UID`; a `.Trash` the library
+passes over), and runs `linuxbeectl trash`. It also holds that a
+record another program made is never removed, with the other
+program's step put in the middle of the command by the debugger. The
+gate runs it as `tests/locked/cli_trash_seconddisk.sh`. Where a user
+name space is refused it prints `SKIPPED:` and passes; a run that
+says so has not held this rule.
+
 ## FD-SEND: "it went" is said only when it went
 
 The desktop library's own answer is not enough: it has said "moved"
