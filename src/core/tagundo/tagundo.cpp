@@ -310,4 +310,10 @@ TagUndo::Outcome TagUndo::undo(const Writer &writer)
     return outcome;
 }
 
+// UN-MOVED. fix-83: to be built.
+void TagUndo::moved(const QHash<QString, QString> &oldToNew)
+{
+    Q_UNUSED(oldToNew);
+}
+
 }

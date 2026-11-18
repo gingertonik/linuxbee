@@ -62,13 +62,15 @@ the earlier step as it was.
 order first written.
 
 `undo(writer)` hands each file, in that order, its kept entries as a
-change. `Ok` and `Unchanged` put the file in `restored`; anything else
-in `failed`. The step is then forgotten, whatever the results, and its
+change, unless the file is no longer the one that was edited (UN-SAME:
+it goes in `changed` and is not written). `Ok` and `Unchanged` put the
+file in `restored`; anything else in `failed`. The step is then forgotten, whatever the results, and its
 picture files are removed. With no step, `undo` does nothing and both
 lists are empty. An undo is not itself a step: there is no redo.
 
 Undo writes the earlier values of the entries the change named. It does
-not look at what the file holds now, and it does not bring back bytes:
+not look at what tags the file holds now (it does look at whether it is
+the same file: UN-SAME), and it does not bring back bytes:
 a tag is written the way `writeTags` writes it (tag-writing.md).
 
 `changed()` is emitted whenever `canUndo()`, `name()` or `paths()` may
@@ -78,6 +80,56 @@ an `undo()` that had a step. Not for a step that kept nothing.
 When the object goes, the step is forgotten and its picture files are
 removed. Only files this object made are ever removed from the scratch
 folder; the folder itself is left.
+
+## UN-SAME: only into the file that was edited
+
+(Until 0.8.0 undo wrote by path alone. A file that was moved, and
+another file given its old name, got the first file's earlier tags,
+and was reported as put back.)
+
+For each file of a step, what the file **is** is kept beside its path:
+its device and inode, its size and its modification time, as they were
+straight after the write that the step kept it for (after the last
+such write, when it was written more than once in the step).
+
+At `undo`, before anything is handed to the writer:
+
+- nothing is at the path: the file goes to the writer as before, which
+  fails, and it is in `failed`;
+- something is at the path and it is that file, with that size and
+  time: it is written;
+- **something is at the path and it is not: it is not written, not
+  read for writing, and is in `changed`.** That is another file under
+  the old name, and it is also the same file saved again since by
+  anything that is not this step. Undo does not know what it would be
+  writing over.
+
+`restored`, `changed` and `failed` each keep the step's order, and a
+file is in exactly one.
+
+**This takes something away.** Until 0.8.0, when another program had
+saved the file since (another field, or the same one again), undo
+still wrote the earlier values of the named entries over it. A save
+makes a new file of the track, so a track saved since cannot be told
+from another file under its name, and both are left alone now. Of the
+two mistakes, leaving a change in place is the one that can be put
+right by hand.
+
+## UN-MOVED: following a move
+
+`moved(oldToNew)` says that files have other paths now. Every file of
+the step (the one being made too) whose path is a key gets the new
+path. `changed()` is emitted when the answer of `paths()` changed.
+
+A move within one disk leaves the file what it was. A move to another
+disk is a copy and a removal, and the copy is another file to the
+system: where the file at the new path has the size that was kept, it
+is taken as the file (what it is, is taken again from there); where it
+has not, nothing is taken, and UN-SAME will find it changed. The one
+who calls `moved` is believed that far and no further.
+
+Nothing follows a file that is moved without `moved` being called: by
+hand, or by another program.
 
 ## UN-NOKEEP: made with no folder
 
@@ -94,5 +146,9 @@ written). Changes that need none are recorded and undone as usual.
 - More than one step; redo.
 - Undo for a file move (the organiser), a conversion, or a delete (the
   trash is its undo).
+- Keeping the step when a file could not be put back: a file in
+  `failed` or `changed` is not offered again.
+- Looking at the tags themselves to tell whether an unnamed change
+  since would be lost: any save since is a change.
 - Keeping a step over a restart.
 - The command line: `linuxbeectl` changes are not recorded.

@@ -108,8 +108,15 @@ the step before it.
 1. With no step: the message `Nothing to undo`, and nothing else.
 2. Otherwise `TagUndo::undo()`; then each restored file that the
    library knows is read again (`Library::refresh`), once.
-3. The message: `Undid NAME: N files put back` (`1 file`), and after
-   it, when any failed, `; K could not be put back`.
+3. The message: `Undid NAME: N files put back` (`1 file`); after it,
+   when any was no longer the file that was edited (UN-SAME),
+   `; K changed or moved since, and left as they are` (for one,
+   `; 1 changed or moved since, and left as it is`); and after that,
+   when any failed, `; K could not be put back`.
+
+The shell tells its `TagUndo` of every move the library reports
+(`Library::pathsMoved` to `TagUndo::moved`, UN-MOVED), so a change is
+undone in the file where Organise or a relink has put it since.
 
 Because the removed pictures and tags come back, the questions of
 TT-WARN end with `Undo brings them back, until the next tag change or until the program closes.`

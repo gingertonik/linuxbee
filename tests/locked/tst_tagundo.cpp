@@ -1,6 +1,6 @@
-// LOCKED ACCEPTANCE TEST (one step of undo for tag changes). Written by the reviewer, not the builder.
-// The builder makes these pass by changing src/, never by editing this file.
-// A test believed to be wrong is reported, with the reason, and left alone.
+// LOCKED ACCEPTANCE TEST (one step of undo for tag changes). Written by the reviewer, not the
+// builder. The builder makes these pass by changing src/, never by editing this file. A test
+// believed to be wrong is reported, with the reason, and left alone.
 //
 // Expected values are rules in docs/spec/tag-undo.md (UN-RECORD, UN-STEP).
 // Works on copies of the fixtures in a temporary folder, with the real
@@ -70,12 +70,17 @@ private:
     QString copy(const char *fixture, const char *as = nullptr)
     {
         const QString target = m_dir->filePath(QString::fromLatin1(as ? as : fixture));
-        if (!QFile::copy(QStringLiteral(LINUXBEE_TEST_DATA) + QStringLiteral("/tags/") + QString::fromLatin1(fixture), target))
+        if (!QFile::copy(QStringLiteral(LINUXBEE_TEST_DATA) + QStringLiteral("/tags/")
+                    + QString::fromLatin1(fixture),
+                target))
             QTest::qFail("could not copy a fixture", __FILE__, __LINE__);
         return target;
     }
     static TrackTags tagsOf(const QString &path) { return readTags(path).tags; }
-    QStringList kept() const { return QDir(m_scratch).entryList(QDir::Files | QDir::Hidden | QDir::System); }
+    QStringList kept() const
+    {
+        return QDir(m_scratch).entryList(QDir::Files | QDir::Hidden | QDir::System);
+    }
     std::unique_ptr<QTemporaryDir> m_dir;
     QString m_scratch;
 };
@@ -90,7 +95,8 @@ void TagUndoTest::init()
 void TagUndoTest::aChangeAndBack_data()
 {
     QTest::addColumn<QString>("fixture");
-    for (const char *name : { "basic.mp3", "basic.flac", "basic.ogg", "basic.m4a", "basic.opus", "empty.flac" })
+    for (const char *name :
+        { "basic.mp3", "basic.flac", "basic.ogg", "basic.m4a", "basic.opus", "empty.flac" })
         QTest::newRow(name) << QString::fromLatin1(name);
 }
 
@@ -106,8 +112,9 @@ void TagUndoTest::aChangeAndBack()
     QCOMPARE(undo.name(), QString());
 
     undo.begin(s(u"Edit Tags"));
-    const TagChanges change = fields({ { s(u"Title"), { s(u"A New Title") } }, { s(u"Artist"), { s(u"One"), s(u"Two") } },
-        { s(u"Genre"), { } }, { s(u"Comment"), { s(u"written by the test") } } });
+    const TagChanges change = fields(
+        { { s(u"Title"), { s(u"A New Title") } }, { s(u"Artist"), { s(u"One"), s(u"Two") } },
+            { s(u"Genre"), { } }, { s(u"Comment"), { s(u"written by the test") } } });
     QVERIFY(undo.write(path, change).status == Status::Ok);
     QVERIFY(!undo.canUndo()); // not while the change is being made
     QCOMPARE(changed.count(), 0);
@@ -139,18 +146,26 @@ void TagUndoTest::aChangeAndBack()
 
 void TagUndoTest::onlyWhatWasNamed()
 {
-    // UN-RECORD 3, UN-STEP: entries the change did not name are not touched by undo.
+    // UN-RECORD 3, UN-STEP: entries the change did not name are not touched by undo. The writer
+    // here does more than it is asked: it changes the album beside the title that was named.
     const QString path = copy("basic.flac");
     TagUndo undo(m_scratch);
     undo.begin(s(u"Capitalise"));
-    QVERIFY(undo.write(path, fields({ { s(u"Title"), { s(u"Changed") } } })).status == Status::Ok);
+    const TagUndo::Writer more = [](const QString &file, const TagChanges &changes) {
+        TagChanges all = changes;
+        all.fields.insert(QStringLiteral("Album"), { QStringLiteral("Changed Beside It") });
+        return writeTags(file, all);
+    };
+    QVERIFY(undo.write(path, fields({ { s(u"Title"), { s(u"Changed") } } }), more).status
+        == Status::Ok);
     undo.end();
-    // Somebody changes another field meanwhile, and the title once more.
-    QVERIFY(writeTags(path, fields({ { s(u"Album"), { s(u"Changed Later") } }, { s(u"Title"), { s(u"Changed Again") } } })).ok());
+    QCOMPARE(tagsOf(path).fields.value(s(u"Album")), QStringList({ s(u"Changed Beside It") }));
     const QString titleBefore = s(u"Flac Title");
     QCOMPARE(undo.undo().restored, QStringList({ path }));
-    QCOMPARE(tagsOf(path).fields.value(s(u"Title")), QStringList({ titleBefore })); // what it held before the step
-    QCOMPARE(tagsOf(path).fields.value(s(u"Album")), QStringList({ s(u"Changed Later") })); // not named: left
+    QCOMPARE(tagsOf(path).fields.value(s(u"Title")),
+        QStringList({ titleBefore })); // what it held before the step
+    QCOMPARE(tagsOf(path).fields.value(s(u"Album")),
+        QStringList({ s(u"Changed Beside It") })); // not named: left
 }
 
 void TagUndoTest::oneStep()
@@ -190,7 +205,8 @@ void TagUndoTest::oneStep()
     QCOMPARE(undo.paths(), QStringList({ c }));
     QCOMPARE(undo.undo().restored, QStringList({ c }));
     QCOMPARE(tagsOf(c).fields.value(s(u"Title")), QStringList({ s(u"Ogg Title") }));
-    QCOMPARE(tagsOf(a).fields.value(s(u"Title")), QStringList({ s(u"1a") })); // the first step is gone for good
+    QCOMPARE(tagsOf(a).fields.value(s(u"Title")),
+        QStringList({ s(u"1a") })); // the first step is gone for good
     QCOMPARE(tagsOf(b).fields.value(s(u"Title")), QStringList({ s(u"1b") }));
     QVERIFY(!undo.canUndo());
     QVERIFY(titleA != QStringList({ s(u"1a") }) && titleB != QStringList({ s(u"1b") }));
@@ -198,7 +214,8 @@ void TagUndoTest::oneStep()
 
 void TagUndoTest::picturesComeBack()
 {
-    // UN-RECORD 5: removed pictures are kept as files, one for each different picture, and come back.
+    // UN-RECORD 5: removed pictures are kept as files, one for each different picture, and come
+    // back.
     QStringList paths;
     for (const char *name : { "p1.flac", "p2.flac", "p3.flac" })
         paths.append(copy("basic.flac", name));
@@ -267,13 +284,18 @@ void TagUndoTest::picturesComeBack()
 
 void TagUndoTest::twiceInOneStep()
 {
-    // UN-RECORD 4: a file written twice keeps what each entry held before the first write that named it.
+    // UN-RECORD 4: a file written twice keeps what each entry held before the first write that
+    // named it.
     const QString path = copy("basic.flac");
     const TrackTags before = tagsOf(path);
     TagUndo undo(m_scratch);
     undo.begin(s(u"Two Passes"));
     QVERIFY(undo.write(path, fields({ { s(u"Title"), { s(u"first") } } })).ok());
-    QVERIFY(undo.write(path, fields({ { s(u"Title"), { s(u"second") } }, { s(u"Album"), { s(u"second album") } } })).ok());
+    QVERIFY(
+        undo.write(path,
+                fields(
+                    { { s(u"Title"), { s(u"second") } }, { s(u"Album"), { s(u"second album") } } }))
+            .ok());
     undo.end();
     QCOMPARE(undo.paths(), QStringList({ path }));
     QCOMPARE(undo.undo().restored, QStringList({ path }));
@@ -282,12 +304,14 @@ void TagUndoTest::twiceInOneStep()
 
 void TagUndoTest::whatIsNotKept()
 {
-    // UN-RECORD: nothing for a result that is not Ok; nothing outside begin and end; the writer's result comes back as it is.
+    // UN-RECORD: nothing for a result that is not Ok; nothing outside begin and end; the writer's
+    // result comes back as it is.
     const QString path = copy("basic.flac");
     const QStringList title = tagsOf(path).fields.value(s(u"Title"));
     TagUndo undo(m_scratch);
     QSignalSpy changed(&undo, &TagUndo::changed);
-    QVERIFY(undo.write(path, fields({ { s(u"Title"), { s(u"outside") } } })).status == Status::Ok); // written
+    QVERIFY(undo.write(path, fields({ { s(u"Title"), { s(u"outside") } } })).status
+        == Status::Ok); // written
     QCOMPARE(tagsOf(path).fields.value(s(u"Title")), QStringList({ s(u"outside") }));
     QVERIFY(!undo.canUndo());
 
@@ -341,7 +365,8 @@ void TagUndoTest::whenItCannotBeKept()
         return writeTags(p, c);
     };
     undo.begin(s(u"Unreadable"));
-    WriteResult r = undo.write(m_dir->filePath(QStringLiteral("no-such.flac")), fields({ { s(u"Title"), { s(u"x") } } }), counts);
+    WriteResult r = undo.write(m_dir->filePath(QStringLiteral("no-such.flac")),
+        fields({ { s(u"Title"), { s(u"x") } } }), counts);
     QVERIFY(r.status == Status::Failed);
     QCOMPARE(r.problems, QStringList({ s(u"the earlier tags could not be read") }));
     r = undo.write(copy("notaudio.mp3"), fields({ { s(u"Title"), { s(u"x") } } }), counts);
@@ -367,7 +392,8 @@ void TagUndoTest::whenItCannotBeKept()
     QVERIFY(r.status == Status::Failed);
     QCOMPARE(r.problems, QStringList({ s(u"the earlier pictures could not be kept") }));
     // A change without pictures needs no folder and goes through.
-    QVERIFY(second.write(path, fields({ { s(u"Title"), { s(u"fine") } } }), counts).status == Status::Ok);
+    QVERIFY(second.write(path, fields({ { s(u"Title"), { s(u"fine") } } }), counts).status
+        == Status::Ok);
     second.end();
     QCOMPARE(calls, 1);
     QCOMPARE(tagsOf(path).pictures.size(), 1);
@@ -376,7 +402,8 @@ void TagUndoTest::whenItCannotBeKept()
 
 void TagUndoTest::undoThatFails()
 {
-    // UN-STEP: a file that cannot be written is named; the others are put back; the step is forgotten.
+    // UN-STEP: a file that cannot be written is named; the others are put back; the step is
+    // forgotten.
     const QString a = copy("basic.flac", "a.flac");
     const QString b = copy("basic.mp3", "b.mp3");
     const QString c = copy("basic.ogg", "c.ogg");
