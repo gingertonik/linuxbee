@@ -10,6 +10,11 @@
 #
 # Where a user name space is refused (most build services) it prints "SKIPPED: ..." and passes: the
 # rule is then not held there, and the line says so. The last line is "second-disk-trash: N failed".
+#
+# Corrected after the review of fix-92: no path is pasted into a debugger line any more (the steps
+# are files, named to the debugger's shell by the environment); a work folder whose path has a
+# character outside A-Z a-z 0-9 . _ / - is refused; a debugger probe counts only when the command
+# was really stopped, and the script tries that on itself each run.
 set -u
 case "${1:-}" in
 '') echo "usage: second-disk-trash.sh BUILD-FOLDER | LINUXBEECTL" >&2; exit 2 ;;
@@ -19,21 +24,42 @@ esac
 [ -d "$ctl" ] && ctl=$ctl/src/cli/linuxbeectl
 [ -x "$ctl" ] || { echo "no linuxbeectl at $ctl" >&2; exit 2; }
 
+skipped() {
+    echo "SKIPPED: $1; FD-TAKEN on another disk is not held by this run"
+    echo "second-disk-trash: 0 failed"
+    exit 0
+}
+# A name space of this run's own: the user map is not the one every process starts with.
+own_space() {
+    read -r a b c < /proc/self/uid_map 2> /dev/null || return 1
+    [ "$a $b $c" != "0 0 4294967295" ]
+}
+
 if [ "${LINUXBEE_SDT_INSIDE:-}" != 1 ]; then
-    if ! command -v unshare > /dev/null 2>&1 || ! unshare -r -m true 2> /dev/null; then
-        echo "SKIPPED: no user name spaces here; FD-TAKEN on another disk is not held by this run"
-        echo "second-disk-trash: 0 failed"
-        exit 0
-    fi
+    command -v unshare > /dev/null 2>&1 && unshare -r -m true 2> /dev/null || skipped "no user name spaces here"
     work=$(mktemp -d "${TMPDIR:-/tmp}/lb-sdt.XXXXXX") || exit 2
-    LINUXBEE_SDT_INSIDE=1 LINUXBEE_SDT_WORK=$work unshare -r -m sh "$0" "$ctl"
-    rc=$?
-    rm -rf "$work"
-    exit $rc
+    trap 'rm -rf "$work"' EXIT
+    trap 'exit 143' TERM INT HUP
+    case $work in
+    *[!A-Za-z0-9._/-]*) skipped "the temporary folder's path has a character this script does not work with" ;;
+    esac
+    for attempt in 1 2; do
+        LINUXBEE_SDT_INSIDE=1 LINUXBEE_SDT_WORK=$work unshare -r -m sh "$0" "$ctl"
+        rc=$?
+        # The inner run says that it began. Without that word, the name space was not made.
+        [ -e "$work/began" ] && exit $rc
+    done
+    skipped "the name space could not be made (tried twice)"
 fi
 
 # ---- from here on: inside the name space, where this user is user 0 ----
 S=$LINUXBEE_SDT_WORK
+# Never on the machine itself: a mount is made only in a name space of this run's own.
+own_space || { echo "second-disk-trash: not in a name space of its own; nothing was done" >&2; exit 2; }
+case $S in
+'' | *[!A-Za-z0-9._/-]*) echo "second-disk-trash: no work folder, or one this script does not work with" >&2; exit 2 ;;
+esac
+: > "$S/began"
 uid=$(id -u)
 fails=0
 pass() { echo "PASS $1"; }
@@ -142,27 +168,36 @@ for kind in dash shared; do
 done
 
 # 4. The same, when the other program comes in the middle of linuxBee's work. The moment is made
-# with the debugger: the command is stopped at one system call, the other program's step is done by
-# hand, and the command goes on. Needs gdb and x86-64 (the first probe reads a register).
+# with the debugger: the command is stopped at one system call, the other program's step is done
+# there, and the command goes on. Needs gdb and x86-64 (the first probe reads a register).
+#
+# No path is pasted into a debugger line. The step is a file, and the debugger's shell is told
+# where it is, and where the trash is, by the environment. And the step is run only when the
+# command is really stopped: when it has ended instead, the debugger goes on down its list all the
+# same, and "$_exitcode" has a value by then.
 if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
     export SHELL=/bin/sh
-    # stopped WHERE CONDITION DO: runs the command under gdb, stops at the system call, runs DO there.
+    # stopped CALLS CONDITION: runs the command under gdb; where it stops at one of CALLS (and
+    # CONDITION holds, when one is given), the file $W/step is run. True when it was.
     stopped() {
-        if [ -n "$2" ]; then
-            gdb -q -batch -nx -ex 'set debuginfod enabled off' -ex 'set pagination off' -ex "catch syscall $1" -ex "condition 1 $2" -ex run \
-                -ex "shell $3; : > $W/stopped" -ex delete -ex continue --args "$ctl" trash "$SRC" > "$W/gdb.out" 2>&1
-        else
-            gdb -q -batch -nx -ex 'set debuginfod enabled off' -ex 'set pagination off' -ex "catch syscall $1" -ex run \
-                -ex "shell $3; : > $W/stopped" -ex delete -ex continue --args "$ctl" trash "$SRC" > "$W/gdb.out" 2>&1
-        fi
+        export LINUXBEE_SDT_STEP="$W/step" LINUXBEE_SDT_W="$W" LINUXBEE_SDT_T="$T"
+        printf '%s\n' "$STEP" ': > "$LINUXBEE_SDT_W/stopped"' > "$W/step"
+        set -- "$1" "${2:-1}"
+        gdb -q -batch -nx -ex 'set debuginfod enabled off' -ex 'set pagination off' -ex "catch syscall $1" -ex "condition 1 $2" -ex run \
+            -ex 'eval "shell [ %d = 1 ] && sh \"$LINUXBEE_SDT_STEP\"", $_isvoid($_exitcode)' -ex delete -ex continue --args "$ctl" trash "$SRC" > "$W/gdb.out" 2>&1
         [ -e "$W/stopped" ]
     }
     RECORD='[Trash Info]\nPath=/elsewhere/a.mp3\nDeletionDate=2026-01-01T00:00:00\n'
+    LOOK='$_streq((char*)$rsi, "a.mp3.trashinfo")'
+    theirs_made='theirs=$LINUXBEE_SDT_T/info/a.mp3.trashinfo; : > "$theirs"; ls -i "$theirs" | cut -d" " -f1 > "$LINUXBEE_SDT_W/theirs"'
+    theirs_put='theirs=$LINUXBEE_SDT_T/info/a.mp3.trashinfo; rm -f "$theirs"; printf "'$RECORD'" > "$theirs"'
+    theirs_written='printf "'$RECORD'" >> "$LINUXBEE_SDT_T/info/a.mp3.trashinfo"'
 
     # Between linuxBee's look and its making of the record, another program makes it.
     fresh "between" dash && {
         orphan
-        if stopped openat '$_streq((char*)$rsi, "a.mp3.trashinfo")' ": > $T/info/a.mp3.trashinfo; ls -i $T/info/a.mp3.trashinfo | cut -d' ' -f1 > $W/theirs"; then
+        STEP=$theirs_made
+        if stopped openat "$LOOK"; then
             is "a record made between the look and the making: still there, and theirs" "$(ls -i "$T/info/a.mp3.trashinfo" 2> /dev/null | cut -d' ' -f1)" "$(cat "$W/theirs")"
             is "a record made between the look and the making: the file under the name has its bytes" "$(cat "$T/files/a.mp3")" "$ORPHAN"
         else
@@ -173,7 +208,8 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
     # While the library works, another program puts its own record where linuxBee's empty one was.
     fresh "replaced" dash && {
         orphan
-        if stopped 'renameat renameat2' '' "rm -f $T/info/a.mp3.trashinfo; printf '$RECORD' > $T/info/a.mp3.trashinfo"; then
+        STEP=$theirs_put
+        if stopped 'renameat renameat2' ''; then
             grep -q '^Path=/elsewhere/a.mp3$' "$T/info/a.mp3.trashinfo" 2> /dev/null && pass "a record put in the place of the empty one: still there" || fail "a record put in the place of the empty one: removed"
         else
             echo "SKIPPED: a record put in the place of the empty one (the library did not stop where this probe waits)"
@@ -183,13 +219,34 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
     # While the library works, another program writes its record into the empty one.
     fresh "written" dash && {
         orphan
-        if stopped 'renameat renameat2' '' "printf '$RECORD' >> $T/info/a.mp3.trashinfo"; then
+        STEP=$theirs_written
+        if stopped 'renameat renameat2' ''; then
             grep -q '^Path=/elsewhere/a.mp3$' "$T/info/a.mp3.trashinfo" 2> /dev/null && pass "a record written into the empty one: still there" || fail "a record written into the empty one: removed"
         else
             echo "SKIPPED: a record written into the empty one (the library did not stop where this probe waits)"
         fi
         done_with
     }
+
+    # The script, tried on itself. Waiting at a system call that the command never makes, a probe
+    # must say that the command did not stop, and its step must not have been run. (Without this,
+    # a library that no longer stops where the probes wait would pass them all, unseen.)
+    for which in between replaced written; do
+        fresh "never-$which" dash || continue
+        orphan
+        case $which in
+        between) STEP=$theirs_made; set -- vhangup "$LOOK" ;;
+        replaced) STEP=$theirs_put; set -- vhangup '' ;;
+        written) STEP=$theirs_written; set -- vhangup '' ;;
+        esac
+        if stopped "$1" "$2"; then
+            fail "the script itself, $which: a command that ran to its end is said to have been stopped"
+        else
+            pass "the script itself, $which: a command that ran to its end is not said to have been stopped"
+        fi
+        [ ! -e "$W/theirs" ] && ! grep -q elsewhere "$T/info/"* 2> /dev/null && pass "the script itself, $which: and its step was not run" || fail "the script itself, $which: its step was run all the same"
+        done_with
+    done
 else
     echo "SKIPPED: the three probes that need the debugger (no gdb, or not x86-64)"
 fi
