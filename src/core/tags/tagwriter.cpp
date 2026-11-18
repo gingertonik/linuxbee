@@ -26,6 +26,10 @@
 #include <id3v2framefactory.h>
 #include <id3v2header.h>
 #include <id3v2tag.h>
+#include <mp4file.h>
+#include <mp4item.h>
+#include <mp4itemfactory.h>
+#include <mp4tag.h>
 #include <mpegfile.h>
 #include <popularimeterframe.h>
 #include <textidentificationframe.h>
@@ -497,6 +501,68 @@ void saveId3Properties(TagLib::File *file, TagLib::ID3v2::Tag *tag, const TagLib
         mpeg->ID3v1Tag(true)->setProperties(now);
 }
 
+// W-ONLY, MPEG-4: the factory takes and gives item names as bytes, the tag's map has them as
+// strings. A freeform name (----:mean:name) is UTF-8; an atom's four letters are Latin-1 (the
+// first may be a copyright sign, one byte).
+TagLib::ByteVector itemNameBytes(const TagLib::String &name)
+{
+    return name.data(
+        name.startsWith(TagLib::String("----:")) ? TagLib::String::UTF8 : TagLib::String::Latin1);
+}
+
+TagLib::String itemNameString(const TagLib::ByteVector &name)
+{
+    return TagLib::String(name,
+        name.startsWith(TagLib::ByteVector("----:")) ? TagLib::String::UTF8
+                                                     : TagLib::String::Latin1);
+}
+
+// W-ONLY, MPEG-4, named: every item the tag library reads this key from (compared without case)
+// is taken out, and one item is written for the new values, under the name the factory gives;
+// but where an item taken out had that name in other letters, under its own name. When the
+// factory cannot make an item for the values, the key's items stay as they are.
+void writeNamedMp4Key(
+    TagLib::MP4::Tag *tag, const TagLib::String &key, const TagLib::StringList &values)
+{
+    const TagLib::MP4::ItemFactory *factory = TagLib::MP4::ItemFactory::instance();
+
+    std::pair<TagLib::ByteVector, TagLib::MP4::Item> made;
+    if (!values.isEmpty()) {
+        made = factory->itemFromProperty(key, values);
+        if (made.first.isEmpty() || !made.second.isValid())
+            return;
+    }
+
+    std::vector<TagLib::String> mine;
+    for (const auto &entry : tag->itemMap()) {
+        const auto read = factory->itemToProperty(itemNameBytes(entry.first), entry.second);
+        if (!read.first.isEmpty() && read.first.upper() == key.upper())
+            mine.push_back(entry.first);
+    }
+    for (const TagLib::String &name : mine)
+        tag->removeItem(name);
+    if (values.isEmpty())
+        return;
+
+    TagLib::String name = itemNameString(made.first);
+    for (const TagLib::String &was : mine) {
+        if (was.upper() == name.upper()) {
+            name = was;
+            break;
+        }
+    }
+    tag->setItem(name, made.second);
+}
+
+// W-ONLY, for an MPEG-4 file: instead of handing the tag library the whole map to write anew,
+// only the items of the keys the change names are rewritten.
+void saveMp4Properties(
+    TagLib::MP4::Tag *tag, const TagLib::PropertyMap &was, const TagLib::PropertyMap &now)
+{
+    for (const TagLib::String &key : namedKeys(was, now))
+        writeNamedMp4Key(tag, key, valuesOf(now, key));
+}
+
 // WS-WRITTEN: a file the tag library writes through, byte for byte and with no buffer of its
 // own. Every write is looped until its last byte is down, and one that is not is remembered in
 // `failed()`; the tag library is not believed about writes. The library's own insert and remove
@@ -773,6 +839,19 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
         saveId3Properties(file, tag, was, map);
         if (picturesChanged && !writePictures(tag, after.pictures))
             return false;
+    } else if (auto *mp4 = dynamic_cast<TagLib::MP4::File *>(file)) {
+        // W-ONLY, MPEG-4: no setProperties; only the items of the keys the change names.
+        TagLib::MP4::Tag *tag = mp4->tag();
+        if (!tag)
+            return false;
+        saveMp4Properties(tag, was, map);
+        if (picturesChanged) {
+            if (!writePictures(file, after.pictures))
+                return false;
+            // An empty list leaves no covr item; the library leaves an empty one.
+            if (after.pictures.isEmpty())
+                tag->removeItem(TagLib::String("covr"));
+        }
     } else {
         file->setProperties(map);
         if (picturesChanged && !writePictures(file, after.pictures))
