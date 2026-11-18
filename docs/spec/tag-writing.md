@@ -156,8 +156,75 @@ pictures are not touched. A picture with an empty `type` is a
 - The audio is never re-encoded or moved between containers: its packets
   are byte-for-byte the same afterwards.
 - Fields, other tags and pictures that the change does not name read back
-  exactly as before.
+  exactly as before. In an ID3v2 tag they are more than read back
+  the same: W-ONLY.
 - Tags the reader lists as unsupported are kept when TagLib keeps them.
+
+### W-ONLY
+
+A save changes what it names and nothing else. This rule is for an ID3v2
+tag (MP3, WAV). The locked test `tests/locked/tst_tagwrite_only_id3.cpp`
+holds it: it reads the frames of the tag itself, byte by byte, and asks
+the tag library nothing.
+
+- **What a change names.** A key is named when the change gives it other
+  values than the file has: the key a field is written under and every
+  key it is read from (W-ONEHOME), the key of a number and its count
+  (W-NUMBERS), the key of an entry of `other`. Rating names the `POPM`
+  frames (W-RATING). `pictures` names the `APIC` frames (W-PICTURES).
+- **The frames of a key** are the frames the tag library reads that key
+  from. `TPUB` and a `TXXX` frame described `Label` are both frames of
+  LABEL. A `COMM` frame with no description is a frame of COMMENT,
+  whatever its language; one with a description is not.
+- **Named:** the frames of the key are taken out, and the new values are
+  written as the tag library writes that key.
+- **Not named:** the frame is, after the save, what a save that changes
+  nothing leaves of it. In a tag the tag library has written before,
+  that is the same bytes, and the same order among the frames that are
+  not named. (A tag written by another program may be written anew at
+  its first save here, whatever is saved: the tag library writes a text
+  without the zero another program ends it with, and it writes the
+  frames of ID3v2.3 in an order of its own; it drops a lyrics frame
+  that has no text, and gives a rating frame with no counter a counter
+  of 0. That happens once, and no value is changed by it. One thing takes a save more: in ID3v2.3 the
+  tag library keeps the lists of people in one frame and sorts its
+  pairs as it reads them, so the save after a tag was first written as
+  ID3v2.3 may put the pairs of that frame in another order. No pair is
+  lost.)
+- **Comments and lyrics** are written as comment frames (`COMM`) and
+  lyrics frames (`USLT`), one frame for each value, never as a `TXXX`
+  frame. The frame for value n takes the language and the description
+  of the n-th frame it replaces; a value beyond those takes the first's;
+  with none to replace, the frame is as the tag library makes it.
+- **Lists of people.** `TIPL` and `TMCL` hold many keys in one frame, as
+  pairs of a role and a name: ARRANGER, ENGINEER, PRODUCER, DJMIXER,
+  MIXER, and `PERFORMER:` with an instrument. (In ID3v2.3 the tag
+  library keeps both lists in one `IPLS` frame.) Naming one of these
+  keys changes the pairs of that role, compared ignoring case. Every
+  other pair stays as it is and in its order, a role the tag library
+  does not know among them. A list left with no pair is taken out.
+- **A file read from another tag.** When the values the file was read as
+  having are not in its ID3v2 tag (an MP3 with an ID3v1 tag and nothing
+  else), the ID3v2 tag that is written holds all of them, not only the
+  named ones.
+- **What may change without being named:** the padding and the size of
+  the tag; the ID3v1 tag, which is written from the current values
+  (W-ID3V1); and what W-ID3VER says of a tag written in another version
+  than it had.
+
+Known, and left:
+
+- Where a new frame stands among the others is the tag library's choice.
+- Undo gives a field its old values through this same save. The frames
+  are then the bytes they were, except that the language of a comment
+  or of lyrics that a change took out does not come back with its text:
+  after two comments were made one and then two again, both have the
+  language of the first.
+- A list of people with a role the tag library does not know is not
+  read at all: `readTags` shows none of its people (that is the reader's
+  to mend). A name saved into such a list is in the file and is not
+  shown, and saving it again writes it again.
+- Not held by a test: the order of the pairs when one role has several.
 
 ## 5. Options
 
@@ -228,7 +295,8 @@ On the command line (W-CLI): `--id3v2.3` and `--id3v2.4` choose `V23` and
 MP3 only. With `writeId3v1` true (MusicBee's default, W-TP), the file ends
 with an ID3v1 tag holding what ID3v1 can hold of the current values; one is
 added if the file had none. With it false, an existing ID3v1 tag is
-removed. An APEv2 tag in an MP3 is left as it is.
+removed. An APEv2 tag in an MP3 is left as it is: no save writes into
+it, a save of pictures included.
 
 ### W-WAV
 
@@ -281,6 +349,11 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 - Writing APEv2 tags into MP3 files; synchronised lyrics; custom tags;
   the artist roles; album rating, Love and the other MusicBee-only tags.
 - Undo.
+- W-ONLY for MPEG-4, Vorbis comments and APEv2 tags. A save there still
+  hands the tag library all the file's tags at once, and what does not
+  come back from it as it went in is written anew though nobody named
+  it: an MPEG-4 freeform atom whose name is not in capitals gets a twin
+  in capitals, and a Vorbis comment with an empty value is dropped.
 
 ## Open parity questions
 
