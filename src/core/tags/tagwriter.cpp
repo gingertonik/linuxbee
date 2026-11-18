@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <memory>
+#include <vector>
 
 #include <QDateTime>
 #include <QDir>
@@ -17,16 +18,22 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+#include <commentsframe.h>
 #include <fileref.h>
+#include <id3v1tag.h>
 #include <id3v2.h>
+#include <id3v2frame.h>
+#include <id3v2framefactory.h>
 #include <id3v2header.h>
 #include <id3v2tag.h>
 #include <mpegfile.h>
 #include <popularimeterframe.h>
+#include <textidentificationframe.h>
 #include <tiostream.h>
 #include <tpropertymap.h>
 #include <tstringlist.h>
 #include <tvariant.h>
+#include <unsynchronizedlyricsframe.h>
 #include <wavfile.h>
 
 #include "catalogue.h"
@@ -149,7 +156,7 @@ TagLib::ID3v2::Version id3Version(const WriteOptions &options, TagLib::ID3v2::Ve
 }
 
 // W-RATING, ID3v2: the address and counter of the first POPM frame. They are read
-// before setProperties, which may drop the frame.
+// before rewritePopm takes the frames out and writes the one the rating names.
 struct PopmKeep {
     TagLib::String email;
     unsigned int counter = 0;
@@ -229,8 +236,9 @@ bool saveId3(TagLib::File *file, const WriteOptions &options, TagLib::ID3v2::Ver
 }
 
 // W-PICTURES: the file's pictures become exactly this list, in order. TagLib
-// writes each one under the PICTURE key of its format.
-bool writePictures(TagLib::File *file, const QList<Picture> &pictures)
+// writes each one under the PICTURE key of its format. `target` is the file, or, for an ID3
+// file, its ID3v2 tag alone (the file would write them into an APEv2 tag as well).
+template <class Target> bool writePictures(Target *target, const QList<Picture> &pictures)
 {
     TagLib::List<TagLib::VariantMap> list;
     for (const Picture &picture : pictures) {
@@ -243,7 +251,216 @@ bool writePictures(TagLib::File *file, const QList<Picture> &pictures)
         map.insert(TagLib::String("pictureType"), TagLib::Variant(tagString(picture.type)));
         list.append(map);
     }
-    return file->setComplexProperties(TagLib::String("PICTURE"), list);
+    return target->setComplexProperties(TagLib::String("PICTURE"), list);
+}
+
+// W-ONLY: Frame::asProperties is protected in the tag library. Naming it through a derived
+// struct lets a pointer to member reach it on any frame, and the call still goes to the
+// frame's own override: these are the keys the tag library reads that frame as.
+struct FrameProperties : TagLib::ID3v2::Frame {
+    static TagLib::PropertyMap of(const TagLib::ID3v2::Frame *frame)
+    {
+        return (frame->*(&FrameProperties::asProperties))();
+    }
+};
+
+TagLib::StringList valuesOf(const TagLib::PropertyMap &map, const TagLib::String &key)
+{
+    const auto found = map.find(key);
+    return found == map.end() ? TagLib::StringList() : found->second;
+}
+
+// W-ONLY: a key is named when the edited map holds other values for it than the map as it was
+// read: a new key, a key that is gone, or other values.
+TagLib::StringList namedKeys(const TagLib::PropertyMap &was, const TagLib::PropertyMap &now)
+{
+    TagLib::StringList named;
+    auto consider = [&](const TagLib::String &key) {
+        if (!named.contains(key) && valuesOf(was, key) != valuesOf(now, key))
+            named.append(key);
+    };
+    for (const auto &entry : was)
+        consider(entry.first);
+    for (const auto &entry : now)
+        consider(entry.first);
+    return named;
+}
+
+// The tag library's String has an upper() and no lower(). Roles are written in small letters,
+// as the files that are read hold them.
+TagLib::String lowerOf(const TagLib::String &text)
+{
+    return tagString(QString::fromStdString(text.to8Bit(true)).toLower());
+}
+
+// W-ONLY, lists of people: TIPL holds the keys of involvedPeopleMap(), TMCL the keys that begin
+// PERFORMER:, each as a pair of a role and a name. False for any other key.
+bool listOfPeopleFor(const TagLib::String &key, TagLib::ByteVector &frameId, TagLib::String &role)
+{
+    const auto &people = TagLib::ID3v2::TextIdentificationFrame::involvedPeopleMap();
+    const auto found = people.find(key);
+    if (found != people.end()) {
+        frameId = TagLib::ByteVector("TIPL");
+        role = lowerOf(found->second);
+        return true;
+    }
+    if (key.startsWith(TagLib::String("PERFORMER:"))) {
+        frameId = TagLib::ByteVector("TMCL");
+        role = lowerOf(key.substr(10));
+        return true;
+    }
+    return false;
+}
+
+// W-ONLY, lists of people: the pairs of the named role (compared ignoring case) are taken out
+// of the list's frame and the new ones appended; every other pair stays, in its order. A list
+// left with no pair is removed, and a missing list is made.
+void rewriteListOfPeople(TagLib::ID3v2::Tag *tag, const TagLib::ByteVector &frameId,
+    const TagLib::String &role, const TagLib::StringList &values)
+{
+    TagLib::ID3v2::TextIdentificationFrame *frame = nullptr;
+    const TagLib::ID3v2::FrameList held = tag->frameList(frameId);
+    if (!held.isEmpty())
+        frame = dynamic_cast<TagLib::ID3v2::TextIdentificationFrame *>(held.front());
+
+    TagLib::StringList kept;
+    if (frame) {
+        const TagLib::StringList fields = frame->fieldList();
+        for (unsigned int i = 0; i < fields.size(); i += 2) {
+            // An odd last text has no name beside it: it is nobody's pair, and stays.
+            if (i + 1 < fields.size() && fields[i].upper() == role.upper())
+                continue;
+            kept.append(fields[i]);
+            if (i + 1 < fields.size())
+                kept.append(fields[i + 1]);
+        }
+    }
+    for (const TagLib::String &value : values) {
+        kept.append(role);
+        kept.append(value);
+    }
+
+    if (kept.isEmpty()) {
+        if (frame)
+            tag->removeFrame(frame, true);
+        return;
+    }
+    if (!frame) {
+        frame = new TagLib::ID3v2::TextIdentificationFrame(frameId, TagLib::String::UTF8);
+        tag->addFrame(frame);
+    }
+    frame->setText(kept);
+}
+
+enum class TextKind { Other, Comment, Lyrics };
+
+// W-ONLY: the keys the tag library writes as a comment frame or a lyrics frame, a description
+// after a colon included.
+TextKind textKindOf(const TagLib::String &key)
+{
+    if (key == "COMMENT" || key.startsWith(TagLib::String("COMMENT:")))
+        return TextKind::Comment;
+    if (key == "LYRICS" || key.startsWith(TagLib::String("LYRICS:")))
+        return TextKind::Lyrics;
+    return TextKind::Other;
+}
+
+// The language and the description of a comment frame or a lyrics frame that is being replaced.
+struct Replaced {
+    TagLib::ByteVector language;
+    TagLib::String description;
+};
+
+// W-ONLY, named: the frames of the key are taken out, and the new values are written as the tag
+// library writes that key. Comments and lyrics are one frame a value (the library would make
+// several into one user text frame), and the frame for value n takes the language and the
+// description of the n-th frame it replaces; beyond them, the first's.
+void writeNamedKey(
+    TagLib::ID3v2::Tag *tag, const TagLib::String &key, const TagLib::StringList &values)
+{
+    TagLib::ByteVector listId;
+    TagLib::String role;
+    if (listOfPeopleFor(key, listId, role)) {
+        rewriteListOfPeople(tag, listId, role, values);
+        return;
+    }
+
+    const TextKind kind = textKindOf(key);
+    std::vector<TagLib::ID3v2::Frame *> mine;
+    for (TagLib::ID3v2::Frame *frame : tag->frameList()) {
+        if (FrameProperties::of(frame).contains(key))
+            mine.push_back(frame);
+    }
+    std::vector<Replaced> replaced;
+    for (TagLib::ID3v2::Frame *frame : mine) {
+        if (auto *comment = dynamic_cast<TagLib::ID3v2::CommentsFrame *>(frame))
+            replaced.push_back({ comment->language(), comment->description() });
+        else if (auto *lyrics = dynamic_cast<TagLib::ID3v2::UnsynchronizedLyricsFrame *>(frame))
+            replaced.push_back({ lyrics->language(), lyrics->description() });
+        tag->removeFrame(frame, true);
+    }
+    if (values.isEmpty())
+        return;
+
+    TagLib::ID3v2::FrameFactory *factory = TagLib::ID3v2::FrameFactory::instance();
+    if (kind == TextKind::Other) {
+        if (TagLib::ID3v2::Frame *frame = factory->createFrameForProperty(key, values))
+            tag->addFrame(frame);
+        return;
+    }
+    size_t at = 0;
+    for (const TagLib::String &value : values) {
+        TagLib::StringList one;
+        one.append(value);
+        TagLib::ID3v2::Frame *frame = factory->createFrameForProperty(key, one);
+        if (!frame)
+            continue;
+        if (!replaced.empty()) {
+            const Replaced &from = replaced[at < replaced.size() ? at : 0];
+            if (auto *comment = dynamic_cast<TagLib::ID3v2::CommentsFrame *>(frame)) {
+                comment->setLanguage(from.language);
+                comment->setDescription(from.description);
+            } else if (auto *lyrics
+                = dynamic_cast<TagLib::ID3v2::UnsynchronizedLyricsFrame *>(frame)) {
+                lyrics->setLanguage(from.language);
+                lyrics->setDescription(from.description);
+            }
+        }
+        tag->addFrame(frame);
+        ++at;
+    }
+}
+
+// W-ONLY, for an ID3 file (MP3, WAV): instead of handing the tag library the whole map to
+// write anew, only the frames of the keys the change names are rewritten. `was` is the map as
+// it was read, `now` the map the change makes. The ID3v1 tag, which the library's
+// setProperties used to set in the same call, is set from `now` (W-ID3V1).
+void saveId3Properties(TagLib::File *file, TagLib::ID3v2::Tag *tag, const TagLib::PropertyMap &was,
+    const TagLib::PropertyMap &now)
+{
+    TagLib::StringList named = namedKeys(was, now);
+
+    // A value the file was read as having that the ID3v2 tag has no frame for came from its
+    // ID3v1 tag: it is written into the ID3v2 tag too, named or not.
+    auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file);
+    if (mpeg && mpeg->hasID3v1Tag()) {
+        TagLib::StringList heldKeys;
+        for (const TagLib::ID3v2::Frame *frame : tag->frameList()) {
+            for (const auto &entry : FrameProperties::of(frame))
+                heldKeys.append(entry.first);
+        }
+        for (const auto &entry : mpeg->ID3v1Tag()->properties()) {
+            const TagLib::String &key = entry.first;
+            if (!named.contains(key) && !heldKeys.contains(key) && !valuesOf(now, key).isEmpty())
+                named.append(key);
+        }
+    }
+
+    for (const TagLib::String &key : named)
+        writeNamedKey(tag, key, valuesOf(now, key));
+
+    if (mpeg)
+        mpeg->ID3v1Tag(true)->setProperties(now);
 }
 
 // WS-WRITTEN: a file the tag library writes through, byte for byte and with no buffer of its
@@ -268,13 +485,24 @@ public:
 
     TagLib::FileName name() const override { return m_name.constData(); }
 
-    TagLib::ByteVector readBlock(size_t length) override
+    TagLib::ByteVector readBlock(size_t wanted) override
     {
         TagLib::ByteVector data;
-        if (m_fd < 0 || length == 0)
+        if (m_fd < 0 || wanted == 0)
             return data;
-        data.resize(static_cast<unsigned int>(length));
-        const size_t got = readAt(data.data(), length, m_pos);
+        // A block longer than one step is cut to what the file still has after the position,
+        // before the buffer is sized, as the tag library's own stream does: a tag header that
+        // claims 256 MB must not make a save allocate 256 MB to read a few kilobytes.
+        if (wanted > kStep) {
+            const TagLib::offset_t size = length();
+            const TagLib::offset_t left = size > m_pos ? size - m_pos : 0;
+            if (static_cast<TagLib::offset_t>(wanted) > left)
+                wanted = static_cast<size_t>(left);
+            if (wanted == 0)
+                return data;
+        }
+        data.resize(static_cast<unsigned int>(wanted));
+        const size_t got = readAt(data.data(), wanted, m_pos);
         data.resize(static_cast<unsigned int>(got));
         m_pos += static_cast<TagLib::offset_t>(got);
         return data;
@@ -439,7 +667,8 @@ private:
 };
 
 // Step 5 of spec section 1: edits the property map, then saves. The pictures are
-// written only when the change names them.
+// written only when the change names them. An ID3 file is not given the map: only the frames
+// of the keys the edit changed are rewritten (W-ONLY).
 // `wroteV23` is set when the tag written is ID3v2.3 (W-ID3VER, not kept).
 // WS-WRITTEN: false too when any write into the copy did not put down all its bytes.
 bool saveChanges(const QString &filePath, const TrackTags &now, const tags::CheckedChanges &checked,
@@ -464,6 +693,8 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     const bool ratingTouched = checked.fields.contains(QStringLiteral("Rating"));
     const PopmKeep keep = id3 && ratingTouched ? popmKeepOf(file) : PopmKeep { };
     TagLib::PropertyMap map = file->properties();
+    // W-ONLY: the map as it was read, to tell which keys the change names.
+    const TagLib::PropertyMap was = map;
 
     if (checked.fields.contains(QStringLiteral("Track#"))
         || checked.fields.contains(QStringLiteral("Track Count"))) {
@@ -499,9 +730,20 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
             map.insert(key, tagList(it.value()));
     }
 
-    file->setProperties(map);
-    if (picturesChanged && !writePictures(file, after.pictures))
-        return false;
+    if (id3) {
+        // W-ONLY: no setProperties on the ID3v2 tag; it would write anew every frame that does
+        // not come back from the map as it went in. Pictures go to the ID3v2 tag alone.
+        TagLib::ID3v2::Tag *tag = id3v2TagFor(file, true);
+        if (!tag)
+            return false;
+        saveId3Properties(file, tag, was, map);
+        if (picturesChanged && !writePictures(tag, after.pictures))
+            return false;
+    } else {
+        file->setProperties(map);
+        if (picturesChanged && !writePictures(file, after.pictures))
+            return false;
+    }
     if (id3 && ratingTouched) {
         const bool create = !after.first(QStringLiteral("Rating")).isEmpty();
         if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))

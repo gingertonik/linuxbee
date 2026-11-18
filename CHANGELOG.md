@@ -20,6 +20,7 @@ settings and the library file may still change.
 - On a library kept on a network disk, a play that could not be counted because another program had the library is no longer lost. Plays that were waiting are counted in one step.
 - `linuxbeectl library import FILE --map Z:=/` brings the date added, play counts, skip counts and last played from a library exported by MusicBee, and checks its ratings and Love against the files. It changes nothing unless `--apply` is given, and never a music file.
 - After an update that teaches linuxBee a new tag, the next scan reads every file again, once, so the new tag shows. Tracks loved in MusicBee show their heart after that scan. The library file is brought to a new layout when first opened; **an older linuxBee (0.7.1 and before) cannot open it afterwards**, so keep a copy of `~/.local/share/linuxbee` if you may want to go back.
+- Saving a tag in an MP3 or WAV file no longer rewrites tags the change did not name. Two lyrics or two comments in a file stay lyrics and comments (a save of anything used to turn them into one custom tag, which players do not show); a label, mood or grouping stored twice stays as it was; and a saved cover is no longer copied into an APE tag.
 
 ## 0.7.1 (2026-11-17)
 
