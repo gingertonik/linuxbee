@@ -260,6 +260,37 @@ items itself and asks the tag library nothing.
 - A value the tag library cannot write for a key leaves the items of
   that key as they are.
 
+**In a file of Vorbis comments** (FLAC, Ogg Vorbis, Opus) and **in a
+WavPack file** (APEv2 items) the same holds of its comments and items.
+The locked test `tests/locked/tst_tagwrite_only_vorbis_ape.cpp` holds
+it; it reads them itself and asks the tag library nothing.
+
+- **Vorbis comments.** The comments of a key are those of its name,
+  whatever the case of its letters. Named: they are taken out, and one
+  comment is written for each value, its name in capitals. Not named:
+  the same bytes in the same order, in a file the tag library has
+  written before. (At its first save of a file another program wrote,
+  whatever is saved, the tag library writes every name in capitals,
+  puts the comments in the order of their names, drops a comment with
+  an empty value, and writes an old `COVERART` comment as a
+  `METADATA_BLOCK_PICTURE` one. That happens once.)
+- **APEv2 items.** The item of a key is the one of its name, whatever
+  the case of its letters. Named: it is written anew **under the name
+  the file gave it** (`Title` stays `Title`; a gain written as
+  `replaygain_track_gain` keeps that name), several values with a zero
+  byte between them; a key the file did not have is written in
+  capitals, and so is one that was taken out and is put back (Undo of
+  taking a key out brings the value back, its name in capitals). A key
+  that is taken out leaves no item. Not named: the
+  same bytes in the same order; that holds of an item that is not
+  text too (a binary item, a link). `pictures` names the item
+  `Cover Art (Front)`, which keeps that name. (At its first save of a
+  file, the tag library puts the items in the order of their names and
+  drops an item with an empty value.)
+- The pictures of a FLAC file are blocks of their own beside the
+  comments: a save that does not name the pictures leaves every block
+  but the comments and the padding the bytes it was.
+
 Known, and left:
 
 - Where a new frame stands among the others is the tag library's choice.
@@ -402,10 +433,6 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 - Writing APEv2 tags into MP3 files; synchronised lyrics; custom tags;
   the artist roles; album rating, Love and the other MusicBee-only tags.
 - Undo.
-- W-ONLY for Vorbis comments and APEv2 tags. A save there still hands
-  the tag library all the file's tags at once, and what does not come
-  back from it as it went in is written anew though nobody named it:
-  a Vorbis comment with an empty value is dropped.
 - Keeping an MPEG-4 freeform item the tag library cannot hold. An item
   marked as text is read as text, and text ends at a zero byte: the
   item `Encoding Params`, which iTunes fills with bytes that are not
