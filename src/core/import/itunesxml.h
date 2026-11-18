@@ -22,6 +22,7 @@ struct ImportedTrack {
     QString artist;
     QString album;
     std::optional<double> rating; // stars, 0.5 to 5
+    QString love; // I-PARSE: as written, without the space round it ("L", "B"); else empty
     int playCount = 0;
     int skipCount = 0;
     QDateTime dateAdded; // UTC; invalid when the file does not say
@@ -54,7 +55,8 @@ struct ImportMatch {
     qint64 libraryId = 0;
     QString libraryPath;
     TrackStatistics statistics; // what the library should hold afterwards
-    std::optional<double> rating; // from the file, for the caller to use or not
+    std::optional<double> rating; // from the file, for the caller to check (I-CHECK)
+    QString love; // from the file, for the caller to check (I-CHECK)
     bool changes = false; // false: the library says this already
 };
 

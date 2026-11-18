@@ -143,9 +143,14 @@ would take, `--apply --to INI` writes it.
 
 ## 4. Frequently asked
 
-**Can I import my MusicBee library?** Not yet. The settings file, yes: hotkeys
-and the naming template. The import code is in the core, with no command or
-window running it yet.
+**Can I import my MusicBee library?** Yes, from the command line. Export the
+library from MusicBee as an iTunes XML file, scan your music into linuxBee, then
+run `linuxbeectl library import FILE --map OLD=NEW` to bring over the date added,
+play counts, skip counts and last played (`--map` turns the Windows paths into
+yours). It shows what it would change and writes only with `--apply`. Ratings
+and Love live in your files' tags, so linuxBee already has them; the import
+checks that they agree. The settings file imports too: hotkeys and the naming
+template.
 
 **Can it tag files that are hard-linked from a seeding folder?** No. A file with
 more than one name is not saved, because a save would replace one name and leave

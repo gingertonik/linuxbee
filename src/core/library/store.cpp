@@ -874,6 +874,45 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
     return query.numRowsAffected() == 1;
 }
 
+// L-STATS mergeStatistics. The comparing is done by the database in the statement, on the row as
+// it is then. A time that is not valid is -1, which is earlier than any time held (as in
+// recordPlay) and which gives no date added. Qt's SQLite driver binds each placeholder name once,
+// so each use has a name of its own. An update that would change nothing matches no row.
+// L-FAILED: as recordPlay.
+bool Store::mergeStatistics(qint64 id, const TrackStatistics &statistics)
+{
+    d->lastError.clear();
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral(
+        "UPDATE tracks SET "
+        "date_added_secs = CASE WHEN :added1 <> -1 THEN :added2 ELSE date_added_secs END, "
+        "play_count = max(play_count, :plays1), "
+        "skip_count = max(skip_count, :skips1), "
+        "last_played_secs = CASE WHEN :last1 <> -1 AND :last2 > last_played_secs "
+        "THEN :last3 ELSE last_played_secs END "
+        "WHERE id = :id AND ((:added3 <> -1 AND :added4 <> date_added_secs) "
+        "OR :plays2 > play_count OR :skips2 > skip_count "
+        "OR (:last4 <> -1 AND :last5 > last_played_secs))"));
+    const qint64 added = toSecs(statistics.dateAdded);
+    const qint64 last = toSecs(statistics.lastPlayed);
+    for (const char *name : { ":added1", ":added2", ":added3", ":added4" })
+        query.bindValue(QLatin1String(name), added);
+    for (const char *name : { ":last1", ":last2", ":last3", ":last4", ":last5" })
+        query.bindValue(QLatin1String(name), last);
+    for (const char *name : { ":plays1", ":plays2" })
+        query.bindValue(QLatin1String(name), statistics.playCount);
+    for (const char *name : { ":skips1", ":skips2" })
+        query.bindValue(QLatin1String(name), statistics.skipCount);
+    query.bindValue(QStringLiteral(":id"), id);
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
+}
+
 // L-SCAN, L-MISSING: the file is gone, or is back. Only the flag moves: tags,
 // statistics and id stay, which is what a missing track keeps.
 // L-FAILED: as updateReading.

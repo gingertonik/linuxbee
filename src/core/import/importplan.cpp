@@ -18,24 +18,37 @@ bool sameTime(const QDateTime &a, const QDateTime &b)
     return a == b;
 }
 
-// The library track the path lands on: an exact path first; else the only
-// track that fits when case is ignored; else nothing.
-const LibraryTrack *findTrack(const QString &path, const QList<LibraryTrack> &libraryTracks)
-{
-    for (const LibraryTrack &track : libraryTracks) {
-        if (track.path == path)
-            return &track;
-    }
-    const LibraryTrack *only = nullptr;
-    int fits = 0;
-    for (const LibraryTrack &track : libraryTracks) {
-        if (track.path.compare(path, Qt::CaseInsensitive) == 0) {
-            only = &track;
-            ++fits;
+// I-PLAN: the library's paths, looked up by hash and not searched for by walking the list.
+struct PathIndex {
+    struct Folded {
+        const LibraryTrack *track = nullptr;
+        int fits = 0; // how many library tracks fold to this path
+    };
+    QHash<QString, const LibraryTrack *> exact; // the first track at each exact path
+    QHash<QString, Folded> folded; // by the path with its case folded
+
+    explicit PathIndex(const QList<LibraryTrack> &libraryTracks)
+    {
+        exact.reserve(libraryTracks.size());
+        folded.reserve(libraryTracks.size());
+        for (const LibraryTrack &track : libraryTracks) {
+            if (!exact.contains(track.path))
+                exact.insert(track.path, &track); // the first at a path is the one that counts
+            Folded &entry = folded[track.path.toCaseFolded()];
+            if (entry.fits++ == 0)
+                entry.track = &track;
         }
     }
-    return fits == 1 ? only : nullptr;
-}
+
+    // An exact path first; else the only track that fits when case is ignored; else nothing.
+    const LibraryTrack *find(const QString &path) const
+    {
+        if (const auto hit = exact.constFind(path); hit != exact.constEnd())
+            return hit.value();
+        const auto fold = folded.constFind(path.toCaseFolded());
+        return fold != folded.constEnd() && fold->fits == 1 ? fold->track : nullptr;
+    }
+};
 
 // What the library should hold after the import of one track.
 ImportMatch matchOf(const ImportedTrack &track, const LibraryTrack &library)
@@ -44,6 +57,7 @@ ImportMatch matchOf(const ImportedTrack &track, const LibraryTrack &library)
     match.libraryId = library.id;
     match.libraryPath = library.path;
     match.rating = track.rating;
+    match.love = track.love;
 
     TrackStatistics &next = match.statistics;
     next.dateAdded = track.dateAdded.isValid() ? track.dateAdded : library.dateAdded;
@@ -71,11 +85,12 @@ ImportPlan planImport(const ImportedLibrary &imported, const QList<LibraryTrack>
     if (!imported.ok)
         return plan;
 
+    const PathIndex index(libraryTracks);
     QHash<int, QString> libraryPathOf; // every imported track found, duplicates included
     QSet<qint64> matched; // library tracks already given a match
     for (const ImportedTrack &track : imported.tracks) {
         const QString mapped = mapImportedPath(track.location, mapping);
-        const LibraryTrack *library = findTrack(mapped, libraryTracks);
+        const LibraryTrack *library = index.find(mapped);
         if (!library) {
             plan.unmatched.append(mapped);
             continue;
