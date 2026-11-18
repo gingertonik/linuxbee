@@ -13,6 +13,7 @@ settings and the library file may still change.
 - **`linuxbeectl playlist convert` wrote over its output without asking**, and a playlist converted onto itself lost its comments and relative paths. It now refuses a file that is there unless `--force` is given, and always refuses the file it reads. A script that converts onto the same output twice needs `--force`. **`linuxbeectl settings import --to` could write over the MusicBee file it was reading** when the path was spelled through `..`; that is refused now. Neither command writes through a link that leads to nothing.
 - **A playlist could be emptied or mangled by a small edit.** If its file could not be read at that moment, adding a track replaced the whole list with that track. If the file was not UTF-8 (a playlist from another program in Latin-1 or UTF-16), any edit wrote every accented name back as a name of no file. Such a playlist is now left alone, and the window says why. It can still be seen and played.
 - **Sending a file to the trash could destroy a file already in the trash**: one of the same name that had no record there (left by another tool, or after its record was removed by hand). The new file now gets another name, as for any name that is taken.
+- `settings import` no longer writes the settings file of a running linuxBee; the import was lost when the program closed.
 
 ## 0.8.0 (2026-11-18)
 

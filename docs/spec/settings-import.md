@@ -216,6 +216,24 @@ linuxbeectl settings import --apply --to INI FILE
   one the system finds, so the file checked was not the file
   written, and the file being read was written over.)
   SI-CLI-SELF and SI-CLI-TARGET are asked of that path.
+- **SI-CLI-RUNNING.** (Found by the write-path audit, part 8,
+  2026-11-18: an import into the settings of a running linuxBee said
+  `11 written`, and the program saved its own hotkeys over them when
+  it was closed.) When `--to` is the profile's own settings file
+  (`linuxbee.ini` in the settings folder, main-window.md W-PLACES;
+  asked of the path of SI-CLI-PATH, so the same file by any spelling
+  or link) and a running program holds
+  the profile (W-ONE): `failed: INI: linuxBee is running on this
+  profile; close it and import again`, exit 3, nothing on standard
+  output, and the file's bytes are what they were.
+  - The command takes the profile's lock itself for the moment it
+    writes that file, so a program started in that moment ends as
+    W-ONE says, and is not started over a half-made import.
+  - A program that was killed holds nothing. A profile whose data
+    folder is not there has no lock to ask, and none is made for the
+    asking.
+  - Without `--apply` nothing is asked. A `--to` that is any other
+    file is written as before, whatever is running.
 - Exit 2 for a usage mistake: no or an unknown subcommand, no file or
   more than one, `--apply` without `--to`, `--to` without `--apply`.
 

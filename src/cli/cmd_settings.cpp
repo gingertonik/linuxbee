@@ -3,10 +3,14 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLockFile>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QTextStream>
 
 #include <sys/stat.h>
+
+#include <memory>
 
 #include "command.h"
 #include "settingsimport/settingsimport.h"
@@ -93,6 +97,47 @@ WrittenPath writtenPath(const QString &given)
     return result;
 }
 
+// SI-CLI-RUNNING: the profile is `$XDG_CONFIG_HOME/linuxbee` and `$XDG_DATA_HOME/linuxbee`
+// (main-window.md W-PLACES, as ui/app/profile.cpp makes them). The command's own application
+// name is not the program's, so the folders are made from the generic locations.
+QString profileSettingsFile()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+        + QStringLiteral("/linuxbee/linuxbee.ini");
+}
+
+QString profileDataFolder()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+        + QStringLiteral("/linuxbee");
+}
+
+// Is `to` (already the path of the rule) the profile's settings file: the same path, by the
+// same rule, or the same file to the system.
+bool isProfileSettings(const QString &to)
+{
+    const QString profile = writtenPath(profileSettingsFile()).path;
+    return to == profile || sameFile(to, profile);
+}
+
+// Takes `profile.lock` of the profile's data folder the way the program does (ui/app/profile.cpp:
+// a lock whose owner is alive is never stale, no waiting; a dead owner's lock is taken over).
+// Returns the lock to be kept, or null with `busy` set when a running program holds it. A data
+// folder that is not there has no lock to ask: nothing is made and null is returned, not busy.
+std::unique_ptr<QLockFile> takeProfileLock(bool &busy)
+{
+    busy = false;
+    const QString folder = profileDataFolder();
+    if (!QFileInfo(folder).isDir())
+        return nullptr;
+    auto lock = std::make_unique<QLockFile>(folder + QStringLiteral("/profile.lock"));
+    lock->setStaleLockTime(0);
+    if (lock->tryLock(0))
+        return lock;
+    busy = lock->error() == QLockFile::LockFailedError;
+    return nullptr;
+}
+
 // SI-CLI: linuxbeectl settings import. Prints what would be carried over, line by
 // line; with --apply, writes the imported lines to the INI file given with --to.
 int runSettings(const QStringList &arguments)
@@ -160,6 +205,17 @@ int runSettings(const QStringList &arguments)
         const QString refusal = targetRefusal(to);
         if (!refusal.isEmpty())
             return failed(ini, refusal);
+        // SI-CLI-RUNNING: the profile's own settings file is not written under a running
+        // program. The lock is kept until the write below is done.
+        std::unique_ptr<QLockFile> profileLock;
+        if (isProfileSettings(to)) {
+            bool busy = false;
+            profileLock = takeProfileLock(busy);
+            if (busy)
+                return failed(ini,
+                    QStringLiteral(
+                        "linuxBee is running on this profile; close it and import again"));
+        }
         QDir().mkpath(QFileInfo(to).absolutePath());
         QSettings target(to, QSettings::IniFormat);
         written = linuxbee::applySettingsImport(plan, target);

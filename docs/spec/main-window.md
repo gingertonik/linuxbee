@@ -301,8 +301,10 @@ them runs, or both in turn; neither fails to open the library.
 
 Why: two windows over one library each hold their own picture of it,
 and each saves its settings over the other's on the way out.
-`linuxbeectl` takes no such lock; it and a running window share the
-library file by the library's own rules (library.md, L-OPEN, L-WAIT).
+`linuxbeectl` takes no such lock for the library; it and a running
+window share the library file by the library's own rules (library.md,
+L-OPEN, L-WAIT). The one command of it that writes the settings file
+does ask this lock (settings-import.md, SI-CLI-RUNNING).
 
 Not in this version: bringing the running window to the front, and
 handing it the files the second start was given.
