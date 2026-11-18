@@ -190,8 +190,9 @@ The gaps a MusicBee user will notice first:
   made by putting a file in its folder.
 - **Drag and drop.** Tracks cannot be dragged, for example onto a playlist.
 - **Gapless playback, crossfade and an equaliser.**
-- **Importing a MusicBee library.** Only the settings file can be imported.
-  The import code is in the core, with no command or window that runs it.
+- **Importing a MusicBee library from the window.** The import is a command
+  only (`linuxbeectl library import`, above). Ratings and Love are checked
+  against the files, not copied, because linuxBee reads them from the tags.
 - **Undo for Organise.** Organise cannot be undone. Undo covers tag changes
   only, and only one step.
 - **Auto-tagging, and Copy and Swap in the window.** Auto-tagging from online
