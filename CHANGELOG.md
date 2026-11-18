@@ -8,6 +8,7 @@ settings and the library file may still change.
 
 - **Undo of a tag change could write the old tags into the wrong file**, when the edited file had been moved (by Organise, for one) and another file had its old name. Undo now follows a file the library moved, and leaves alone any file that is not the one it edited, saying so. One thing is given up for this: a file that another program saved after the change is also left alone, where Undo used to write over it.
 - **Organise with "replace existing files" could lose a file** when the new names of one run overlapped (track 1 renamed to the name track 2 had, track 2 to the name of track 3): the middle file was replaced and went to the trash, or was deleted with `--delete-replaced`. A file of the run is no longer replaced by another: the newcomer gets a numbered name, and a second run gives the names wanted. All earlier versions are affected.
+- **Convert believed the encoder.** A conversion that ended well but came out short (a damaged source) was reported as converted, and with "overwrite" replaced the file that was there. A result more than a second shorter than its source, or one that cannot be read, now fails and changes nothing. **`linuxbeectl convert --if-exists overwrite` could replace one of its own inputs** when a template or the output folder gave a result the name of another input; such a result now gets a numbered name, as in the window.
 
 ## 0.8.0 (2026-11-18)
 

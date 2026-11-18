@@ -1,6 +1,7 @@
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QFileInfo>
+#include <QSet>
 #include <QStringList>
 #include <QTextStream>
 
@@ -86,6 +87,20 @@ QString joinPath(const QString &folder, const QString &relative)
     if (folder.endsWith(QLatin1Char('/')))
         return folder + relative;
     return folder + QLatin1Char('/') + relative;
+}
+
+// C-OWN: the path two files are compared by. The real path when the file is
+// there; otherwise the real folder with the file name.
+QString comparablePath(const QString &path)
+{
+    const QFileInfo info(path);
+    const QString real = info.canonicalFilePath();
+    if (!real.isEmpty())
+        return real;
+    const QString folder = QFileInfo(info.absolutePath()).canonicalFilePath();
+    if (folder.isEmpty())
+        return info.absoluteFilePath();
+    return folder + QLatin1Char('/') + info.fileName();
 }
 
 QString failureReason(const ConvertResult &result)
@@ -247,6 +262,15 @@ int runConvert(const QStringList &arguments)
         ++failures;
     };
 
+    // C-OWN: with --out-dir every input is taken before any destination is
+    // chosen, and each chosen destination is taken in turn. A path is known by
+    // its real folder, so a folder named through a link is the same folder.
+    QSet<QString> taken;
+    if (toFolder) {
+        for (const QString &input : inputs)
+            taken.insert(comparablePath(input));
+    }
+
     for (const QString &input : inputs) {
         ConvertJob job;
         job.source = input;
@@ -289,6 +313,17 @@ int runConvert(const QStringList &arguments)
         } else {
             job.destination = joinPath(
                 folder, QFileInfo(input).completeBaseName() + QLatin1Char('.') + extension);
+        }
+
+        if (toFolder) {
+            const QString free = linuxbee::uniqueRelativePath(job.destination,
+                [&taken](const QString &path) { return taken.contains(comparablePath(path)); });
+            if (free.isEmpty()) {
+                fail(input, QStringLiteral("no free file name is left"));
+                continue;
+            }
+            job.destination = free;
+            taken.insert(comparablePath(free));
         }
 
         const ConvertResult result = linuxbee::convertFile(job);
