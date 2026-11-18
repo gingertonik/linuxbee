@@ -22,6 +22,7 @@ settings and the library file may still change.
 - After an update that teaches linuxBee a new tag, the next scan reads every file again, once, so the new tag shows. Tracks loved in MusicBee show their heart after that scan. The library file is brought to a new layout when first opened; **an older linuxBee (0.7.1 and before) cannot open it afterwards**, so keep a copy of `~/.local/share/linuxbee` if you may want to go back.
 - Saving a tag in an MP3 or WAV file no longer rewrites tags the change did not name. Two lyrics or two comments in a file stay lyrics and comments (a save of anything used to turn them into one custom tag, which players do not show); a label, mood or grouping stored twice stays as it was; a saved cover is no longer copied into an APE tag; a file that had only an APE tag keeps all its values when its tag is saved; a person (arranger, producer) held in a custom tag is changed there too; and several comments or lyrics are saved as one frame for each language and description they had, the rest on further lines.
 - Saving a tag in an M4A file no longer writes a second copy, in capitals, of every custom tag another program wrote in small letters. A gain value or other custom tag written in small letters can now be changed and removed.
+- Saving a tag in a WavPack file keeps the spelling of the tag names the file already had (a title saved as `Title` no longer comes back as `TITLE`).
 
 ## 0.7.1 (2026-11-17)
 
