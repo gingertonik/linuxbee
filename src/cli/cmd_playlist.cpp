@@ -77,6 +77,39 @@ bool sameFile(const QString &a, const QString &b)
         == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
 }
 
+// The path of the rule "the path written is the path checked": the one path a command looks at and
+// writes, made once from the path as the user wrote it. First as text (absolute, `.` and `..` taken
+// out without asking the disk), then by the system: what is there is given by its real path, every
+// link followed; where nothing is, the real path of its folder and the name (a folder that is not
+// there either leaves the text path). A link that leads nowhere is not followed, and is said so.
+struct WrittenPath {
+    QString path;
+    bool linkToNothing = false;
+};
+
+WrittenPath writtenPath(const QString &given)
+{
+    WrittenPath result;
+    result.path = QDir::cleanPath(QFileInfo(given).absoluteFilePath());
+    const QByteArray name = QFile::encodeName(result.path);
+    struct stat info;
+    if (::lstat(name.constData(), &info) == 0) {
+        if (::stat(name.constData(), &info) != 0) {
+            result.linkToNothing = true;
+            return result;
+        }
+        const QString real = QFileInfo(result.path).canonicalFilePath();
+        if (!real.isEmpty())
+            result.path = real;
+        return result;
+    }
+    const QFileInfo text(result.path);
+    const QString folder = QFileInfo(text.absolutePath()).canonicalFilePath();
+    if (!folder.isEmpty())
+        result.path = QDir(folder).filePath(text.fileName());
+    return result;
+}
+
 // Y-CLI: anything at OUT counts, a link to nothing too (lstat does not follow it).
 bool somethingIsAt(const QString &file)
 {
@@ -106,23 +139,27 @@ int convertPlaylist(const QStringList &positional, const QCommandLineParser &par
     const QByteArray data = source.readAll();
     source.close();
 
-    // Y-CLI: never onto the file read, with --force as without it; onto another file
-    // that is there only with --force.
-    if (sameFile(in, out))
+    // Y-CLI: the one path of OUT is made once; every check, the folder of --relative and the write
+    // use that path. Never onto the file read, with --force as without it; onto another file that
+    // is there only with --force; never through a link that leads to nothing.
+    const WrittenPath target = writtenPath(out);
+    if (!target.linkToNothing && sameFile(in, target.path))
         return fileError(out, QStringLiteral("this is the file being read"));
-    if (!parser.isSet(forceOption) && somethingIsAt(out))
+    if (!parser.isSet(forceOption) && (target.linkToNothing || somethingIsAt(target.path)))
         return fileError(out, QStringLiteral("the file is there already (--force writes over it)"));
+    if (target.linkToNothing)
+        return fileError(out, QStringLiteral("it is a link to nothing"));
 
     linuxbee::PlaylistWriteOptions options;
     options.extended = !parser.isSet(plainOption);
     options.relativePaths = parser.isSet(relativeOption);
-    options.baseFolder = folderOf(out);
+    options.baseFolder = folderOf(target.path);
     const QList<linuxbee::PlaylistEntry> entries
         = linuxbee::parsePlaylist(data, *from, folderOf(in));
     const QByteArray bytes = linuxbee::writePlaylist(entries, *to, options);
 
     // Y-CLI: OUT is not left half-written.
-    QSaveFile destination(out);
+    QSaveFile destination(target.path);
     if (!destination.open(QIODevice::WriteOnly) || destination.write(bytes) != bytes.size()
         || !destination.commit())
         return fileError(out, QStringLiteral("cannot be written"));

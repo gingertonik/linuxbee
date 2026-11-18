@@ -60,6 +60,39 @@ bool sameFile(const QString &a, const QString &b)
         == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
 }
 
+// The path of the rule "the path written is the path checked": the one path a command looks at and
+// writes, made once from the path as the user wrote it. First as text (absolute, `.` and `..` taken
+// out without asking the disk), then by the system: what is there is given by its real path, every
+// link followed; where nothing is, the real path of its folder and the name (a folder that is not
+// there either leaves the text path). A link that leads nowhere is not followed, and is said so.
+struct WrittenPath {
+    QString path;
+    bool linkToNothing = false;
+};
+
+WrittenPath writtenPath(const QString &given)
+{
+    WrittenPath result;
+    result.path = QDir::cleanPath(QFileInfo(given).absoluteFilePath());
+    const QByteArray name = QFile::encodeName(result.path);
+    struct stat info;
+    if (::lstat(name.constData(), &info) == 0) {
+        if (::stat(name.constData(), &info) != 0) {
+            result.linkToNothing = true;
+            return result;
+        }
+        const QString real = QFileInfo(result.path).canonicalFilePath();
+        if (!real.isEmpty())
+            result.path = real;
+        return result;
+    }
+    const QFileInfo text(result.path);
+    const QString folder = QFileInfo(text.absolutePath()).canonicalFilePath();
+    if (!folder.isEmpty())
+        result.path = QDir(folder).filePath(text.fileName());
+    return result;
+}
+
 // SI-CLI: linuxbeectl settings import. Prints what would be carried over, line by
 // line; with --apply, writes the imported lines to the INI file given with --to.
 int runSettings(const QStringList &arguments)
@@ -111,10 +144,14 @@ int runSettings(const QStringList &arguments)
     // printed, so a write that fails leaves standard output empty, as a failed read does.
     int written = 0;
     if (apply) {
-        // --to as it was given, for the messages; the cleaned path is the one that is
+        // --to as it was given, for the messages; the path of the rule is the one that is
         // looked at, the one whose folder is made and the one that is written.
         const QString ini = parser.value(toOption);
-        const QString to = QDir::cleanPath(QFileInfo(ini).absoluteFilePath());
+        const WrittenPath resolved = writtenPath(ini);
+        // SI-CLI-PATH: a link that leads to nothing is never written through.
+        if (resolved.linkToNothing)
+            return failed(ini, QStringLiteral("it is a link to nothing"));
+        const QString to = resolved.path;
         // SI-CLI-SELF: the file being imported is never the one written, under
         // any spelling or through a link.
         if (sameFile(path, to))
