@@ -325,12 +325,16 @@ TagUndo::Outcome TagUndo::undo(const Writer &writer)
     if (!canUndo())
         return outcome;
     const Step step = d->committed;
+    // UN-KEEP: what is left of the step, each file as it was kept and in its order.
+    Step left;
+    left.name = step.name;
     for (const KeptFile &file : step.files) {
         // UN-SAME: something at the path that is not the file that was edited is not written to.
         // Nothing at the path goes to the writer as before, which fails.
         if (const std::optional<Identity> now = identityOf(file.path)) {
             if (!file.identity || !(*now == *file.identity)) {
                 outcome.changed.append(file.path);
+                left.files.append(file);
                 continue;
             }
         }
@@ -356,9 +360,15 @@ TagUndo::Outcome TagUndo::undo(const Writer &writer)
         const WriteResult result = !ready
             ? refused(QStringLiteral("the earlier pictures could not be read"))
             : (writer ? writer(file.path, change) : writeTags(file.path, change));
-        (result.ok() ? outcome.restored : outcome.failed).append(file.path);
+        if (result.ok()) {
+            outcome.restored.append(file.path);
+        } else {
+            outcome.failed.append(file.path);
+            left.files.append(file);
+        }
     }
-    d->committed = Step(); // forgotten, whatever the results
+    // A file put back leaves the step; with none left, the step is forgotten.
+    d->committed = left.files.isEmpty() ? Step() : left;
     d->sweep();
     emit changed();
     return outcome;
