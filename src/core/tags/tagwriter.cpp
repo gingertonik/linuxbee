@@ -39,6 +39,9 @@
 #include <tvariant.h>
 #include <unsynchronizedlyricsframe.h>
 #include <wavfile.h>
+#include <wavpackfile.h>
+#include <apeitem.h>
+#include <apetag.h>
 
 #include "catalogue.h"
 #include "changes.h"
@@ -766,6 +769,40 @@ private:
     bool m_failed = false;
 };
 
+// The names an APEv2 tag's items have in the file, by the capitals the tag's map is keyed in.
+using ApeNames = std::vector<std::pair<TagLib::String, TagLib::String>>;
+
+ApeNames apeNamesOf(TagLib::File *file)
+{
+    ApeNames names;
+    auto *wavpack = dynamic_cast<TagLib::WavPack::File *>(file);
+    if (!wavpack || !wavpack->hasAPETag())
+        return names;
+    const TagLib::APE::ItemListMap &items = wavpack->APETag()->itemListMap();
+    for (auto it = items.begin(); it != items.end(); ++it)
+        names.emplace_back(it->first, it->second.key());
+    return names;
+}
+
+// Every item the file had, written anew under capitals, gets the file's own spelling back.
+// A key the file did not have stays as written.
+void restoreApeNames(TagLib::File *file, const ApeNames &names)
+{
+    auto *wavpack = dynamic_cast<TagLib::WavPack::File *>(file);
+    if (!wavpack || names.empty() || !wavpack->hasAPETag())
+        return;
+    TagLib::APE::Tag *tag = wavpack->APETag();
+    for (const auto &name : names) {
+        const TagLib::APE::ItemListMap &items = tag->itemListMap();
+        const auto found = items.find(name.first);
+        if (found == items.end() || found->second.key() == name.second)
+            continue;
+        TagLib::APE::Item item = found->second;
+        item.setKey(name.second);
+        tag->setItem(name.first, item);
+    }
+}
+
 // Step 5 of spec section 1: edits the property map, then saves. The pictures are
 // written only when the change names them. An ID3 file is not given the map: only the frames
 // of the keys the edit changed are rewritten (W-ONLY).
@@ -853,9 +890,12 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
                 tag->removeItem(TagLib::String("covr"));
         }
     } else {
+        // W-ONLY, APEv2 (WavPack): the item names as the file spelt them, to give back.
+        const ApeNames apeNames = apeNamesOf(file);
         file->setProperties(map);
         if (picturesChanged && !writePictures(file, after.pictures))
             return false;
+        restoreApeNames(file, apeNames);
     }
     if (id3 && ratingTouched) {
         const bool create = !after.first(QStringLiteral("Rating")).isEmpty();
