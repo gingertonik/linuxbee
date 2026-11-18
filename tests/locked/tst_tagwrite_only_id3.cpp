@@ -404,6 +404,8 @@ private slots:
     void aComment();
     void threeComments_data() { bothVersions(); }
     void threeComments();
+    void lyricsWhereThereWereNone_data() { bothVersions(); }
+    void lyricsWhereThereWereNone();
     void theLyrics_data() { bothVersions(); }
     void theLyrics();
     void lyricsOfTwoValues_data() { bothVersions(); }
@@ -422,12 +424,16 @@ private slots:
     void onePersonOfAList();
     void oneMusicianOfAList_data() { bothVersions(); }
     void oneMusicianOfAList();
+    void aPersonHeldInAUserTextFrame_data() { bothVersions(); }
+    void aPersonHeldInAUserTextFrame();
     void thePictures_data() { bothVersions(); }
     void thePictures();
     void aSaveAndTheSaveThatTakesItBack_data() { bothVersions(); }
     void aSaveAndTheSaveThatTakesItBack();
     void theApeTagOfAnMp3IsLeftAsItIs();
     void aFileWithNoId3v2TagGetsItsValues();
+    void aFileReadFromItsApeTagGetsItsValues_data();
+    void aFileReadFromItsApeTagGetsItsValues();
     void afterAnotherVersionWasAskedFor();
     void aWavFileToo();
 };
@@ -546,18 +552,39 @@ void TagWriteOnlyId3Test::aComment()
 
 void TagWriteOnlyId3Test::threeComments()
 {
-    // W-ONLY: one comment frame a value, never a user text frame. Each takes the language of the
-    // frame it replaces; a value more than there were frames takes the first's.
+    // W-ONLY: a comment frame a value, never a user text frame, while each value has the place of
+    // a frame that was there, and takes its language. ID3v2 allows one comment for a language
+    // and a description, so the third value gets no frame of its own: it is a new line of the
+    // last frame.
     QFETCH(QString, fixture);
     Box box;
     const QString path = box.copy(fixture);
     const Step st = step(path, field(u"Comment", { s(u"a"), s(u"b"), s(u"c") }));
     ONLY(st, QStringList({ s(u"COMM:") }));
     const QList<Frame> comments = called(st.after, { s(u"COMM:") });
-    QCOMPARE(textsOf(comments), QStringList({ s(u"a"), s(u"b"), s(u"c") })); // BYTES
-    QCOMPARE(languagesOf(comments), QStringList({ s(u"eng"), s(u"deu"), s(u"eng") }));
+    QCOMPARE(textsOf(comments), QStringList({ s(u"a"), s(u"b\nc") })); // BYTES
+    QCOMPARE(languagesOf(comments), QStringList({ s(u"eng"), s(u"deu") }));
     QCOMPARE(linuxbee::readTags(path).tags.fields.value(s(u"Comment")),
-        QStringList({ s(u"a"), s(u"b"), s(u"c") })); // RT
+        QStringList({ s(u"a"), s(u"b\nc") })); // RT
+}
+
+void TagWriteOnlyId3Test::lyricsWhereThereWereNone()
+{
+    // W-ONLY: with no frame to take the place of, two values are one lyrics frame of two lines.
+    // Two frames would have one language and one description, which ID3v2 forbids and which
+    // another tagger reads as one frame, losing the other.
+    QFETCH(QString, fixture);
+    Box box;
+    const QString path = box.copy(fixture);
+    const QStringList lyrics({ s(u"USLT:"), s(u"USLT:LYRICS") });
+    Step st = step(path, field(u"Lyrics", { }));
+    ONLY(st, lyrics);
+    QCOMPARE(int(called(st.after, lyrics).size()), 0);
+    st = step(path, field(u"Lyrics", { s(u"p"), s(u"q") }));
+    ONLY(st, lyrics);
+    QCOMPARE(textsOf(called(st.after, lyrics)), QStringList({ s(u"p\nq") })); // BYTES
+    QCOMPARE(linuxbee::readTags(path).tags.fields.value(s(u"Lyrics")),
+        QStringList({ s(u"p\nq") })); // RT
 }
 
 void TagWriteOnlyId3Test::theLyrics()
@@ -704,6 +731,48 @@ void TagWriteOnlyId3Test::oneMusicianOfAList()
     QCOMPARE(int(called(out.after, { s(u"TMCL") }).size()), 0);
 }
 
+void TagWriteOnlyId3Test::aPersonHeldInAUserTextFrame()
+{
+    // W-ONLY: "the frames of a key are the frames the tag library reads that key from". Some
+    // taggers write the arranger as a user text frame; the tag library reads ARRANGER from it as
+    // it does from a pair of the list. BYTES: such a frame is put into the fixture's padding
+    // here: "TXXX", its size, no flags, then Latin-1 (0), the description, a zero, the value.
+    QFETCH(QString, fixture);
+    Box box;
+    const QString path = box.copy(fixture);
+    const QByteArray content("\0ARRANGER\0Old Arranger", 22);
+    QByteArray frame("TXXX");
+    frame.append(QByteArray("\0\0\0\x16\0\0", 6)).append(content);
+    QByteArray d = bytesOf(path);
+    qsizetype end = 10;
+    for (const Frame &f : tagOf(d).frames)
+        end += f.whole.size();
+    QVERIFY(tagOf(d).end - end >= frame.size());
+    d.replace(end, frame.size(), frame);
+    const QStringList held({ s(u"TXXX:ARRANGER") });
+    const QStringList named({ s(u"TXXX:ARRANGER"), s(u"TIPL"), s(u"IPLS") });
+    for (const bool takenOut : { false, true }) {
+        QFile out(path);
+        QVERIFY(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QCOMPARE(out.write(d), d.size());
+        out.close();
+        QVERIFY(tagOf(bytesOf(path)).ok);
+        QCOMPARE(linuxbee::readTags(path).tags.other.value(s(u"ARRANGER")),
+            QStringList({ s(u"Old Arranger") })); // RT
+        const QStringList to = takenOut ? QStringList() : QStringList({ s(u"New Arranger") });
+        const Step st = step(path, other(u"ARRANGER", to));
+        ONLY(st, named);
+        QCOMPARE(int(called(st.before, held).size()), 1);
+        QCOMPARE(int(called(st.after, held).size()),
+            0); // BYTES: the old value is not left beside the new
+        const QList<Pair> before = pairsOf(called(st.before, { s(u"TIPL"), s(u"IPLS") }));
+        const QList<Pair> after = pairsOf(called(st.after, { s(u"TIPL"), s(u"IPLS") }));
+        QVERIFY2(withRole(after, s(u"arranger"), false) == before, qPrintable(shown(after)));
+        QCOMPARE(shown(withRole(after, s(u"arranger"), true)).toLower(),
+            takenOut ? QString() : s(u"arranger=new arranger"));
+    }
+}
+
 void TagWriteOnlyId3Test::thePictures()
 {
     // W-PICTURES: the picture frames are the pictures'; the binary object beside them is not.
@@ -817,6 +886,59 @@ void TagWriteOnlyId3Test::aFileWithNoId3v2TagGetsItsValues()
     QCOMPARE(t.first(s(u"Album")), s(u"V1 Album"));
 }
 
+void TagWriteOnlyId3Test::aFileReadFromItsApeTagGetsItsValues_data()
+{
+    QTest::addColumn<bool>("withId3v1");
+    QTest::addColumn<bool>("writeId3v1");
+    QTest::newRow("an APEv2 tag alone, no ID3v1 wanted") << false << false;
+    QTest::newRow("an APEv2 tag alone") << false << true;
+    QTest::newRow("an APEv2 tag and an ID3v1 tag, no ID3v1 wanted") << true << false;
+    QTest::newRow("an APEv2 tag and an ID3v1 tag") << true << true;
+}
+
+void TagWriteOnlyId3Test::aFileReadFromItsApeTagGetsItsValues()
+{
+    // W-ONLY, "a file read from another tag": an MP3 with an APEv2 tag and no ID3v2 tag is read
+    // from the APEv2 tag. Once it has an ID3v2 tag it is read from that. So the ID3v2 tag a title
+    // save makes holds the artist and the two gain values too, or they would be in the file and
+    // no longer shown. BYTES: the file is onlyape.mp3 without its ID3v2 tag.
+    QFETCH(bool, withId3v1);
+    QFETCH(bool, writeId3v1);
+    Box box;
+    const QString path = box.copy(QStringLiteral("onlyape.mp3"));
+    QByteArray d = bytesOf(path);
+    d = d.mid(tagOf(d).end);
+    if (!withId3v1)
+        d.chop(128);
+    QFile out(path);
+    QVERIFY(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QCOMPARE(out.write(d), d.size());
+    out.close();
+    const TrackTags was = linuxbee::readTags(path).tags;
+    QCOMPARE(was.first(s(u"Title")), s(u"Ape Title"));
+    QCOMPARE(was.first(s(u"Artist")), s(u"Ape Artist"));
+    QCOMPARE(was.other.value(s(u"REPLAYGAIN_TRACK_GAIN")), QStringList({ s(u"-7.50 dB") }));
+    QCOMPARE(was.other.value(s(u"MP3GAIN_MINMAX")), QStringList({ s(u"089,210") }));
+
+    WriteOptions options;
+    options.writeId3v1 = writeId3v1;
+    const Step st = step(path, field(u"Title", { s(u"New Title") }), options);
+    QCOMPARE(st.result.status, WriteResult::Status::Ok);
+    QVERIFY(st.after.ok);
+    QCOMPARE(int(called(st.after, { s(u"TIT2") }).size()), 1); // BYTES
+    QCOMPARE(int(called(st.after, { s(u"TPE1") }).size()), 1);
+    QCOMPARE(int(called(st.after, { s(u"TXXX:REPLAYGAIN_TRACK_GAIN") }).size()), 1);
+    QCOMPARE(int(called(st.after, { s(u"TXXX:MP3GAIN_MINMAX") }).size()), 1);
+    QCOMPARE(apeOf(st.is), apeOf(st.was)); // W-ID3V1: and the APEv2 tag is left as it is
+    QCOMPARE(int(apeOf(st.is).size()), 422);
+    QCOMPARE(int(id3v1Of(st.is).size()), writeId3v1 ? 128 : 0);
+    const TrackTags is = linuxbee::readTags(path).tags; // RT
+    QCOMPARE(is.first(s(u"Title")), s(u"New Title"));
+    QCOMPARE(is.first(s(u"Artist")), s(u"Ape Artist"));
+    QCOMPARE(is.other, was.other);
+    QCOMPARE(is.pictures.size(), was.pictures.size());
+}
+
 void TagWriteOnlyId3Test::afterAnotherVersionWasAskedFor()
 {
     // W-ID3VER makes an ID3v2.4 tag an ID3v2.3 tag when asked, and that changes many frames. The
@@ -844,16 +966,17 @@ void TagWriteOnlyId3Test::afterAnotherVersionWasAskedFor()
 
 void TagWriteOnlyId3Test::aWavFileToo()
 {
-    // W-WAV: the same tag in a chunk of a WAV file. The first save gives it two comments; the
-    // second names the title, and the two comments are two comment frames still.
+    // W-WAV: the same tag in a chunk of a WAV file. The first save gives it two comments, which
+    // with no two frames to take the place of are one comment frame of two lines; the second
+    // names the title, and the comment frame is as it was.
     Box box;
     const QString path = box.copy(QStringLiteral("basic.wav"));
     Step st = step(path, field(u"Comment", { s(u"a"), s(u"b") }));
     QCOMPARE(st.result.status, WriteResult::Status::Ok);
-    QCOMPARE(textsOf(called(st.after, { s(u"COMM:") })), QStringList({ s(u"a"), s(u"b") }));
+    QCOMPARE(textsOf(called(st.after, { s(u"COMM:") })), QStringList({ s(u"a\nb") }));
     st = step(path, field(u"Title", { s(u"New Title") }));
     ONLY(st, QStringList({ s(u"TIT2") }));
-    QCOMPARE(textsOf(called(st.after, { s(u"COMM:") })), QStringList({ s(u"a"), s(u"b") }));
+    QCOMPARE(textsOf(called(st.after, { s(u"COMM:") })), QStringList({ s(u"a\nb") }));
 }
 
 QTEST_MAIN(TagWriteOnlyId3Test)

@@ -186,16 +186,27 @@ the tag library nothing.
   without the zero another program ends it with, and it writes the
   frames of ID3v2.3 in an order of its own; it drops a lyrics frame
   that has no text, and gives a rating frame with no counter a counter
-  of 0. That happens once, and no value is changed by it. One thing takes a save more: in ID3v2.3 the
+  of 0. In an ID3v2.3 tag it writes text another program stored as
+  UTF-8 as UTF-16, and drops a date frame of ID3v2.4 (`TDRC`, `TDOR`)
+  that stands beside the ID3v2.3 frame of the same date. An ID3v2.2
+  tag becomes ID3v2.4 (W-ID3VER), its pictures' kind written out
+  (`JPG` becomes `image/jpeg`). That happens once, and no value is
+  changed by it. One thing takes a save more: in ID3v2.3 the
   tag library keeps the lists of people in one frame and sorts its
   pairs as it reads them, so the save after a tag was first written as
   ID3v2.3 may put the pairs of that frame in another order. No pair is
   lost.)
 - **Comments and lyrics** are written as comment frames (`COMM`) and
-  lyrics frames (`USLT`), one frame for each value, never as a `TXXX`
-  frame. The frame for value n takes the language and the description
-  of the n-th frame it replaces; a value beyond those takes the first's;
-  with none to replace, the frame is as the tag library makes it.
+  lyrics frames (`USLT`), never as a `TXXX` frame. ID3v2 allows one such
+  frame for a language and a description, and a tagger that meets two
+  alike keeps one. So a value gets a frame of its own only where it
+  takes the place of a frame that was there: the frame for value n has
+  the language and the description of the n-th frame replaced, frames
+  that were alike in both counting once. The values beyond those are
+  added to the last frame written, each on a line of its own. With no
+  frame to replace, all the values are one frame, as the tag library
+  makes it, a line each. (Read again, such a field has fewer values
+  than were given, and its last value has several lines.)
 - **Lists of people.** `TIPL` and `TMCL` hold many keys in one frame, as
   pairs of a role and a name: ARRANGER, ENGINEER, PRODUCER, DJMIXER,
   MIXER, and `PERFORMER:` with an instrument. (In ID3v2.3 the tag
@@ -203,10 +214,18 @@ the tag library nothing.
   keys changes the pairs of that role, compared ignoring case. Every
   other pair stays as it is and in its order, a role the tag library
   does not know among them. A list left with no pair is taken out.
+  Where the tag library also reads such a key from another frame (some
+  taggers write the arranger or the producer as a `TXXX` frame), that
+  frame is a frame of the key as any other: naming the key takes it
+  out, and the value is written into the list.
 - **A file read from another tag.** When the values the file was read as
-  having are not in its ID3v2 tag (an MP3 with an ID3v1 tag and nothing
-  else), the ID3v2 tag that is written holds all of them, not only the
-  named ones.
+  having are not in its ID3v2 tag (an MP3 with no ID3v2 tag is read
+  from its APEv2 tag, or else from its ID3v1 tag), the ID3v2 tag that
+  is written holds all of them, not only the named ones: once the file
+  has an ID3v2 tag it is read from that, and a value left behind in
+  the other tag would no longer be shown. Every key of the values as
+  read that no frame of the ID3v2 tag holds is written, whichever tag
+  it came from.
 - **What may change without being named:** the padding and the size of
   the tag; the ID3v1 tag, which is written from the current values
   (W-ID3V1); and what W-ID3VER says of a tag written in another version
@@ -224,7 +243,12 @@ Known, and left:
   read at all: `readTags` shows none of its people (that is the reader's
   to mend). A name saved into such a list is in the file and is not
   shown, and saving it again writes it again.
-- Not held by a test: the order of the pairs when one role has several.
+- Undo of a field the file held in two frames (a publisher in `TPUB`
+  and in a `TXXX` frame) brings the values back in one frame.
+- When a tag has two lists of people of one kind, the first is the one
+  changed.
+- Not held by a test: the order of the pairs when one role has several;
+  that frames alike in language and description count once.
 
 ## 5. Options
 
