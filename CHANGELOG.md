@@ -14,6 +14,7 @@ settings and the library file may still change.
 - **A playlist could be emptied or mangled by a small edit.** If its file could not be read at that moment, adding a track replaced the whole list with that track. If the file was not UTF-8 (a playlist from another program in Latin-1 or UTF-16), any edit wrote every accented name back as a name of no file. Such a playlist is now left alone, and the window says why. It can still be seen and played.
 - **Sending a file to the trash could destroy a file already in the trash**: one of the same name that had no record there (left by another tool, or after its record was removed by hand). The new file now gets another name, as for any name that is taken.
 - `settings import` no longer writes the settings file of a running linuxBee; the import was lost when the program closed.
+- **Undo of a rating change on an MP3 or WAV brings the rating frames back as they were:** a play counter, the frame of another player and the exact rating byte were lost.
 
 ## 0.8.0 (2026-11-18)
 

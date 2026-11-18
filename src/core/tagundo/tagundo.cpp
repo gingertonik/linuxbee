@@ -11,7 +11,7 @@
 
 #include <sys/stat.h>
 
-// Contract: docs/spec/tag-undo.md (UN-RECORD, UN-STEP, UN-SAME, UN-MOVED).
+// Contract: docs/spec/tag-undo.md (UN-RECORD, UN-STEP, UN-SAME, UN-MOVED, UN-RATING).
 namespace linuxbee {
 
 namespace {
@@ -64,6 +64,8 @@ struct KeptFile {
     QMap<QString, QStringList> fields;
     QMap<QString, QStringList> other;
     std::optional<QList<KeptPicture>> pictures;
+    // UN-RATING: every POPM frame as it was, when the change named Rating on an ID3v2 file.
+    std::optional<QList<RatingFrame>> ratingFrames;
 };
 
 struct Step {
@@ -232,6 +234,9 @@ WriteResult TagUndo::write(const QString &path, const TagChanges &changes, const
         kept.fields.insert(it.key(), before.tags.fields.value(it.key()));
     for (auto it = changes.other.cbegin(); it != changes.other.cend(); ++it)
         kept.other.insert(it.key(), before.tags.other.value(it.key()));
+    // UN-RATING: the frames themselves, not the stars they read as.
+    if (changes.fields.contains(QStringLiteral("Rating")))
+        kept.ratingFrames = readRatingFrames(path);
     if (changes.pictures) {
         QList<KeptPicture> pictures;
         for (const Picture &picture : before.tags.pictures) {
@@ -266,6 +271,8 @@ WriteResult TagUndo::write(const QString &path, const TagChanges &changes, const
         }
         if (kept.pictures && !there->pictures)
             there->pictures = kept.pictures;
+        if (kept.ratingFrames && !there->ratingFrames)
+            there->ratingFrames = kept.ratingFrames;
         there->identity = kept.identity; // as the last write left it
         d->sweep();
         return result;
@@ -330,6 +337,7 @@ TagUndo::Outcome TagUndo::undo(const Writer &writer)
         TagChanges change;
         change.fields = file.fields;
         change.other = file.other;
+        change.ratingFrames = file.ratingFrames;
         bool ready = true;
         if (file.pictures) {
             QList<Picture> pictures;

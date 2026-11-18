@@ -221,6 +221,35 @@ void rewritePopm(TagLib::ID3v2::Tag *tag, const PopmKeep &keep, const TrackTags 
     tag->addFrame(frame.release());
 }
 
+// W-RATING, "the frames whole": the tag's POPM frames, in the order they stand.
+QList<RatingFrame> ratingFramesOf(const TagLib::ID3v2::Tag *tag)
+{
+    QList<RatingFrame> found;
+    if (!tag)
+        return found;
+    const TagLib::ID3v2::FrameList frames = tag->frameList(TagLib::ByteVector("POPM"));
+    for (const TagLib::ID3v2::Frame *frame : frames) {
+        if (const auto *popm = dynamic_cast<const TagLib::ID3v2::PopularimeterFrame *>(frame)) {
+            found.append({ QString::fromUtf8(popm->email().toCString(true)), popm->rating(),
+                quint32(popm->counter()) });
+        }
+    }
+    return found;
+}
+
+// W-RATING, "the frames whole": the tag's POPM frames become exactly these, in order.
+void putRatingFrames(TagLib::ID3v2::Tag *tag, const QList<RatingFrame> &frames)
+{
+    tag->removeFrames(TagLib::ByteVector("POPM"));
+    for (const RatingFrame &kept : frames) {
+        auto frame = std::make_unique<TagLib::ID3v2::PopularimeterFrame>();
+        frame->setEmail(tagString(kept.address));
+        frame->setRating(kept.rating);
+        frame->setCounter(kept.counter);
+        tag->addFrame(frame.release());
+    }
+}
+
 // W-ID3V1, W-ID3VER, W-WAV: how an ID3 file is saved. Other families use TagLib's
 // default save.
 bool saveId3(TagLib::File *file, const WriteOptions &options, TagLib::ID3v2::Version version)
@@ -809,7 +838,8 @@ void restoreApeNames(TagLib::File *file, const ApeNames &names)
 // `wroteV23` is set when the tag written is ID3v2.3 (W-ID3VER, not kept).
 // WS-WRITTEN: false too when any write into the copy did not put down all its bytes.
 bool saveChanges(const QString &filePath, const TrackTags &now, const tags::CheckedChanges &checked,
-    const TrackTags &after, const WriteOptions &options, bool picturesChanged, bool &wroteV23)
+    const TrackTags &after, const WriteOptions &options, bool picturesChanged,
+    const std::optional<QList<RatingFrame>> &ratingFrames, bool &wroteV23)
 {
     wroteV23 = false;
     const KeyFamily family = familyOf(now.format);
@@ -897,7 +927,12 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
             return false;
         restoreApeNames(file, apeNames);
     }
-    if (id3 && ratingTouched) {
+    if (id3 && ratingFrames) {
+        // W-RATING, "the frames whole": they win over the Rating entry. An empty list makes no
+        // tag where there is none.
+        if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, !ratingFrames->isEmpty()))
+            putRatingFrames(tag, *ratingFrames);
+    } else if (id3 && ratingTouched) {
         const bool create = !after.first(QStringLiteral("Rating")).isEmpty();
         if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))
             rewritePopm(tag, keep, after);
@@ -1096,6 +1131,29 @@ WriteResult refusal(WriteResult::Status status, const QString &line)
 
 }
 
+std::optional<QList<RatingFrame>> readRatingFrames(const QString &filePath)
+{
+    try {
+        const QByteArray name = QFile::encodeName(filePath);
+        TagLib::FileRef ref(name.constData(), false);
+        if (ref.isNull() || !ref.file() || !ref.file()->isValid())
+            return std::nullopt;
+        const TagLib::ID3v2::Tag *tag = nullptr;
+        if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(ref.file())) {
+            if (mpeg->hasID3v2Tag())
+                tag = mpeg->ID3v2Tag();
+        } else if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(ref.file())) {
+            if (wav->hasID3v2Tag())
+                tag = wav->ID3v2Tag();
+        } else {
+            return std::nullopt; // not of the ID3v2 family
+        }
+        return ratingFramesOf(tag);
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 WriteResult writeTags(
     const QString &filePath, const TagChanges &changes, const WriteOptions &options)
 {
@@ -1128,7 +1186,14 @@ WriteResult writeTags(
 
     // W-UNCHANGED: when the file already says this, it is not opened for writing.
     const TrackTags after = tags::applyTo(read.tags, checked, changes.pictures);
-    if (tags::sameTags(read.tags, after)) {
+    // W-UNCHANGED, "the frames whole": the same stars from other frames is a change.
+    // A file with no ID3v2 family has no frames to differ: the list means nothing for it.
+    bool framesAsAre = true;
+    if (changes.ratingFrames) {
+        const std::optional<QList<RatingFrame>> have = readRatingFrames(filePath);
+        framesAsAre = !have || *have == *changes.ratingFrames;
+    }
+    if (tags::sameTags(read.tags, after) && framesAsAre) {
         result.status = WriteResult::Status::Unchanged;
         return result;
     }
@@ -1201,8 +1266,8 @@ WriteResult writeTags(
     bool saved = false;
     bool wroteV23 = false;
     try {
-        saved = saveChanges(
-            copyPath, read.tags, checked, after, options, changes.pictures.has_value(), wroteV23);
+        saved = saveChanges(copyPath, read.tags, checked, after, options,
+            changes.pictures.has_value(), changes.ratingFrames, wroteV23);
     } catch (...) {
         // writeTags never throws; a tag library failure is Failed.
         saved = false;
