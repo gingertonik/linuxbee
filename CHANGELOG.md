@@ -7,6 +7,7 @@ settings and the library file may still change.
 ## Unreleased
 
 - **Organise with "replace existing files" could lose a file** when the new names of one run overlapped (track 1 renamed to the name track 2 had, track 2 to the name of track 3): the middle file was replaced and went to the trash, or was deleted with `--delete-replaced`. A file of the run is no longer replaced by another: the newcomer gets a numbered name, and a second run gives the names wanted. All earlier versions are affected.
+- **A move to another disk that was interrupted** (the program killed, the machine switched off) could leave a cut-off file under the track's name; the next run then gave the good file a numbered name. The file now gets its name only when it is whole. An interrupted run can leave a hidden file named `.lbmove-` and six characters in the target folder, which may be deleted. **Copy** is now as careful as a move to another disk, and a Copy that fails no longer removes a file that something else put at the target meanwhile.
 
 ## 0.8.0 (2026-11-18)
 

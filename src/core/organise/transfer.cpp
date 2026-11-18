@@ -3,8 +3,8 @@
 
 #include <QByteArray>
 #include <QFile>
-#include <QFileDevice>
 #include <QFileInfo>
+#include <QRandomGenerator>
 
 #include <cerrno>
 #include <cstdio>
@@ -95,29 +95,62 @@ bool sourceStillThere(const QByteArray &from)
     return ::lstat(from.constData(), &st) == 0 || errno != ENOENT;
 }
 
-// O-ACROSS, the target is on another file system. Copies, checks that the source did not
+// The spare name of a copy: `.lbmove-` and six characters of a-z and 0-9, in the target's
+// folder (O-SPARE). Nothing of the file's own name is in it.
+QByteArray spareName(const QByteArray &folder)
+{
+    static const char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+    QByteArray name = folder + "/.lbmove-";
+    for (int i = 0; i < 6; ++i)
+        name.append(alphabet[QRandomGenerator::system()->bounded(36)]);
+    return name;
+}
+
+// O-ACROSS and O-SPARE: a move to another file system, and every Copy. Copies the bytes to
+// a file made new under a spare name in the target's folder, checks that the source did not
 // change and the copy has its size, gives the copy the source's mode and time, flushes it
-// and its folder, closes everything, and only then removes the source (after it only
-// descriptors are let go). The target is made here (O_EXCL), so a failure removes it,
-// and a refusal to make it removes nothing. A descriptor of the move's own stays on the
-// copy until the move returns, so the name is looked at and removed while the file is held.
-QString moveAcross(const TransferIo &io, const QString &source, const QString &target)
+// and closes it, and only then gives it the target's name, by a call that never replaces.
+// Then the folder is flushed, the source closed and, for a move, removed (after it only
+// descriptors are let go). The spare file is made here (O_EXCL), so a failure removes it by
+// the name it has at that moment, and a refusal to make it removes nothing. A descriptor of
+// the move's own stays on the copy until the call returns, so the name is looked at and
+// removed while the file is held.
+QString moveAcross(const TransferIo &io, const QString &source, const QString &target, bool move)
 {
     const QByteArray from = QFile::encodeName(source);
     const QByteArray to = QFile::encodeName(target);
     const QString couldNotCopy = QStringLiteral("could not copy the file");
+    const QString targetThere = QStringLiteral("the target already exists");
 
-    // A link is not followed and copied: it stays where it is, and the move fails.
+    // A move does not follow a link: it stays where it is, and the move fails. A Copy reads
+    // what a link points to.
     struct stat before { };
-    if (::lstat(from.constData(), &before) != 0 || !S_ISREG(before.st_mode))
+    if ((move ? ::lstat(from.constData(), &before) : ::stat(from.constData(), &before)) != 0
+        || !S_ISREG(before.st_mode))
         return couldNotCopy;
 
-    Fd in(io, ::open(from.constData(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    Fd in(io, ::open(from.constData(), O_RDONLY | O_CLOEXEC | (move ? O_NOFOLLOW : 0)));
     if (in.fd < 0)
         return couldNotCopy;
 
-    // O_EXCL: never an existing file, and never through a link at the target.
-    Fd out(io, ::open(to.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600));
+    // One look before anything is made: anything at the target (a link too, a dangling one
+    // too) fails the transfer, and nothing is read.
+    {
+        struct stat there { };
+        if (::lstat(to.constData(), &there) == 0 || errno != ENOENT)
+            return targetThere;
+    }
+
+    // O_EXCL: never an existing file, and never through a link at the spare name.
+    const QByteArray folder = QFile::encodeName(QFileInfo(target).absolutePath());
+    QByteArray name;
+    Fd out(io, -1);
+    for (int attempt = 0; attempt < 100 && out.fd < 0; ++attempt) {
+        name = spareName(folder);
+        out.fd = ::open(name.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (out.fd < 0 && errno != EEXIST)
+            return couldNotCopy;
+    }
     if (out.fd < 0)
         return couldNotCopy;
     // The move's own descriptor on the copy, kept until the move returns: while it is open
@@ -129,19 +162,20 @@ QString moveAcross(const TransferIo &io, const QString &source, const QString &t
         // has been written, so take it back only while the name still holds an empty file.
         out.close();
         struct stat now { };
-        if (::lstat(to.constData(), &now) == 0 && S_ISREG(now.st_mode) && now.st_size == 0)
-            io.unlink(to.constData());
+        if (::lstat(name.constData(), &now) == 0 && S_ISREG(now.st_mode) && now.st_size == 0)
+            io.unlink(name.constData());
         return couldNotCopy;
     }
 
-    // From here the target is ours, and every failure removes it. The name is looked at
-    // and removed only while `held` is open, and only while it still holds the file made
-    // here; the descriptor is let go after that.
+    // From here the copy is ours, and every failure removes it. `name` is the name the copy
+    // has now: the spare one, and after the naming the target's. It is looked at and removed
+    // only while `held` is open, and only while it still holds the file made here; the
+    // descriptor is let go after that.
     const auto undo = [&](const QString &said) {
         out.close();
         struct stat now { };
-        if (::lstat(to.constData(), &now) == 0 && sameFile(now, made))
-            io.unlink(to.constData());
+        if (::lstat(name.constData(), &now) == 0 && sameFile(now, made))
+            io.unlink(name.constData());
         held.close();
         return said;
     };
@@ -174,27 +208,68 @@ QString moveAcross(const TransferIo &io, const QString &source, const QString &t
     if (io.futimens(out.fd, times) != 0)
         return undo(QStringLiteral("could not keep the modification time"));
 
-    // 4. the copy, then its folder, are flushed to the disk
+    // 4. the copy is flushed to the disk and closed: it is whole
     if (io.fsync(out.fd) != 0)
         return undo(QStringLiteral("could not flush the copy to the disk"));
+    if (!out.close())
+        return undo(QStringLiteral("could not close the copy"));
+
+    // 5. O-SPARE: the copy is given the target's name, by a call that never replaces.
+    // Something that has come to be there meanwhile is somebody else's: it is left as it is.
     {
-        const QByteArray folder = QFile::encodeName(QFileInfo(target).absolutePath());
+        const QByteArray spare = name;
+        bool named = false;
+        if (io.renameNoReplace(spare.constData(), to.constData()) == 0) {
+            named = true;
+        } else {
+            switch (errno) {
+            case EEXIST:
+                return undo(targetThere);
+            case EINVAL:
+                // The never-replacing rename is not known: a second name (link never
+                // replaces), then the spare name removed.
+                if (io.link(spare.constData(), to.constData()) == 0) {
+                    named = true;
+                    // The file now has two names. Taking the spare one away failing loses
+                    // nothing: the target's name holds the whole file.
+                    io.unlink(spare.constData());
+                } else {
+                    const int why = errno;
+                    if (why == EEXIST)
+                        return undo(targetThere);
+                    if (why == EPERM || why == EOPNOTSUPP || why == ENOSYS) {
+                        // No second names here. One more look that nothing is at the
+                        // target, then the plain rename.
+                        struct stat there { };
+                        if (::lstat(to.constData(), &there) == 0 || errno != ENOENT)
+                            return undo(targetThere);
+                        named = io.rename(spare.constData(), to.constData()) == 0;
+                    }
+                }
+                break;
+            default:
+                break;
+            }
+        }
+        if (!named)
+            return undo(couldNotCopy);
+        name = to;
+    }
+
+    // 6. the folder is flushed, which puts the name on the disk; then the original is closed
+    {
         Fd dir(io, ::open(folder.constData(), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
         if (dir.fd < 0 || io.fsync(dir.fd) != 0)
             return undo(QStringLiteral("could not flush the copy's folder to the disk"));
         if (!dir.close())
             return undo(QStringLiteral("could not close the copy's folder"));
     }
-
-    // 5. every close is checked, before the source is touched
-    if (!out.close())
-        return undo(QStringLiteral("could not close the copy"));
     if (!in.close())
         return undo(QStringLiteral("could not close the original"));
 
-    // 6. only now the source goes; if it cannot, the copy is taken back (still held). After
-    // the removal only the move's own descriptor is let go.
-    if (io.unlink(from.constData()) != 0) {
+    // 7. a Copy leaves the source alone. A move removes it, last; if it cannot, the copy is
+    // taken back (still held). After the removal only the move's own descriptor is let go.
+    if (move && io.unlink(from.constData()) != 0) {
         if (!sourceStillThere(from))
             return { };
         return undo(QStringLiteral("could not remove the original after copying"));
@@ -213,7 +288,7 @@ QString moveByLink(const TransferIo &io, const QString &source, const QString &t
     if (io.link(from.constData(), to.constData()) != 0) {
         const int why = errno;
         if (why == EXDEV)
-            return moveAcross(io, source, target);
+            return moveAcross(io, source, target, true);
         if (why == EPERM || why == EOPNOTSUPP || why == ENOSYS) {
             // No second names here. One more look that nothing is at the target (a link
             // counts, and a dangling one too), then the plain rename.
@@ -260,7 +335,7 @@ QString transferFileWith(
             return { };
         switch (errno) {
         case EXDEV:
-            return moveAcross(io, source, target);
+            return moveAcross(io, source, target, true);
         case EINVAL:
             return moveByLink(io, source, target);
         default:
@@ -268,32 +343,9 @@ QString transferFileWith(
         }
     }
 
-    if (!QFile::copy(source, target)) {
-        // A copy that failed part way can leave a partial target. The target
-        // did not exist when this call began.
-        if (QFileInfo::exists(target))
-            QFile::remove(target);
-        return QStringLiteral("could not copy the file");
-    }
-
-    // A copy keeps the source's modification time. Setting it needs the file
-    // open for writing, and a read-only source may have made the copy
-    // read-only, so the owner gets write permission for this step only.
-    const QFileInfo from(source);
-    const QFile::Permissions permissions = from.permissions();
-    QFile::setPermissions(target, permissions | QFile::WriteOwner);
-    bool timeKept = false;
-    {
-        QFile written(target);
-        timeKept = written.open(QIODevice::ReadWrite)
-            && written.setFileTime(from.lastModified(), QFileDevice::FileModificationTime);
-    }
-    QFile::setPermissions(target, permissions);
-    if (!timeKept) {
-        QFile::remove(target);
-        return QStringLiteral("could not keep the modification time");
-    }
-    return { };
+    // A Copy is made the careful way of a move to another file system (O-SPARE), less the
+    // rename of the source and the removal of it.
+    return moveAcross(io, source, target, false);
 }
 
 // O-IO: the real calls.
