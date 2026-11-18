@@ -163,8 +163,8 @@ under its new name. It never replaces a file that is at the target.
 Only when the system says the target is on another file system is
 the file copied, in this order:
 
-1. the bytes are copied to a target made new for them (never a file
-   or a link that is there, even one that appeared a moment ago);
+1. the bytes are copied to a file made new for them under a spare
+   name in the target's folder (O-SPARE);
 2. the copy has the source's size, or the move fails;
 3. the copy is given the source's modification time and mode;
 4. the copy is flushed to the disk (`fsync`), and its folder too, so
@@ -173,6 +173,10 @@ the file copied, in this order:
    move;
 6. only then is the source removed. Nothing that could fail the move
    comes after it: only descriptors are let go.
+
+Between the flush of the copy and the flush of its folder the copy is
+given the target's name (O-SPARE), so of the two flushes the folder's
+is the one that puts the name on the disk.
 
 A failure at any step leaves the source as it was (bytes, time and
 mode), removes whatever of the target was written, and is reported
@@ -222,6 +226,50 @@ target. Any other answer of the first rename is a failure at once.
 Known and left: extended attributes and access lists are not carried
 to another file system. The folder is flushed once for each file,
 not once for a run.
+
+### O-SPARE: a copy is made under a spare name
+
+(Found by the write-path audit, part 2, 2026-11-18. F4: the copy was
+made under the target's own name, so a run killed while it copied
+left a cut-off file there; the next run took it for a file in the way
+and numbered the good one, and a scan would have added the cut-off
+one. F3: Copy went by the toolkit's copy, and when that failed it
+removed whatever was at the target, also a file somebody else had put
+there a moment before.)
+
+**Both a move to another file system and every Copy** are made the
+way O-ACROSS lists, with the same checks and the same messages. A
+Copy differs in two things only: no rename of the source is tried
+first, and the source is not removed at the end. (A Copy of a link
+reads what the link points to, as before.)
+
+- The bytes go to a file named `.lbmove-` and six characters of `a`
+  to `z` and `0` to `9`, in the target's folder, made new (never a
+  file or link that is there). It is hidden, and its name ends in
+  nothing a scan takes for music.
+- One look comes before the bytes: if anything is at the target (a
+  link counts, a dangling one too), the transfer fails with `the
+  target already exists` and nothing is read.
+- **The copy gets the target's name only when it is whole:** all
+  bytes, checked against the source, with the source's mode and time,
+  flushed, and closed for writing. Nothing is done to the file after
+  it has its name.
+- **The name is given by a call that never replaces:** the
+  never-replacing rename; where that is not known (`EINVAL`), a
+  second name (`link`) and the spare name removed; only where second
+  names are not possible either (`EPERM`, `EOPNOTSUPP`, `ENOSYS`), the
+  plain rename after one more look that nothing is there. If
+  something has come to be at the target meanwhile, it is somebody
+  else's: it is left as it is, the copy is taken back, and the
+  message is `the target already exists`.
+- Taking the copy back (O-ACROSS) goes by whichever name the copy has
+  at that moment, the spare one or the target's.
+
+So at whatever moment the program is killed, the target's name holds
+nothing or the whole file. What a kill can leave is the hidden spare
+file. **It is not swept in this version:** to tell a dead run's
+leftover from a living run's copy needs a rule of its own. It is not
+in the way of the next run.
 
 ### O-IO
 
