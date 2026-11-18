@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -37,8 +38,13 @@ public:
     struct Outcome {
         QStringList restored; // the files that hold their earlier values again
         QStringList failed; // the files that could not be written
+        // UN-SAME: the files that are no longer the file that was edited, and were left alone
+        QStringList changed;
     };
     Outcome undo(const Writer &writer = { });
+
+    // UN-MOVED: files have other paths now (old path to new path).
+    void moved(const QHash<QString, QString> &oldToNew);
 
 signals:
     void changed(); // canUndo(), name() or paths() may answer differently now
