@@ -190,7 +190,7 @@ bytes in UTF-8. A folder path is names joined by `/`, each one valid.
 
 ```
 linuxbeectl playlist show FILE
-linuxbeectl playlist convert [--relative] [--plain] IN OUT
+linuxbeectl playlist convert [--relative] [--plain] [--force] IN OUT
 ```
 
 - `show` prints one line per entry: location, a tab, the duration in
@@ -198,6 +198,37 @@ linuxbeectl playlist convert [--relative] [--plain] IN OUT
 - `convert` reads IN and writes OUT in the format of OUT's extension, then
   prints `N entries`. `--relative` writes locations relative to OUT's
   folder. `--plain` leaves out the `#EXT` lines.
+- **`convert` never writes the file it reads.** When OUT is IN (the
+  same file by another spelling, through a linked folder, by a link
+  to it or by a second name of it): `failed: OUT: this is the file
+  being read`, exit 3, with `--force` as without it. (A list read and
+  written again is not the same list: comments, a relative path and
+  the line ends are not kept. Until 0.8.0 this was done without a
+  word.)
+- **`convert` writes over a file only when asked.** When anything is
+  at OUT (a link to nothing counts): `failed: OUT: the file is there
+  already (--force writes over it)`, exit 3. With `--force` it is
+  written over. In both refusals nothing is on standard output and no
+  byte of OUT or IN changes.
+- **The path written is the path checked.** OUT is read in two
+  steps, and the path that comes out, which has no link left in it,
+  is the one every check looks at and the one that is written:
+  1. as text: made absolute, `.` and `..` taken out without asking
+     the disk;
+  2. then by the system: when something is at that path, its real
+     path, every link followed; when nothing is, the real path of
+     its folder and the name.
+  A link that leads to nothing is not written through, with `--force` as without it
+  (without it, the answer is that something is there already):
+  `failed: OUT: it is a link to nothing`, exit 3, and nothing is
+  made where it points. A link to a file that is there is followed:
+  the file is written and the link stays a link.
+  (The review of fix-87, 2026-11-18: the toolkit's writer follows a
+  link by reading its text and cleaning that as text. For a link
+  whose own text goes through `..`, that is another file than the
+  one the system finds, so the file checked was not the file
+  written, and the file being read was written over.)
+  `--relative` is relative to the folder of that path.
 - Exit 2 for a usage mistake, including a file name that is not `.m3u`,
   `.m3u8` or `.pls`. Exit 3, with `failed: FILE: ...` on standard error,
   when IN cannot be read or OUT cannot be written. OUT is not left

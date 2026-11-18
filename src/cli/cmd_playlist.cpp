@@ -6,6 +6,8 @@
 #include <QSaveFile>
 #include <QTextStream>
 
+#include <sys/stat.h>
+
 #include <optional>
 
 #include "command.h"
@@ -17,7 +19,7 @@ using linuxbee::cli::usageError;
 
 const char *const kUsage
     = "usage: linuxbeectl playlist show FILE\n"
-      "       linuxbeectl playlist convert [--relative] [--plain] IN OUT\n"
+      "       linuxbeectl playlist convert [--relative] [--plain] [--force] IN OUT\n"
       "FILE, IN and OUT are read and written by their extension: .m3u, .m3u8 or .pls.";
 
 // Y-CLI: exit 3 with "failed: FILE: ..." on standard error.
@@ -62,8 +64,62 @@ int showPlaylist(const QString &file)
     return 0;
 }
 
+// Y-CLI: OUT is the file IN is: the same device and inode when both can be asked
+// (stat follows links, so a link to the file is the file), otherwise the same cleaned path.
+bool sameFile(const QString &a, const QString &b)
+{
+    struct stat first;
+    struct stat second;
+    if (::stat(QFile::encodeName(a).constData(), &first) == 0
+        && ::stat(QFile::encodeName(b).constData(), &second) == 0)
+        return first.st_dev == second.st_dev && first.st_ino == second.st_ino;
+    return QDir::cleanPath(QFileInfo(a).absoluteFilePath())
+        == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
+}
+
+// The path of the rule "the path written is the path checked": the one path a command looks at and
+// writes, made once from the path as the user wrote it. First as text (absolute, `.` and `..` taken
+// out without asking the disk), then by the system: what is there is given by its real path, every
+// link followed; where nothing is, the real path of its folder and the name (a folder that is not
+// there either leaves the text path). A link that leads nowhere is not followed, and is said so.
+struct WrittenPath {
+    QString path;
+    bool linkToNothing = false;
+};
+
+WrittenPath writtenPath(const QString &given)
+{
+    WrittenPath result;
+    result.path = QDir::cleanPath(QFileInfo(given).absoluteFilePath());
+    const QByteArray name = QFile::encodeName(result.path);
+    struct stat info;
+    if (::lstat(name.constData(), &info) == 0) {
+        if (::stat(name.constData(), &info) != 0) {
+            result.linkToNothing = true;
+            return result;
+        }
+        const QString real = QFileInfo(result.path).canonicalFilePath();
+        if (!real.isEmpty())
+            result.path = real;
+        return result;
+    }
+    const QFileInfo text(result.path);
+    const QString folder = QFileInfo(text.absolutePath()).canonicalFilePath();
+    if (!folder.isEmpty())
+        result.path = QDir(folder).filePath(text.fileName());
+    return result;
+}
+
+// Y-CLI: anything at OUT counts, a link to nothing too (lstat does not follow it).
+bool somethingIsAt(const QString &file)
+{
+    struct stat info;
+    return ::lstat(QFile::encodeName(file).constData(), &info) == 0;
+}
+
 int convertPlaylist(const QStringList &positional, const QCommandLineParser &parser,
-    const QCommandLineOption &relativeOption, const QCommandLineOption &plainOption)
+    const QCommandLineOption &relativeOption, const QCommandLineOption &plainOption,
+    const QCommandLineOption &forceOption)
 {
     if (positional.size() != 3)
         return usageError(QStringLiteral("linuxbeectl: playlist convert takes IN and OUT.\n%1")
@@ -83,16 +139,27 @@ int convertPlaylist(const QStringList &positional, const QCommandLineParser &par
     const QByteArray data = source.readAll();
     source.close();
 
+    // Y-CLI: the one path of OUT is made once; every check, the folder of --relative and the write
+    // use that path. Never onto the file read, with --force as without it; onto another file that
+    // is there only with --force; never through a link that leads to nothing.
+    const WrittenPath target = writtenPath(out);
+    if (!target.linkToNothing && sameFile(in, target.path))
+        return fileError(out, QStringLiteral("this is the file being read"));
+    if (!parser.isSet(forceOption) && (target.linkToNothing || somethingIsAt(target.path)))
+        return fileError(out, QStringLiteral("the file is there already (--force writes over it)"));
+    if (target.linkToNothing)
+        return fileError(out, QStringLiteral("it is a link to nothing"));
+
     linuxbee::PlaylistWriteOptions options;
     options.extended = !parser.isSet(plainOption);
     options.relativePaths = parser.isSet(relativeOption);
-    options.baseFolder = folderOf(out);
+    options.baseFolder = folderOf(target.path);
     const QList<linuxbee::PlaylistEntry> entries
         = linuxbee::parsePlaylist(data, *from, folderOf(in));
     const QByteArray bytes = linuxbee::writePlaylist(entries, *to, options);
 
     // Y-CLI: OUT is not left half-written.
-    QSaveFile destination(out);
+    QSaveFile destination(target.path);
     if (!destination.open(QIODevice::WriteOnly) || destination.write(bytes) != bytes.size()
         || !destination.commit())
         return fileError(out, QStringLiteral("cannot be written"));
@@ -109,7 +176,9 @@ int runPlaylist(const QStringList &arguments)
         QStringLiteral("Write locations relative to the folder of OUT."));
     QCommandLineOption plainOption(
         QStringLiteral("plain"), QStringLiteral("Leave out the #EXT lines."));
-    parser.addOptions({ relativeOption, plainOption });
+    QCommandLineOption forceOption(
+        QStringLiteral("force"), QStringLiteral("Write over an OUT that is there already."));
+    parser.addOptions({ relativeOption, plainOption, forceOption });
 
     // parse(), not process(): process() exits 1 on an unknown option, and
     // Y-CLI requires 2. The parser expects the program name first.
@@ -129,7 +198,7 @@ int runPlaylist(const QStringList &arguments)
         return showPlaylist(positional.at(1));
     }
     if (subcommand == QLatin1String("convert"))
-        return convertPlaylist(positional, parser, relativeOption, plainOption);
+        return convertPlaylist(positional, parser, relativeOption, plainOption, forceOption);
     return usageError(QStringLiteral("linuxbeectl: playlist has no subcommand \"%1\".\n%2")
             .arg(subcommand, QLatin1String(kUsage)));
 }

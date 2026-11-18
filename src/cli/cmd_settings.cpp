@@ -6,6 +6,8 @@
 #include <QSettings>
 #include <QTextStream>
 
+#include <sys/stat.h>
+
 #include "command.h"
 #include "settingsimport/settingsimport.h"
 
@@ -42,6 +44,53 @@ QString targetRefusal(const QString &ini)
     if (probe.status() != QSettings::NoError)
         return QStringLiteral("it cannot be read as an INI settings file");
     return QString();
+}
+
+// SI-CLI-SELF: the two paths are one file when both can be asked and have the same device and
+// inode (stat follows links, so a link or a second name is the file), and otherwise when
+// their cleaned absolute paths are the same.
+bool sameFile(const QString &a, const QString &b)
+{
+    struct stat first;
+    struct stat second;
+    if (::stat(QFile::encodeName(a).constData(), &first) == 0
+        && ::stat(QFile::encodeName(b).constData(), &second) == 0)
+        return first.st_dev == second.st_dev && first.st_ino == second.st_ino;
+    return QDir::cleanPath(QFileInfo(a).absoluteFilePath())
+        == QDir::cleanPath(QFileInfo(b).absoluteFilePath());
+}
+
+// The path of the rule "the path written is the path checked": the one path a command looks at and
+// writes, made once from the path as the user wrote it. First as text (absolute, `.` and `..` taken
+// out without asking the disk), then by the system: what is there is given by its real path, every
+// link followed; where nothing is, the real path of its folder and the name (a folder that is not
+// there either leaves the text path). A link that leads nowhere is not followed, and is said so.
+struct WrittenPath {
+    QString path;
+    bool linkToNothing = false;
+};
+
+WrittenPath writtenPath(const QString &given)
+{
+    WrittenPath result;
+    result.path = QDir::cleanPath(QFileInfo(given).absoluteFilePath());
+    const QByteArray name = QFile::encodeName(result.path);
+    struct stat info;
+    if (::lstat(name.constData(), &info) == 0) {
+        if (::stat(name.constData(), &info) != 0) {
+            result.linkToNothing = true;
+            return result;
+        }
+        const QString real = QFileInfo(result.path).canonicalFilePath();
+        if (!real.isEmpty())
+            result.path = real;
+        return result;
+    }
+    const QFileInfo text(result.path);
+    const QString folder = QFileInfo(text.absolutePath()).canonicalFilePath();
+    if (!folder.isEmpty())
+        result.path = QDir(folder).filePath(text.fileName());
+    return result;
 }
 
 // SI-CLI: linuxbeectl settings import. Prints what would be carried over, line by
@@ -95,20 +144,24 @@ int runSettings(const QStringList &arguments)
     // printed, so a write that fails leaves standard output empty, as a failed read does.
     int written = 0;
     if (apply) {
+        // --to as it was given, for the messages; the path of the rule is the one that is
+        // looked at, the one whose folder is made and the one that is written.
         const QString ini = parser.value(toOption);
+        const WrittenPath resolved = writtenPath(ini);
+        // SI-CLI-PATH: a link that leads to nothing is never written through.
+        if (resolved.linkToNothing)
+            return failed(ini, QStringLiteral("it is a link to nothing"));
+        const QString to = resolved.path;
         // SI-CLI-SELF: the file being imported is never the one written, under
         // any spelling or through a link.
-        const QString source = QFileInfo(path).canonicalFilePath();
-        const QFileInfo targetInfo(ini);
-        const QString targetPath = targetInfo.exists() ? targetInfo.canonicalFilePath() : QString();
-        if (!targetPath.isEmpty() && targetPath == source)
+        if (sameFile(path, to))
             return failed(ini, QStringLiteral("this is the file being imported"));
         // SI-CLI-TARGET: refused before a folder is made or anything is written.
-        const QString refusal = targetRefusal(ini);
+        const QString refusal = targetRefusal(to);
         if (!refusal.isEmpty())
             return failed(ini, refusal);
-        QDir().mkpath(QFileInfo(ini).absolutePath());
-        QSettings target(ini, QSettings::IniFormat);
+        QDir().mkpath(QFileInfo(to).absolutePath());
+        QSettings target(to, QSettings::IniFormat);
         written = linuxbee::applySettingsImport(plan, target);
         target.sync();
         if (target.status() != QSettings::NoError)
