@@ -88,16 +88,30 @@ target (ready or already in place), or when something exists there on disk
 that is not about to leave. A file is about to leave when an earlier entry
 of this plan moves it away (`Mode::Move`, `Ready`).
 
+*A file of the run* is the source of any entry of the plan, whatever that
+entry's status and wherever it stands in the plan: one that is moved
+later, one that is already in place, one that is skipped.
+
 - Not taken: the target stands.
-- Taken on disk only, and `replaceExisting` is true: the target stands and
-  `replaces` is true.
+- Taken on disk only, by something that is **not a file of the run**, and
+  `replaceExisting` is true: the target stands and `replaces` is true.
 - Otherwise the file gets the first free name from `uniqueRelativePath`
   (`name_1`, `name_2`, ...: P-DUP), where the file's own current path
   counts as free, and `renamed` is true. If that name is the file's own
   current path, the entry is `AlreadyInPlace`.
 
 Two files of one run never replace each other, whatever `replaceExisting`
-says.
+says. So where the target is a file of the run that has not left, the
+newcomer is numbered, with `replaceExisting` as without it. (Until
+0.8.0 only an *earlier* entry's file was safe: with `replaceExisting`, a
+file that a later entry was to move was replaced by an earlier one, and
+the later entry then moved the newcomer on in its place. A chain of
+names, a to b and b to c, lost b.)
+
+A chain or a swap of names therefore ends with one numbered name, and
+loses nothing. A second run finds the wanted name free and gives it.
+Doing it in one run (the moves put in order, a spare name for a cycle)
+is not in this version.
 
 ## 3. Carrying a plan out
 
@@ -107,6 +121,15 @@ says.
 calls the progress function with the entry's index and the number of
 entries; if that returns false the run stops there with `cancelled` true,
 and what was done stays done.
+
+**A file of the run is never replaced, whatever the plan says.** Before a
+file at a target is put aside to be replaced, it is compared, as a file
+(its device and inode) and not as a path, with the source of every
+entry of the plan as they were when the run began. If it is one of them
+and not the entry's own source, the entry fails with a message that
+contains `another file of this run`, and nothing is moved for it. A plan
+is checked this way wherever it came from: a path spelled through a
+linked folder is the same file.
 
 - An entry that is not `Ready` is `Skipped`. Its message is the status in
   words: `already in place`, `missing tags: A, B`, `the template leaves no

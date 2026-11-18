@@ -11,10 +11,12 @@ namespace linuxbee {
 namespace {
 
 // What the earlier entries of a plan have settled (O-CONFLICT): the targets
-// already given out, and the sources that an earlier Move entry takes away.
+// already given out, the sources that an earlier Move entry takes away, and
+// the sources of every entry of the plan (the files of the run).
 struct Settled {
     QSet<QString> targets;
     QSet<QString> leaving;
+    QSet<QString> ofTheRun;
 };
 
 QString absoluteClean(const QString &path)
@@ -119,9 +121,10 @@ void settleConflict(PlannedMove *move, const OrganiseOptions &options, const Set
         return;
 
     // Taken on disk only, and the user allowed replacing it. A target given
-    // out by this run is never replaced: two files of one run never replace
-    // each other.
-    if (options.replaceExisting && !settled.targets.contains(wanted)) {
+    // out by this run is never replaced, nor is a file of the run that has
+    // not left: two files of one run never replace each other.
+    if (options.replaceExisting && !settled.targets.contains(wanted)
+        && !settled.ofTheRun.contains(wanted)) {
         move->replaces = true;
         return;
     }
@@ -146,8 +149,13 @@ QList<PlannedMove> planOrganise(const QStringList &files, const OrganiseOptions 
 {
     QList<PlannedMove> plan;
     Settled settled;
+    // Every file is planned before any conflict is settled, so that the
+    // sources of the whole run are known.
     for (const QString &file : files) {
-        PlannedMove move = planFile(file, options);
+        plan.append(planFile(file, options));
+        settled.ofTheRun.insert(plan.last().source);
+    }
+    for (PlannedMove &move : plan) {
         if (move.status == PlannedMove::Status::Ready)
             settleConflict(&move, options, settled);
         if (move.status == PlannedMove::Status::Ready
@@ -158,7 +166,6 @@ QList<PlannedMove> planOrganise(const QStringList &files, const OrganiseOptions 
             && options.mode == OrganiseOptions::Mode::Move) {
             settled.leaving.insert(move.source);
         }
-        plan.append(move);
     }
     return plan;
 }

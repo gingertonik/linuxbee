@@ -6,6 +6,8 @@ settings and the library file may still change.
 
 ## Unreleased
 
+- **Organise with "replace existing files" could lose a file** when the new names of one run overlapped (track 1 renamed to the name track 2 had, track 2 to the name of track 3): the middle file was replaced and went to the trash, or was deleted with `--delete-replaced`. A file of the run is no longer replaced by another: the newcomer gets a numbered name, and a second run gives the names wanted. All earlier versions are affected.
+
 ## 0.8.0 (2026-11-18)
 
 - **Before the first start of this version, copy `~/.local/share/linuxbee` and `~/.config/linuxbee` somewhere safe.** This update moves the profile and changes the library file, and there is no way back without that copy.
