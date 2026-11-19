@@ -285,8 +285,9 @@ Look lookAt(const QString &path)
     return look;
 }
 
-// Files are written whole and then moved into place (QSaveFile), so a crash
-// cannot leave half a playlist. Nothing is written when the file already
+// Files are written whole and then moved into place, so a crash cannot leave half a playlist:
+// through QSaveFile where no looks were taken (create), and under a spare name made by this call
+// (see below) where they were. Nothing is written when the file already
 // holds exactly this, so a call that changes nothing changes nothing.
 // `asRead` is what the file held when the caller read it: the one read of the call, so the
 // comparison does not read the file again.
@@ -300,52 +301,52 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
     if (asRead && *asRead == data)
         return Written::Unchanged;
 
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly))
-        return Written::Failed;
-    if (file.write(data) != data.size()) {
-        file.cancelWriting();
-        return Written::Failed;
-    }
     if (first) {
-        // Y-SAME steps 3 to 6: the bytes are whole and flushed, and the file beside has a name of
-        // its own and the playlist's mode, before the hook. After the second look the only call is
-        // the rename; commit() is not used here, it flushes and names again.
-        if (!file.flush() || file.handle() < 0) {
-            file.cancelWriting();
-            return Written::Failed;
-        }
-        const int fd = file.handle();
-        if (::fsync(fd) != 0) {
-            file.cancelWriting();
-            return Written::Failed;
-        }
-        struct stat existing { };
-        const mode_t mode = ::stat(QFile::encodeName(path).constData(), &existing) == 0
-            ? (existing.st_mode & 07777)
-            : mode_t(0644);
-        if (::fchmod(fd, mode) != 0) {
-            file.cancelWriting();
-            return Written::Failed;
-        }
-        const QByteArray from = "/proc/self/fd/" + QByteArray::number(fd);
+        // Y-SAME steps 3 to 6: the file beside is made under its own spare name (open with
+        // O_CREAT | O_EXCL, mode 0600), written whole, given the playlist's mode, flushed and
+        // closed, all before the hook. After the second look the only call is the rename. No
+        // step needs a second name for a file (link, linkat, O_TMPFILE), as FAT and exFAT have
+        // none.
         const QString folder = QFileInfo(path).absolutePath();
         static const char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
         QByteArray spare;
-        bool named = false;
-        for (int attempt = 0; attempt < 100 && !named; ++attempt) {
+        int fd = -1;
+        for (int attempt = 0; attempt < 100 && fd < 0; ++attempt) {
             QString name = QStringLiteral(".lbsave-");
             for (int i = 0; i < 6; ++i)
                 name += QLatin1Char(alphabet[QRandomGenerator::system()->bounded(36)]);
             spare = QFile::encodeName(QDir(folder).filePath(name));
-            if (::linkat(AT_FDCWD, from.constData(), AT_FDCWD, spare.constData(), AT_SYMLINK_FOLLOW)
-                == 0)
-                named = true;
-            else if (errno != EEXIST)
+            fd = ::open(spare.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+            if (fd < 0 && errno != EEXIST)
                 break;
         }
-        if (!named) {
-            file.cancelWriting();
+        if (fd < 0)
+            return Written::Failed;
+        // The spare name was made by this call and is taken away on any failure from here on.
+        bool ready = true;
+        const char *at = data.constData();
+        qint64 left = data.size();
+        while (ready && left > 0) {
+            const ssize_t put = ::write(fd, at, static_cast<size_t>(left));
+            if (put < 0 && errno == EINTR)
+                continue;
+            if (put <= 0) {
+                ready = false;
+                break;
+            }
+            at += put;
+            left -= put;
+        }
+        if (ready) {
+            struct stat existing { };
+            const mode_t mode = ::stat(QFile::encodeName(path).constData(), &existing) == 0
+                ? (existing.st_mode & 07777)
+                : mode_t(0644);
+            ready = ::fchmod(fd, mode) == 0 && ::fsync(fd) == 0;
+        }
+        const bool closed = ::close(fd) == 0;
+        if (!ready || !closed) {
+            ::unlink(spare.constData());
             return Written::Failed;
         }
         if (hook)
@@ -356,10 +357,17 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
             = same ? ::rename(spare.constData(), QFile::encodeName(path).constData()) : -1;
         if (renamed != 0)
             ::unlink(spare.constData());
-        file.cancelWriting();
         if (!same)
             return Written::Changed;
         return renamed == 0 ? Written::Written : Written::Failed;
+    }
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return Written::Failed;
+    if (file.write(data) != data.size()) {
+        file.cancelWriting();
+        return Written::Failed;
     }
     if (!file.commit())
         return Written::Failed;
