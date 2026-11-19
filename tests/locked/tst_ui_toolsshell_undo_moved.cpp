@@ -259,7 +259,8 @@ void ToolsShellUndoMovedTest::aFileThatIsNotTheOneEdited()
     QCOMPARE(stranger.readAll(), was);
     QCOMPARE(readTags(r.b).tags.first(s(u"Album")), beforeB);
     QCOMPARE(r.tools->lastMessage(),
-        s(u"Undid Edit Tags: 1 file put back; 1 changed or moved since, and left as it is"));
+        s(u"Undid Edit Tags: 1 file put back; 1 changed or moved since, and left as it is (a new "
+          u"edit drops this)"));
 }
 
 QTEST_MAIN(ToolsShellUndoMovedTest)
