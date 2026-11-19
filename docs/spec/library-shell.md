@@ -222,6 +222,10 @@ When `relinkPassedOver()` is not empty afterwards, the shell says so
 ` and K more`. When none was left, nothing is said and the line that
 was there stays.
 
+When the files were moved by Organise, the tools shell's line for the
+run comes after this one. It carries this sentence at the end of its own line
+(tools-shell.md, TS-ORGANISE), so that it is still on show.
+
 ## SH-PATHS: the paths of the list
 
 `shownPaths()` is the path of every row of the list, in the order
