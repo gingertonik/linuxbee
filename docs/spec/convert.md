@@ -326,6 +326,24 @@ Known and left: the file that is there is measured by its header,
 and the source too. A source whose own header overstates it fails as
 in C-WHOLE.
 
+**The count is watched.** (Found by the review of fix-85b,
+2026-11-18: ffprobe was waited for without end, and nobody was asked
+meanwhile. One that hung stopped a whole batch, and Cancel was not
+answered.)
+
+- While ffprobe counts, the progress function is asked as while
+  ffmpeg runs and says nothing (C-PROGRESS): about once a second,
+  with the value it was last given. When it returns false ffprobe is
+  ended, the part file is removed and the result is `Cancelled`.
+- When ffprobe has printed nothing for `countSilenceMs` of the job
+  (30,000 when none is given), it is ended, and the job is `Failed`:
+  `the converted file could not be checked: ffprobe gave no answer`.
+  The part file is removed, and the file that is there stays.
+- The limit is on silence, not on the whole count. ffprobe prints as
+  it plays, so a long file on a slow disk is not ended while it goes
+  on. One that prints for ever is not caught by this.
+- "Ended" is: killed, and waited for.
+
 ### C-PLACE: the move into place replaces only the file it saw
 
 (Found by the review of fix-85b, 2026-11-18. The last step set aside
