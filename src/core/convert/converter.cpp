@@ -4,7 +4,13 @@
 #include "tagcopy.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <optional>
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -218,25 +224,82 @@ std::optional<ConvertResult> resolveExisting(
     return std::nullopt;
 }
 
-// Step 9: the part file takes the destination's place. QFile::rename never
-// replaces a file, so an existing destination is set aside first and put back
-// when the move fails. A failed run leaves the old file as it was.
-bool moveIntoPlace(const QString &partPath, const QString &destination)
+// C-PLACE: what was at the destination's name when C-EXISTS answered, known by
+// what the system says it is (device and number), never by its name.
+struct Seen {
+    bool file = false;
+    dev_t device = 0;
+    ino_t number = 0;
+};
+
+Seen lookAt(const QString &destination)
 {
-    if (!QFileInfo::exists(destination))
-        return QFile::rename(partPath, destination);
-    // The old file goes aside under a name no file has. A file that already
-    // has the name is someone else's, so it is never removed.
-    const QString aside = uniqueRelativePath(destination + QStringLiteral(".replaced"),
-        [](const QString &path) { return QFileInfo::exists(path); });
-    if (aside.isEmpty() || !QFile::rename(destination, aside))
-        return false;
-    if (QFile::rename(partPath, destination)) {
-        QFile::remove(aside);
-        return true;
+    Seen seen;
+    struct stat info;
+    if (::lstat(QFile::encodeName(destination).constData(), &info) == 0) {
+        seen.file = true;
+        seen.device = info.st_dev;
+        seen.number = info.st_ino;
     }
-    QFile::rename(aside, destination);
-    return false;
+    return seen;
+}
+
+enum class Placed { Done, Taken, Failed };
+
+// Step 9, nothing seen: the part file gets the name by a move that never
+// replaces. Where the disk cannot do that, a link and then an unlink.
+Placed moveWithoutReplacing(const QString &partPath, const QString &destination)
+{
+    const QByteArray from = QFile::encodeName(partPath);
+    const QByteArray to = QFile::encodeName(destination);
+    if (::renameat2(AT_FDCWD, from.constData(), AT_FDCWD, to.constData(), RENAME_NOREPLACE) == 0)
+        return Placed::Done;
+    if (errno == EEXIST)
+        return Placed::Taken;
+    if (errno != EINVAL && errno != ENOSYS && errno != ENOTSUP && errno != EOPNOTSUPP)
+        return Placed::Failed;
+    if (::link(from.constData(), to.constData()) != 0)
+        return errno == EEXIST ? Placed::Taken : Placed::Failed;
+    ::unlink(from.constData());
+    return Placed::Done;
+}
+
+// Step 9, a file was seen (Overwrite): it is replaced only while the file at
+// the name is still that file, by device and number as C-EXISTS saw it.
+Placed replaceSeen(const QString &partPath, const QString &destination, const Seen &seen)
+{
+    const Seen now = lookAt(destination);
+    if (!now.file || now.device != seen.device || now.number != seen.number)
+        return Placed::Taken;
+    return ::rename(
+               QFile::encodeName(partPath).constData(), QFile::encodeName(destination).constData())
+            == 0
+        ? Placed::Done
+        : Placed::Failed;
+}
+
+// Step 9 (C-PLACE): the part file takes the destination's place and replaces
+// only the file that was seen there. Keep both goes on to the next free name
+// when a file has taken the one it chose; `destination` ends as the name used.
+Placed moveIntoPlace(
+    const ConvertJob &job, const QString &partPath, QString &destination, const Seen &seen)
+{
+    if (seen.file)
+        return replaceSeen(partPath, destination, seen);
+    QStringList tried;
+    for (;;) {
+        const Placed placed = moveWithoutReplacing(partPath, destination);
+        if (placed != Placed::Taken || job.ifExists != ConvertJob::IfExists::Rename)
+            return placed;
+        tried.append(destination);
+        const QString next = uniqueRelativePath(job.destination, [&tried](const QString &path) {
+            const QFileInfo info(path);
+            return info.exists() || info.isSymLink() || tried.contains(path);
+        });
+        if (next.isEmpty())
+            return Placed::Failed;
+        destination = next;
+    }
 }
 
 }
@@ -268,10 +331,14 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (std::optional<ConvertResult> done = resolveExisting(job, source, destination))
         return *done;
 
+    // file as readTags gives it (0 when it is not music).
+    // C-PLACE: what is at the name is looked at once, here. Only Overwrite onto a
+    // file that is there has a file seen; every other job saw nothing.
     // C-REPLACE: with Overwrite onto a file that is there, the length of that
     // file as readTags gives it (0 when it is not music).
     const bool replaces
         = job.ifExists == ConvertJob::IfExists::Overwrite && QFileInfo::exists(destination);
+    const Seen seen = replaces ? lookAt(destination) : Seen();
     qint64 oldLengthMs = 0;
     if (replaces) {
         ReadOptions oldOptions;
@@ -415,11 +482,16 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
         }
     }
 
-    // Step 9: the move. The old file is replaced only here.
-    if (!moveIntoPlace(partPath, destination)) {
+    // Step 9: the move. The file that was seen is replaced only here, and only
+    // while it is still that file (C-PLACE).
+    const Placed placed = moveIntoPlace(job, partPath, destination, seen);
+    if (placed != Placed::Done) {
         QFile::remove(partPath);
         result.status = ConvertResult::Status::Failed;
-        result.message = QStringLiteral("could not move the converted file into place");
+        result.message = placed == Placed::Taken
+            ? QStringLiteral(
+                  "a file appeared at the destination while converting; it was not replaced")
+            : QStringLiteral("could not move the converted file into place");
         return result;
     }
     // The file is in place. The final report cannot undo that, so the answer

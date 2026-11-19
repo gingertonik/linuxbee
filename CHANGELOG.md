@@ -19,6 +19,7 @@ settings and the library file may still change.
 - A playlist that a disk error cut short while it was read is no longer taken for a short playlist and written back.
 - Convert with Overwrite plays the result through before it replaces a file, and refuses one that is shorter than the source or than the file it would replace. This needs `ffprobe`, which comes with ffmpeg.
 - Undo now says when the files changed since will not be put back by trying again: the message ends "(a new edit drops this)" when nothing failed and only changed files are left.
+- **A conversion no longer replaces a file that appeared at its destination while it ran.** In Keep both the result goes to the next free name, and in Skip and Overwrite the job fails and says so; Overwrite replaces only the file it saw when it began.
 
 ## 0.8.0 (2026-11-18)
 
