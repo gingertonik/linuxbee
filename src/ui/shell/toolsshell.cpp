@@ -344,6 +344,11 @@ struct ToolsShell::Private {
             text += QCoreApplication::translate(
                 "linuxbee::ui::ToolsShell", "; %1 could not be put back (Undo tries again)")
                         .arg(outcome.failed.size());
+        // UN-SAME: with nothing failed, the files changed since are all that is left, and trying
+        // again will not put them back.
+        if (outcome.failed.isEmpty() && !outcome.changed.isEmpty())
+            text += QCoreApplication::translate(
+                "linuxbee::ui::ToolsShell", " (a new edit drops this)");
         showMessage(text);
     }
 

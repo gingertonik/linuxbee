@@ -116,6 +116,13 @@ the step before it.
    Those files are still in the step (tag-undo.md, UN-KEEP), so
    `edit.undo` again is this point again, for them alone, with `0
    files put back` when none went.
+   When none failed and some were changed or moved since, those are
+   all that is left in the step, and another Undo cannot put them
+   back as they are. The message then ends, after the "changed or
+   moved since" part and a space, with
+   `(a new edit drops this)`, and promises no second try. (What is kept for them stays until the next tag
+   change or the end of the program; if the very file comes back to
+   its path, Undo puts it back.)
 
 The shell tells its `TagUndo` of every move the library reports
 (`Library::pathsMoved` to `TagUndo::moved`, UN-MOVED), so a change is
