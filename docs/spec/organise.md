@@ -209,9 +209,27 @@ stays.
 **No room.** When the target's disk is full or over its quota, the
 message is `there is no room for the file at the target`.
 
-A source that is a link is not moved to another file system: the
-move fails, the link stays, and nothing is copied. (Within one file
-system the link itself is renamed, as any file.)
+**A source that is a link.** It is not moved to another file
+system: the move fails, the link stays, and nothing is copied.
+Within one file system the link itself is renamed, as any file, and
+its text is not changed, **but only where it still leads to its
+file from there**:
+
+- A link that leads to a file now is asked where its text would
+  lead from the target's folder. When that is nothing, or another
+  file (by device and file number, not by name), the move fails with
+  `the link would not lead to its file from there`, the link stays,
+  and nothing is at the target.
+- A link whose text begins at the root leads where it led. So does a
+  relative one moved to a folder from which its text reaches the
+  same file.
+- A link that leads nowhere already is renamed as before.
+- A Copy reads what the link leads to, as before, and asks nothing.
+
+(Found by the write-path audit, part 2, F5, 2026-11-18: a relative
+link was renamed into another folder and led nowhere from there. The
+move was reported as done, and the library then marked the track
+missing.)
 
 **Where the never-replacing rename is not known.** Some file systems
 (network and user-space ones) answer `EINVAL` to it. Then the file
@@ -406,6 +424,21 @@ linuxbeectl organise [--to DIR] [--template T | --keep-names] [--copy]
   the trash: PATH)`, or `replaced: TARGET (the old file was deleted)`, or,
   when it could be neither, `replaced: TARGET (the old file is still at
   PATH)`.
+- **Names that are not valid UTF-8.** linuxBee cannot open such a
+  file (every path in it is text), and a folder argument's search
+  leaves it out. That is said: after every other line, with
+  `--dry-run` too, on standard output, when the folder arguments
+  hold such entries:
+  `passed over N name that is not valid UTF-8, in:` (for one) or
+  `passed over N names that are not valid UTF-8, in:`, then one line
+  for each folder that holds them, two spaces and its path, each
+  once, in ascending order. They are counted as L-NAMES counts them
+  (library.md): files and folders alike, whatever their ending; such
+  a folder once, and not gone into; hidden folders and links not
+  gone into; each entry once, however often its folder was named or
+  reached. A file argument says nothing of its neighbours. The exit
+  status does not change. (Found by the write-path audit, part 2,
+  F6: such a file was left where it was with no line and exit 0.)
 - Exit 0 when nothing failed (skips are not failures), 3 when anything did.
 - Usage mistakes exit 2 and do nothing: no input; `--template` with
   `--keep-names`; `--keep-names` without `--to`; an unknown option; a
