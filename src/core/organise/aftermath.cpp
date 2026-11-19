@@ -158,12 +158,14 @@ void removeEmptiedFolders(OrganiseReport *report, const QStringList &sourceRoots
         floors.append(deepestCommonFolder(folders));
 
     // O-EMPTY: each folder, then its parent, and so on up, while each lies below
-    // a floor and is empty. The floor itself, and anything above it, stays.
+    // a floor, is not a floor itself, and is empty. A floor, and anything above
+    // it, stays, whatever other floor lies above it.
     for (const QString &start : folders) {
         QString folder = start;
-        while (std::any_of(floors.cbegin(), floors.cend(), [&folder](const QString &floor) {
-            return isStrictlyBelow(folder, floor);
-        }) && isEmptyFolder(folder)) {
+        while (!floors.contains(folder)
+            && std::any_of(floors.cbegin(), floors.cend(),
+                [&folder](const QString &floor) { return isStrictlyBelow(folder, floor); })
+            && isEmptyFolder(folder)) {
             const QString parent = QFileInfo(folder).absolutePath();
             if (parent == folder || !QDir().rmdir(folder))
                 break;

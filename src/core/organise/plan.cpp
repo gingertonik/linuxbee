@@ -149,9 +149,19 @@ QList<PlannedMove> planOrganise(const QStringList &files, const OrganiseOptions 
 {
     QList<PlannedMove> plan;
     Settled settled;
+    // O-PLAN: an input whose clean absolute path an earlier input has is left out.
+    QSet<QString> named;
+    QStringList inputs;
+    for (const QString &file : files) {
+        const QString path = absoluteClean(file);
+        if (named.contains(path))
+            continue;
+        named.insert(path);
+        inputs.append(file);
+    }
     // Every file is planned before any conflict is settled, so that the
     // sources of the whole run are known.
-    for (const QString &file : files) {
+    for (const QString &file : inputs) {
         plan.append(planFile(file, options));
         settled.ofTheRun.insert(plan.last().source);
     }

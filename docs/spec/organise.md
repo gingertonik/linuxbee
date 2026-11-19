@@ -53,8 +53,23 @@ folder that does not exist gives an empty list.
 
 ### O-PLAN
 
-`planOrganise` returns one `PlannedMove` per input, in input order.
-`source` is the input as a clean absolute path. For each file, in order:
+`planOrganise` returns one `PlannedMove` for each different input, in
+input order. `source` is the input as a clean absolute path.
+
+**An input given more than once is planned once.** Inputs are told
+apart by that clean absolute path. One whose path an earlier input
+has is left out: it gets no entry, and the entry of the first naming
+stands where it stood. A link and the file it leads to are two
+paths, and two inputs, as before. (Found by a probe of 2026-11-19: a
+folder named with the folder above it, or named twice, had each file
+planned once for each naming. A Copy made `x.mp3` and `x_1.mp3`. A
+Move moved the file, then reported `the file is gone` for the second
+entry and failed.)
+
+Known and left: one file reached by two paths that differ as text (a
+folder and a link to that folder) is two inputs.
+
+For each file, in order:
 
 1. `useTemplate` is true and the template is not valid: `InvalidTemplate`.
 2. `readTags` (without pictures) says the file is not there: `NotFound`. Not
@@ -379,7 +394,10 @@ first folder that still holds anything, and it stops at a floor.
 `removedFolders` lists them in the order they were removed.
 
 **Floors.** A folder is removed only if it lies strictly below a floor. A
-floor itself, and everything above it, is never removed, however empty.
+floor itself, and everything above it, is never removed, however empty,
+**and whatever other floor lies above it**: of a folder and the folder
+above it, both named, neither goes. (Until this was said, the lower of
+the two was removed as a folder below the upper one.)
 
 - With `sourceRoots` given, those folders are the floors: the folders the
   user named. A track that was moved out of a place below none of them
