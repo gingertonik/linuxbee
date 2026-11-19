@@ -30,6 +30,7 @@ settings and the library file may still change.
 - **A playlist that another program changed while linuxBee was editing it is no longer written over.** An editor, a sync client or another player that wrote the file between linuxBee reading it and replacing it had its change lost, and the call said it had worked. The change is now refused, and the file is left as the other program made it.
 - **Playlists can be edited again on disks without hard links (FAT, exFAT).** The refusal of a change made by another program needed a second name for a file, which those disks do not give, and every edit failed there.
 - **A file renamed or moved by another program keeps its plays, skips and date added at the next scan**, when it is otherwise unchanged (same size, time and tags); its playlists follow. Before, the scan saw a track gone and a track new, and the history stayed on the row marked missing.
+- **Organise given a folder together with the folder above it no longer copies its files twice, and a Move no longer fails on them.** A file named twice was planned once for each naming: a Copy made `x.mp3` and `x_1.mp3`, and a Move moved it and then reported `the file is gone`. Now it is planned once, and a folder that was named is never removed when it is left empty.
 
 ## 0.8.0 (2026-11-18)
 
