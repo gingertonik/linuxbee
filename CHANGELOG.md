@@ -16,6 +16,7 @@ settings and the library file may still change.
 - `settings import` no longer writes the settings file of a running linuxBee; the import was lost when the program closed.
 - **Undo of a rating change on an MP3 or WAV brings the rating frames back as they were:** a play counter, the frame of another player and the exact rating byte were lost.
 - **Undo keeps a file it could not put back, and its removed cover,** so that Undo can be tried again; they were dropped at the first failure.
+- A playlist that a disk error cut short while it was read is no longer taken for a short playlist and written back.
 
 ## 0.8.0 (2026-11-18)
 

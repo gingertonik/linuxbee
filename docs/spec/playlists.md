@@ -159,6 +159,26 @@ playlist that has a problem: they answer 0 or false, not a byte of the
 file changes, nothing is left beside it, and `tracksChanged` is not
 emitted.
 
+**One read, and a whole one.** (Found by the review of fix-86,
+2026-11-18: a read that stopped after a few bytes with a disk error
+left no error behind, so those bytes were taken for the list and
+written back with the new entry; and the check and the edit read the
+file apart, so a file that could be read once and not again was
+emptied.)
+
+- `editProblem` and each of the four calls open and read the file
+  **once**. The bytes that are judged are the bytes the entries are
+  taken from, and the bytes the result is compared with to see
+  whether anything is to be written (Y-STORE).
+- The read is whole or it is `the file could not be read`: the file
+  is read to its end, every read is asked whether it failed, and the
+  count of bytes read is the size the file had when it was opened. A
+  read that fails part-way, or ends early, is not a short list.
+- `setFileOpener` tells the store how a playlist file is opened for
+  reading (it answers an open device, or nothing). With none given
+  the file itself is opened. It is there for the test, which hands
+  in a device whose reads fail; the program gives none.
+
 Reading is as it was: `tracks` gives what Y-DECODE makes of the file,
 so such a playlist is still shown and played as far as it can be.
 `relink` works on the bytes and never decodes; it is as it was.
