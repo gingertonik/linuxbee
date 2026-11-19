@@ -178,6 +178,14 @@ emptied.)
   reading (it answers an open device, or nothing). With none given
   the file itself is opened. It is there for the test, which hands
   in a device whose reads fail; the program gives none.
+- `relink` reads each playlist the same way: once, through the
+  opener, and whole (Y-RELINK).
+
+**Not a file.** A playlist's name can be had by something that is
+not a file: a pipe, a device. Opening a pipe waits until somebody
+writes to it. Such a thing is never opened: `editProblem` is `the
+file could not be read`, `tracks` gives none, the four calls do
+nothing, and `relink` passes it over. A link to a file is the file.
 
 Reading is as it was: `tracks` gives what Y-DECODE makes of the file,
 so such a playlist is still shown and played as far as it can be.
@@ -196,6 +204,15 @@ Each entry is looked up once, in the list as it was, so two files
 that swap places swap. Position and repeats are kept. A playlist in
 which nothing changed is not written. It returns the number of
 playlists written, and `tracksChanged` is emitted for each.
+
+(Found by the review of fix-86b, 2026-11-18: `relink` read with one
+unchecked call. A read that stopped part-way gave it a short list,
+and when the line of a moved file was in that part, the short list
+was written over the playlist.) Each playlist is read once and whole
+(Y-EDIT, "One read, and a whole one"). One that was not read whole,
+or could not be opened, is not written, not counted and not
+announced; the others are relinked. Nothing says which were passed
+over: that is not in this version.
 
 ### Y-NAME
 

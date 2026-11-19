@@ -124,4 +124,14 @@ if [ -d src/ui ]; then
     fi
 fi
 
+# 8. PlaylistStore::setFileOpener is there for the locked tests, which hand the store a device
+#    whose reads fail. The program gives none: with one, a playlist could be read from elsewhere.
+hits=$(grep -rn 'setFileOpener' src tests 2>/dev/null \
+    | grep -vE '^(src/core/playlists/playliststore\.(h|cpp)|tests/locked/[^:]*):' || true)
+if [ -n "$hits" ]; then
+    echo "lint: setFileOpener may be named only in src/core/playlists/playliststore.{h,cpp} and tests/locked:"
+    echo "$hits"
+    bad=1
+fi
+
 exit $bad
