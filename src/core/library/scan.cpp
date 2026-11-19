@@ -167,7 +167,8 @@ void judge(ScanFindings *found, const QString &path, const ScanKnown::Entry &ent
 }
 
 // L-FOLLOW: the rows a new file may be, by size and time to the second: every track marked
-// missing, and every track just found gone. Each list is in ascending order of id.
+// missing with nothing at its path, and every track just found gone. Each list is in ascending
+// order of id.
 struct FollowRow {
     qint64 id = 0;
     QString path;
@@ -187,6 +188,10 @@ FollowRows followRows(const ScanKnown &known, const QList<qint64> &gone)
     FollowRows rows;
     for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
         if ((!entry->missing && !goneIds.contains(entry->id)) || !entry->modified.isValid())
+            continue;
+        // L-FOLLOW: a track marked missing whose file is back at its own path is no row a file may
+        // be. A track just found gone needs no second look: nothing is there.
+        if (entry->missing && QFileInfo::exists(entry.key()))
             continue;
         rows[{ entry->sizeBytes, entry->modified.toSecsSinceEpoch() }].append(
             FollowRow { entry->id, entry.key(), &*entry });
@@ -515,6 +520,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         const ScanFindings::MaybeMoved &maybe = findings.maybeMoved.at(i);
         for (const qint64 row : maybe.rows) {
             if (!findings.judged.contains(row) || !stillFits(row))
+                continue;
+            // L-FOLLOW: a row at whose path a file is by now is not the file's own, and is never
+            // moved away from a file that is there.
+            if (QFileInfo::exists(findings.judged.value(row).path))
                 continue;
             const std::optional<LibraryTrack> stored = d->store.byId(row);
             if (stored && stored->tags.fields == maybe.reading.tags.fields
