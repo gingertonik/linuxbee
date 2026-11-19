@@ -193,6 +193,13 @@ When the destination exists already:
 | Rename | The result goes to the first free name from `uniqueRelativePath` (`song_1.mp3`, `song_2.mp3`: P-DUP in `docs/spec/paths.md`). Two conversions started at the same moment into one folder may both choose the same free name; then one of them ends `Failed` and no file is overwritten. Callers that run several at once give each its own destination (convert-batch.md). |
 | UpdateTags | ffmpeg is not run. C-TAGS is applied to the existing file: `TagsUpdated`. With `copyTags` false this is `Skipped`. (W-CV: "skip conversion when the output exists and sync tags only".) |
 
+**What "exists" is.** The name is asked, not what it leads to
+(`lstat`): a link is there, also one that leads nowhere. (Review of
+fix-95, 2026-11-19: such a link counted as nothing. The conversion
+ran, and failed at the last step with words that were untrue.) Skip
+leaves it, and UpdateTags with `copyTags` false. Keep both passes it
+over. Overwrite replaces the link itself, never the file it leads to.
+
 ### C-TAGS
 
 With `copyTags` true the target ends up with the source's tags, written
@@ -341,7 +348,21 @@ answered.)
   The part file is removed, and the file that is there stays.
 - The limit is on silence, not on the whole count. ffprobe prints as
   it plays, so a long file on a slow disk is not ended while it goes
-  on. One that prints for ever is not caught by this.
+  on. Only a frame with samples (`nb_samples` above 0) breaks the
+  silence: lines that count nothing, however many, are silence.
+- **A count that does not end.** (Review of fix-97, 2026-11-19: an
+  ffprobe that printed for ever held the conversion for ever.) When
+  more has been counted than ten times the length the part file's
+  own header states, and a minute more, ffprobe is ended and the job
+  is `Failed`: `the converted file could not be checked: ffprobe
+  counted far more than the file's length`. The samples are taken at
+  the rate that header states; there is no such limit when it states
+  none. The part file is removed, and the file that is there stays.
+- Known and left: the 30 seconds are the same on every disk. The
+  part file was written and read a moment before the count, so a
+  disk that sleeps is awake by then. An ffprobe that itself lies on
+  a sleeping disk can fail a good result; the file that is there
+  stays.
 - "Ended" is: killed, and waited for.
 
 ### C-PLACE: the move into place replaces only the file it saw
@@ -350,11 +371,12 @@ answered.)
 and removed whatever was at the destination by then. A file that
 another program put at a name that was free when the conversion
 began was replaced, in Keep both and in Skip: against "no file is
-overwritten".)
+overwritten". Made tighter after the review of fix-95, 2026-11-19.)
 
 What is at the name the result is to have is looked at once, when
 C-EXISTS has answered: nothing, or a file, known by what the system
-says it is (device and number), not by its name.
+says of it (`lstat`), not by its name: its device and its number,
+its size, the time of its contents and the time of its record.
 
 At step 9:
 
@@ -366,14 +388,57 @@ At step 9:
   - Skip, and Overwrite: `Failed`, `a file appeared at the
     destination while converting; it was not replaced`.
 - **A file was seen there** (Overwrite, C-REPLACE). It is replaced
-  when the file at the name is still that file. When it is another
-  one, or none: `Failed`, with the same message.
+  when the file at the name is still that file, and as it was.
+  Otherwise `Failed`, and what is at the name stays:
+  - another file has the name (the device or the number is another):
+    `a file appeared at the destination while converting; it was not
+    replaced`;
+  - it is that file, and its size or one of its two times is another:
+    `the file at the destination was changed while converting; it was
+    not replaced`. (A file that is removed, and another written at
+    once, can be given the same number. And a file written again in
+    place is no longer the one C-REPLACE measured.)
+  - nothing has the name: `the file at the destination was removed
+    while converting; the converted file was not put there`.
+
+**The move that never replaces** is `renameat2` with
+`RENAME_NOREPLACE`. Where that answers that it cannot be done on this
+disk (`EINVAL`, `ENOSYS`, `ENOTSUP`, `EOPNOTSUPP`), the part file is
+given a second name (`link`), which never replaces either, and its
+own name is then taken away (`unlink`). A name that is taken
+(`EEXIST`) is the same in both ways.
+
+- Where the disk has no second names either (`link` answers `EPERM`,
+  `ENOSYS`, `ENOTSUP` or `EOPNOTSUPP`): `Failed`, `the converted file
+  could not be put in place: this disk can neither move a file
+  without replacing one nor give it a second name`. No call that can
+  replace is ever made in its stead.
+- When the part file's own name cannot be taken away: `Converted`.
+  The result is whole and has its name. The part file's name stays
+  beside it, a second name of the same file, until the next
+  conversion to that name (C-CLEAN).
+- Any other failure of the move: `Failed`, `could not move the
+  converted file into place`.
+
+**The three calls are the job's own**: `ConvertJob::placeIo`
+(`convert/place_io.h`) holds the move that never replaces, the
+second name and the taking away. A job made without one has the
+system's. Every such call of step 9 is made through it, so that a
+test can answer as another disk would, or put a file at the name at
+the very moment of the move. Nothing but a test gives others.
 
 A failed job leaves the file that is at the name as it is, and the
 part file is removed (C-CLEAN).
 
-Known and left: between the last look and the move itself, in
-Overwrite, there is still a moment; it is two system calls long.
+Known and left:
+
+- In Overwrite, between the last look and the move itself, there is
+  still a moment; it is two system calls long.
+- A file that was seen and has only been touched since, or tagged by
+  another program, is not replaced either. The conversion is run
+  again.
+- On a disk with neither call every conversion fails, and says why.
+  Earlier versions moved the file there with a call that replaces.
 
 ### C-CLEAN
 
@@ -390,7 +455,8 @@ destination left behind when it was killed: files in the destination's
 folder named exactly `.lbpart-`, six such characters, `-` and the
 destination's file name are removed before ffmpeg starts.
 
-Whatever the outcome, no part file is left behind, and on any outcome other
+Whatever the outcome, no part file is left behind (but for the second name of C-PLACE
+that could not be taken away), and on any outcome other
 than `Converted` or `TagsUpdated` the destination is exactly as it was.
 Folders created at step 6 may remain.
 

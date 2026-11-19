@@ -6,6 +6,7 @@
 #include <functional>
 #include <optional>
 
+#include "place_io.h"
 #include "tags/tagwriter.h"
 
 // Converts one music file to another format with ffmpeg, then copies the tags
@@ -73,6 +74,9 @@ struct ConvertJob {
 
     // C-REPLACE, the count is watched: how long ffprobe may say nothing before it is ended.
     int countSilenceMs = 30000;
+
+    // C-PLACE: the three calls of step 9. The system's, unless a test gives others.
+    convert::PlaceIo placeIo;
 };
 
 struct ConvertResult {
