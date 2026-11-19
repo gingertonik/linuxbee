@@ -378,10 +378,19 @@ struct ToolsShell::Private {
         // TS-ORGANISE: the library saying `failed` during this one call, and only then, ends the
         // line with what the user needs to know.
         bool refused = false;
+        // TS-ORGANISE: the last sentence the status bar was given during this call. The library
+        // shell says the playlists' sentence then, and this line would replace it at once.
+        QString playlistsSaid;
         if (!moves.isEmpty()) {
             const QMetaObject::Connection listening = QObject::connect(
                 library, &Library::failed, owner, [&refused] { refused = true; });
+            const QMetaObject::Connection saying = QObject::connect(window->statusBar(),
+                &QStatusBar::messageChanged, owner, [&playlistsSaid](const QString &text) {
+                    if (!text.isEmpty())
+                        playlistsSaid = text;
+                });
             library->recordMoves(moves);
+            QObject::disconnect(saying);
             QObject::disconnect(listening);
         }
         QString line = QCoreApplication::translate(
@@ -392,6 +401,8 @@ struct ToolsShell::Private {
         if (refused)
             line += QCoreApplication::translate("linuxbee::ui::ToolsShell",
                 "; the library could not be changed and still lists the files where they were");
+        else if (!playlistsSaid.isEmpty())
+            line += QStringLiteral("; ") + playlistsSaid;
         showMessage(line);
     }
 

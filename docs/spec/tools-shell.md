@@ -225,6 +225,18 @@ L-FAILED), the files are where Organise put them and the library is
 as it was. The line is then the usual one followed by `; the library
 could not be changed and still lists the files where they were`.
 
+One run has one line. When, during that call, the library shell said
+that playlists were not updated (library-shell.md, SH-MOVED), the
+tools shell's line, shown after it, would take its place in the status
+bar before anyone could read it. So the line of the run is then the
+usual one, `; `, and that sentence whole, as in `Organised: 1 done, 0
+skipped, 0 failed; 1 playlist was not updated for the files that moved
+(it could not be read or written): NAME`. That is what the status bar
+shows when the command has returned, and what `lastMessage()` answers.
+Only what was said during this run's call counts: a run that left no
+playlist behind, or recorded no move, has the usual line and no more,
+whatever an earlier run said.
+
 ## TS-CONVERT
 
 The converter is given the selected paths and the settings. When it

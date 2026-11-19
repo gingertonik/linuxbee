@@ -110,8 +110,26 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     connect(
         d->playlists, &PlaylistStore::tracksChanged, this, &LibraryShell::onPlaylistTracksChanged);
     // SH-MOVED: a file the library says moved stays in its playlists, in its place.
-    connect(d->library, &Library::pathsMoved, this,
-        [this](const QHash<QString, QString> &oldToNew) { d->playlists->relink(oldToNew); });
+    connect(
+        d->library, &Library::pathsMoved, this, [this](const QHash<QString, QString> &oldToNew) {
+            d->playlists->relink(oldToNew);
+            const QStringList left = d->playlists->relinkPassedOver();
+            if (left.isEmpty())
+                return;
+            QStringList named = left.mid(0, 3);
+            QString names = named.join(QStringLiteral(", "));
+            if (left.size() > 3)
+                names += tr(" and %1 more").arg(left.size() - 3);
+            if (left.size() == 1)
+                showMessage(tr("1 playlist was not updated for the files that moved (it could not "
+                               "be read or written): %1")
+                        .arg(names));
+            else
+                showMessage(tr("%1 playlists were not updated for the files that moved (they "
+                               "could not be read or written): %2")
+                        .arg(left.size())
+                        .arg(names));
+        });
 
     // SR-SHELL: the one runner. The shell connects to it here, before anyone
     // else can, so it hears every signal first.

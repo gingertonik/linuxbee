@@ -209,6 +209,23 @@ When the library emits `pathsMoved` (library.md, L-MOVED), the shell
 gives the moves to the playlist store's `relink` (playlists.md,
 Y-RELINK), so a moved file stays in its playlists, in its place.
 
+When `relinkPassedOver()` is not empty afterwards, the shell says so
+(SH-MESSAGE), so that nobody takes every playlist to have followed:
+
+- one: `1 playlist was not updated for the files that moved (it
+  could not be read or written): NAME`
+- more: `N playlists were not updated for the files that moved (they
+  could not be read or written): A, B, C`
+
+(each on one line). The names are the ids, in the store's order, with
+`, ` between. Of more than three, three are named and the line ends
+` and K more`. When none was left, nothing is said and the line that
+was there stays.
+
+When the files were moved by Organise, the tools shell's line for the
+run comes after this one. It carries this sentence at the end of its own line
+(tools-shell.md, TS-ORGANISE), so that it is still on show.
+
 ## SH-PATHS: the paths of the list
 
 `shownPaths()` is the path of every row of the list, in the order

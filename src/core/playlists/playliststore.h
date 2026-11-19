@@ -51,6 +51,9 @@ public:
     bool moveTrack(const QString &id, int from, int to);
     // Y-RELINK: returns how many playlists were written.
     int relink(const QHash<QString, QString> &oldToNew);
+    // Y-RELINK: the ids of the playlists the last relink could not read whole or could not
+    // write, in the order of playlists().
+    QStringList relinkPassedOver() const { return m_passedOver; }
 
     // Y-EDIT, one read: how a playlist file is opened for reading. It answers a device that is open
     // for reading, or nothing when the file cannot be opened. None given: the file itself. For the
@@ -68,6 +71,7 @@ signals:
 private:
     QString m_folder;
     FileOpener m_opener;
+    QStringList m_passedOver;
 };
 
 }
