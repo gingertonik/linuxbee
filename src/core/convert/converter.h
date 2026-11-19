@@ -70,6 +70,9 @@ struct ConvertJob {
     WriteOptions tagOptions;
 
     QString ffmpegPath = QStringLiteral("ffmpeg");
+
+    // C-REPLACE, the count is watched: how long ffprobe may say nothing before it is ended.
+    int countSilenceMs = 30000;
 };
 
 struct ConvertResult {

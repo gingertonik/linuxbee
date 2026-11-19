@@ -120,12 +120,20 @@ bool isShorter(qint64 length, qint64 reference)
     return length < reference - allowanceMs(reference);
 }
 
+// How a count ended: with a length (or -1 when it cannot be counted), asked to
+// stop by the progress function, or silent for longer than the job allows.
+enum class Count { Counted, Cancelled, Silent };
+
 // C-REPLACE 1: the sound of `path` counted by playing it through. The length
 // in milliseconds, or -1 when it cannot be counted (not started, ended badly,
 // no sample rate or no samples). The output is read as it comes: an hour of
-// Opus is some 180,000 lines.
-qint64 playedLengthMs(const QString &ffmpegPath, const QString &path)
+// Opus is some 180,000 lines. The count is watched: the progress function is
+// asked about once a second with `reported`, and ffprobe is killed and waited
+// for when it says stop or has printed nothing for `silenceMs`.
+qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenceMs,
+    const ConvertProgress &progress, double reported, Count &how)
 {
+    how = Count::Counted;
     QString program = QStringLiteral("ffprobe");
     const int slash = ffmpegPath.lastIndexOf(QLatin1Char('/'));
     if (slash >= 0) {
@@ -165,9 +173,29 @@ qint64 playedLengthMs(const QString &ffmpegPath, const QString &path)
             }
         }
     };
+    QElapsedTimer sinceOutput;
+    sinceOutput.start();
+    QElapsedTimer sinceCall;
+    sinceCall.start();
     while (probe.state() != QProcess::NotRunning) {
         probe.waitForReadyRead(100);
-        consume(probe.readAllStandardOutput());
+        const QByteArray chunk = probe.readAllStandardOutput();
+        if (!chunk.isEmpty())
+            sinceOutput.restart();
+        consume(chunk);
+        if (sinceCall.hasExpired(1000)) {
+            sinceCall.restart();
+            if (progress && !progress(reported))
+                how = Count::Cancelled;
+        }
+        if (how == Count::Counted && probe.state() != QProcess::NotRunning
+            && sinceOutput.hasExpired(silenceMs))
+            how = Count::Silent;
+        if (how != Count::Counted) {
+            probe.kill();
+            probe.waitForFinished(-1);
+            return -1;
+        }
     }
     probe.waitForFinished(-1);
     consume(probe.readAllStandardOutput() + "\n");
@@ -450,7 +478,18 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
 
     // C-REPLACE: what replaces a file is played through first.
     if (replaces) {
-        const qint64 played = playedLengthMs(job.ffmpegPath, partPath);
+        Count how = Count::Counted;
+        const qint64 played
+            = playedLengthMs(job.ffmpegPath, partPath, job.countSilenceMs, progress, reported, how);
+        if (how == Count::Cancelled) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Cancelled, QStringLiteral("cancelled"));
+        }
+        if (how == Count::Silent) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file could not be checked: ffprobe gave no answer"));
+        }
         if (played < 0) {
             QFile::remove(partPath);
             return withStatus(ConvertResult::Status::Failed,

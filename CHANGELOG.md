@@ -21,6 +21,7 @@ settings and the library file may still change.
 - Undo now says when the files changed since will not be put back by trying again: the message ends "(a new edit drops this)" when nothing failed and only changed files are left.
 - A playlist that cannot be read whole is no longer rewritten when its files move (Relink), and a pipe with a playlist's name is no longer opened.
 - **A conversion no longer replaces a file that appeared at its destination while it ran.** In Keep both the result goes to the next free name, and in Skip and Overwrite the job fails and says so; Overwrite replaces only the file it saw when it began.
+- **A check that hangs no longer stops a conversion batch.** Convert with Overwrite gives up on `ffprobe` after 30 seconds of silence and fails the file (the file that is there stays), and Cancel is now answered during the check.
 
 ## 0.8.0 (2026-11-18)
 
