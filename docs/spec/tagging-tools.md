@@ -104,6 +104,19 @@ Artist. An unknown field name gives no changes at all.
   value is removed. Any other name is taken as an `other` key, matched
   exactly, and removed if the track has it.
 - `allTags`: every catalogue field that has a value and every `other` key.
+  Where the track has an ID3v2 tag (`tagTypes` names one), the change
+  also carries an empty list of rating frames (tag-writing.md,
+  W-RATING, "the frames whole"), so every rating frame goes: with its
+  play counter, another player's too, and one that only counts plays
+  and rates nothing. (Ruled 2026-11-19: "all" means all. Naming
+  Rating in `fields` takes the rating out and no more.)
+
+  Whether the file has such a frame is the writer's to see, not this
+  function's: it is given tags, often the library's, and those do not
+  say. So a track with an ID3v2 tag that holds nothing to remove gets
+  a change that changes nothing; writing it is `Unchanged`. A track
+  with no ID3v2 tag gets no list, and one with no tag at all an empty
+  change.
 - `removePictures`: the picture list becomes empty, if the track has
   pictures. `allTags` alone leaves pictures alone.
 

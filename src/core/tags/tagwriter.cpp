@@ -162,38 +162,6 @@ TagLib::ID3v2::Version id3Version(const WriteOptions &options, TagLib::ID3v2::Ve
     return found;
 }
 
-// W-RATING, ID3v2: the address and counter of the first POPM frame. They are read
-// before rewritePopm takes the frames out and writes the one the rating names.
-struct PopmKeep {
-    TagLib::String email;
-    unsigned int counter = 0;
-};
-
-PopmKeep popmKeepOf(TagLib::File *file)
-{
-    PopmKeep keep;
-    const TagLib::ID3v2::Tag *tag = nullptr;
-    if (auto *mpeg = dynamic_cast<TagLib::MPEG::File *>(file)) {
-        if (mpeg->hasID3v2Tag())
-            tag = mpeg->ID3v2Tag();
-    } else if (auto *wav = dynamic_cast<TagLib::RIFF::WAV::File *>(file)) {
-        if (wav->hasID3v2Tag())
-            tag = wav->ID3v2Tag();
-    }
-    if (!tag)
-        return keep;
-
-    const TagLib::ID3v2::FrameList frames = tag->frameList(TagLib::ByteVector("POPM"));
-    if (frames.isEmpty())
-        return keep;
-    if (const auto *popm
-        = dynamic_cast<const TagLib::ID3v2::PopularimeterFrame *>(frames.front())) {
-        keep.email = popm->email();
-        keep.counter = popm->counter();
-    }
-    return keep;
-}
-
 // The ID3v2 tag that holds the rating. A removal does not create a tag.
 TagLib::ID3v2::Tag *id3v2TagFor(TagLib::File *file, bool create)
 {
@@ -204,20 +172,31 @@ TagLib::ID3v2::Tag *id3v2TagFor(TagLib::File *file, bool create)
     return nullptr;
 }
 
-// W-RATING, ID3v2: one POPM frame holds the rating byte. Its address and counter
-// are the kept ones, and a new frame has an empty address and a counter of 0.
-void rewritePopm(TagLib::ID3v2::Tag *tag, const PopmKeep &keep, const TrackTags &after)
+// W-RATING, ID3v2: the rating is one byte of the first POPM frame. Its address and counter,
+// and every other POPM frame, are not touched. A file with no POPM frame gets one with an
+// empty address and a counter of 0. A rating taken out sets the byte to 0 and leaves the
+// frame, unless it is the only POPM frame and its counter is 0: then it goes.
+void rewritePopm(TagLib::ID3v2::Tag *tag, const TrackTags &after)
 {
-    tag->removeFrames(TagLib::ByteVector("POPM"));
     bool parsed = false;
     const double stars = after.first(QStringLiteral("Rating")).toDouble(&parsed);
     const int byte = parsed ? popmFromRating(stars) : 0;
+    const TagLib::ID3v2::FrameList frames = tag->frameList(TagLib::ByteVector("POPM"));
+    auto *first = frames.isEmpty()
+        ? nullptr
+        : dynamic_cast<TagLib::ID3v2::PopularimeterFrame *>(frames.front());
+    if (first) {
+        if (byte != 0 || first->counter() > 0 || frames.size() > 1) {
+            first->setRating(byte);
+        } else {
+            tag->removeFrame(first, true);
+        }
+        return;
+    }
     if (byte == 0)
         return;
     auto frame = std::make_unique<TagLib::ID3v2::PopularimeterFrame>();
-    frame->setEmail(keep.email);
     frame->setRating(byte);
-    frame->setCounter(keep.counter);
     tag->addFrame(frame.release());
 }
 
@@ -858,7 +837,6 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
         = id3 ? id3Version(options, versionOfFile(file)) : TagLib::ID3v2::v4;
     wroteV23 = id3 && version == TagLib::ID3v2::v3;
     const bool ratingTouched = checked.fields.contains(QStringLiteral("Rating"));
-    const PopmKeep keep = id3 && ratingTouched ? popmKeepOf(file) : PopmKeep { };
     TagLib::PropertyMap map = file->properties();
     // W-ONLY: the map as it was read, to tell which keys the change names.
     const TagLib::PropertyMap was = map;
@@ -935,7 +913,7 @@ bool saveChanges(const QString &filePath, const TrackTags &now, const tags::Chec
     } else if (id3 && ratingTouched) {
         const bool create = !after.first(QStringLiteral("Rating")).isEmpty();
         if (TagLib::ID3v2::Tag *tag = id3v2TagFor(file, create))
-            rewritePopm(tag, keep, after);
+            rewritePopm(tag, after);
     }
     const bool saved = id3 ? saveId3(file, options, version) : file->save();
     // WS-WRITTEN: the tag library says saved; the stream says whether every byte went down.

@@ -235,7 +235,7 @@ WriteResult TagUndo::write(const QString &path, const TagChanges &changes, const
     for (auto it = changes.other.cbegin(); it != changes.other.cend(); ++it)
         kept.other.insert(it.key(), before.tags.other.value(it.key()));
     // UN-RATING: the frames themselves, not the stars they read as.
-    if (changes.fields.contains(QStringLiteral("Rating")))
+    if (changes.fields.contains(QStringLiteral("Rating")) || changes.ratingFrames)
         kept.ratingFrames = readRatingFrames(path);
     if (changes.pictures) {
         QList<KeptPicture> pictures;

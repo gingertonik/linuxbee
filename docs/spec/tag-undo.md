@@ -95,13 +95,16 @@ deleted; a frame taken out came back with no address and a counter of
 0; a second player's frame did not come back; and a byte of 200 came
 back as 196.)
 
-When a change names Rating and the file has an ID3v2 tag (MP3, WAV):
+When a change names Rating, or hands the rating frames itself
+(`ratingFrames`; Remove Tags with "All tags" does, for every file with
+an ID3v2 tag, rated or not: tagging-tools.md, G-REMOVE), and the file
+has an ID3v2 tag (MP3, WAV):
 
 - what is kept for the file (UN-RECORD 3) is also **every `POPM` frame
   as it was**: its address, its rating byte and its counter, in the
   order of the tag. A file with no such frame keeps "none". UN-RECORD
   4 holds: a file written twice keeps the frames it had before the
-  first write that named Rating;
+  first write that named Rating or handed frames;
 - undo puts the file's `POPM` frames back as exactly those: as many,
   in that order, each with its address, byte and counter. Whatever
   `POPM` frames the file has by then go. A file that had none has
@@ -113,13 +116,17 @@ When a change names Rating and the file has an ID3v2 tag (MP3, WAV):
   caller's writer that passes the change on to `writeTags` brings
   them back (tag-writing.md, W-RATING, "the frames whole").
 
-A change that does not name Rating keeps no frames, and its undo does
-not touch them. In every other format the rating is a key like any
+A change that neither names Rating nor hands frames keeps no frames,
+and its undo does not touch them. (Before this was said, "All tags" on
+a file whose first frame only counts plays named no Rating, took every
+`POPM` frame out, and undo had kept none: found by the review of the
+forward rating change.) In every other format the rating is a key like any
 other, and UN-RECORD is all there is.
 
 This is about undo only. What a rating change does to the frames is
-W-RATING, as it was: one frame is left, with the address and counter
-of the first, and removing the rating removes the frame.
+W-RATING: the byte of the first frame, and the others stay. Undo is
+still needed for the byte itself (200 reads as four stars and is
+written as 196), and for a lone frame that was removed.
 
 ## UN-KEEP: a file that was not put back stays in the step
 

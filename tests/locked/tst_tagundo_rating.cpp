@@ -245,11 +245,12 @@ void TagUndoRatingTest::aCounterWithNoRating()
 
 void TagUndoRatingTest::aRatingTakenOut()
 {
-    // A2. The rating is removed (the frame goes: W-RATING) and that is undone. The frame is back
-    // with its address, its byte and its counter. (It came back with no address, 196 and 0.)
+    // A2. The rating is removed (the byte goes to 0 and the frame stays, for its counter:
+    // W-RATING) and that is undone. The frame is back with its byte. (When the frame went, it
+    // came back with no address, 196 and 0.)
     const QString a = make({ kPlayer });
     const QStringList between = stepAndUndo(a, rating({ }));
-    QCOMPARE(between, QStringList());
+    QCOMPARE(between, QStringList({ s(u"Some Player 9|0|12") }));
     QCOMPARE(popmOf(a), QStringList({ s(u"Some Player 9|200|12") }));
     QCOMPARE(ratingOf(a), s(u"4"));
 }
@@ -266,11 +267,11 @@ void TagUndoRatingTest::aRatingChanged()
 
 void TagUndoRatingTest::twoFramesAndAChange()
 {
-    // A6. Two players each left a frame. A rating change leaves one frame (W-RATING, as before);
-    // undo brings both back, in their order.
+    // A6. Two players each left a frame. A rating change is the byte of the first (W-RATING);
+    // undo brings that byte back, and both are in their order.
     const QString a = make({ kPlayer, kSecond });
     const QStringList between = stepAndUndo(a, rating({ s(u"1") }));
-    QCOMPARE(between, QStringList({ s(u"Some Player 9|1|12") }));
+    QCOMPARE(between, QStringList({ s(u"Some Player 9|1|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(
         popmOf(a), QStringList({ s(u"Some Player 9|200|12"), s(u"second@example.invalid|64|9") }));
 }
@@ -279,7 +280,9 @@ void TagUndoRatingTest::twoFramesTakenOut()
 {
     const QString a = make({ kSecond, kCounterOnly, kPlayer });
     const QStringList between = stepAndUndo(a, rating({ }));
-    QCOMPARE(between, QStringList());
+    QCOMPARE(between,
+        QStringList({ s(u"second@example.invalid|0|9"), s(u"player@example.invalid|0|37"),
+            s(u"Some Player 9|200|12") }));
     QCOMPARE(popmOf(a),
         QStringList({ s(u"second@example.invalid|64|9"), s(u"player@example.invalid|0|37"),
             s(u"Some Player 9|200|12") }));
@@ -306,7 +309,8 @@ void TagUndoRatingTest::writtenTwiceInOneStep()
     QCOMPARE(undo.write(a, rating({ s(u"2") })).status, WriteResult::Status::Ok);
     QCOMPARE(undo.write(a, rating({ s(u"3") })).status, WriteResult::Status::Ok);
     undo.end();
-    QCOMPARE(popmOf(a), QStringList({ s(u"Some Player 9|128|12") }));
+    QCOMPARE(
+        popmOf(a), QStringList({ s(u"Some Player 9|128|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(undo.undo().restored, QStringList({ a }));
     QCOMPARE(
         popmOf(a), QStringList({ s(u"Some Player 9|200|12"), s(u"second@example.invalid|64|9") }));
@@ -315,14 +319,15 @@ void TagUndoRatingTest::writtenTwiceInOneStep()
 void TagUndoRatingTest::writtenTwiceBackToTheSameStars()
 {
     // The step ends at four stars, which is what the file read before it. The frames are not what
-    // they were (196, and one frame), so undo still has work: it is not "unchanged".
+    // they were (196, not 200), so undo still has work: it is not "unchanged".
     const QString a = make({ kPlayer, kSecond });
     TagUndo undo(m_work + s(u"/scratch"));
     undo.begin(s(u"Edit Tags"));
     QCOMPARE(undo.write(a, rating({ s(u"2") })).status, WriteResult::Status::Ok);
     QCOMPARE(undo.write(a, rating({ s(u"4") })).status, WriteResult::Status::Ok);
     undo.end();
-    QCOMPARE(popmOf(a), QStringList({ s(u"Some Player 9|196|12") }));
+    QCOMPARE(
+        popmOf(a), QStringList({ s(u"Some Player 9|196|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(ratingOf(a), s(u"4"));
     QCOMPARE(undo.undo().restored, QStringList({ a }));
     QCOMPARE(
@@ -348,7 +353,8 @@ void TagUndoRatingTest::aRatingAndATitleTogether()
     TagChanges c = rating({ s(u"0.5") });
     c.fields.insert(s(u"Title"), { s(u"edited") });
     const QStringList between = stepAndUndo(a, c);
-    QCOMPARE(between, QStringList({ s(u"Some Player 9|13|12") }));
+    QCOMPARE(
+        between, QStringList({ s(u"Some Player 9|13|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(
         popmOf(a), QStringList({ s(u"Some Player 9|200|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(titleOf(a), s(u"made"));
@@ -368,7 +374,8 @@ void TagUndoRatingTest::aWriterOfTheCaller()
     undo.begin(s(u"Remove Tags"));
     QCOMPARE(undo.write(a, rating({ }), writer).status, WriteResult::Status::Ok);
     undo.end();
-    QCOMPARE(popmOf(a), QStringList());
+    QCOMPARE(
+        popmOf(a), QStringList({ s(u"Some Player 9|0|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(undo.undo(writer).restored, QStringList({ a }));
     QCOMPARE(
         popmOf(a), QStringList({ s(u"Some Player 9|200|12"), s(u"second@example.invalid|64|9") }));

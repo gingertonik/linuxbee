@@ -225,7 +225,8 @@ void TagUndoKeepWholeTest::aCoverSharedWithAFileThatLeft()
 void TagUndoKeepWholeTest::theRatingFramesOfAKeptFile()
 {
     // UN-RATING with UN-KEEP: the rating is removed from a file with two rating frames; the undo
-    // cannot write the file; the second try can. The frames are back as they were, both.
+    // cannot write the file; the second try can. The frames are back as they were, both. (By
+    // W-RATING the first frame's byte is 0 meanwhile, and both frames stay.)
     const QString a = m_work + s(u"/a.mp3");
     {
         QFile sound(QStringLiteral(LINUXBEE_TEST_DATA "/tags/v1only.mp3"));
@@ -244,10 +245,12 @@ void TagUndoKeepWholeTest::theRatingFramesOfAKeptFile()
     undo.begin(s(u"Remove Tags"));
     QCOMPARE(undo.write(a, c).status, WriteResult::Status::Ok);
     undo.end();
-    QCOMPARE(popmOf(a), QStringList());
+    QCOMPARE(
+        popmOf(a), QStringList({ s(u"Some Player 9|0|12"), s(u"second@example.invalid|64|9") }));
 
     QCOMPARE(undo.undo(refusing({ a })).failed, QStringList({ a }));
-    QCOMPARE(popmOf(a), QStringList());
+    QCOMPARE(
+        popmOf(a), QStringList({ s(u"Some Player 9|0|12"), s(u"second@example.invalid|64|9") }));
     QCOMPARE(undo.undo(refusing({ a })).failed, QStringList({ a })); // and a second time
     QCOMPARE(undo.undo().restored, QStringList({ a }));
     QCOMPARE(popmOf(a), were);

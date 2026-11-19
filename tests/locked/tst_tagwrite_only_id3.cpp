@@ -618,15 +618,17 @@ void TagWriteOnlyId3Test::lyricsOfTwoValues()
 
 void TagWriteOnlyId3Test::theRating()
 {
-    // W-RATING: the rating frames are the rating's; one is written, with the address and the
-    // counter of the first. BYTES: the address, a zero, the rating byte, four bytes of counter.
+    // W-RATING: the first rating frame takes the byte, and keeps its address and its counter; the
+    // other one is the bytes it was. BYTES: the address, a zero, the rating byte, four bytes of
+    // counter.
     QFETCH(QString, fixture);
     Box box;
     const Step st = step(box.copy(fixture), field(u"Rating", { s(u"3.5") }));
     ONLY(st, QStringList({ s(u"POPM") }));
     const QList<Frame> rating = called(st.after, { s(u"POPM") });
-    QCOMPARE(int(rating.size()), 1);
+    QCOMPARE(int(rating.size()), 2);
     QCOMPARE(rating.value(0).body, QByteArray("MusicBee\0\xba\0\0\0\x07", 14));
+    QCOMPARE(rating.value(1).body, called(st.before, { s(u"POPM") }).value(1).body);
 }
 
 void TagWriteOnlyId3Test::love()
