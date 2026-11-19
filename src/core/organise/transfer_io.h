@@ -26,6 +26,8 @@ struct TransferIo {
     std::function<int(int fd)> fsync;
     std::function<int(int fd)> close;
     std::function<int(const char *path)> unlink;
+    // ioctl(FICLONE): the disk is asked to share the bytes of `from` with `to`. All or nothing.
+    std::function<int(int to, int from)> clone;
 
     TransferIo(); // the real calls
 };

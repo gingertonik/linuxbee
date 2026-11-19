@@ -26,6 +26,7 @@ settings and the library file may still change.
 - **Rating a file no longer removes the rating frames of other players or the play counter** (MP3 and WAV): the rating is now one byte of the first rating frame, and everything else in it stays. Remove Tags with "All tags" still takes every rating frame out.
 - **Convert with Overwrite no longer replaces a file that another program changed while the conversion ran**, and a link that leads nowhere at the destination now counts as a file that is there: Skip leaves it, Keep both passes it over, and Overwrite replaces the link itself.
 - **A check that prints without end no longer holds a conversion.** Convert with Overwrite ends `ffprobe` and fails the file when it counts far more than the file can hold, and lines that count nothing no longer keep it waiting.
+- **Copy on a disk that can share data (btrfs, XFS) is immediate again and takes no second room.** The careful copy asks the disk to share the bytes first, and reads and writes them only when the disk says no.
 
 ## 0.8.0 (2026-11-18)
 

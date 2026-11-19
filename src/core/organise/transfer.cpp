@@ -11,6 +11,8 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <linux/fs.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -180,9 +182,12 @@ QString moveAcross(const TransferIo &io, const QString &source, const QString &t
         return said;
     };
 
-    // 1. the bytes
+    // 1. the bytes: first the disk is asked to share them with the spare file (to, then
+    // from). When it does, nothing is read or written. Any other answer, and nothing is
+    // said of it: the bytes are copied. The checks below stay for both.
     int why = 0;
-    const qint64 copied = copyBytes(io, in.fd, out.fd, why);
+    const qint64 copied
+        = io.clone(out.fd, in.fd) == 0 ? qint64(before.st_size) : copyBytes(io, in.fd, out.fd, why);
     if (copied < 0)
         return undo(why == ENOSPC || why == EDQUOT
                 ? QStringLiteral("there is no room for the file at the target")
@@ -362,6 +367,7 @@ TransferIo::TransferIo()
     , fsync([](int fd) { return ::fsync(fd); })
     , close([](int fd) { return ::close(fd); })
     , unlink([](const char *path) { return ::unlink(path); })
+    , clone([](int to, int from) { return ::ioctl(to, FICLONE, from); })
 {
 }
 

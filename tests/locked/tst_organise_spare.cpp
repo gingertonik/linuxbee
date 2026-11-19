@@ -84,6 +84,11 @@ struct Box {
     {
         TransferIo real;
         TransferIo io;
+        // O-SPARE, the bytes are shared where the disk can: this rig's disk cannot.
+        io.clone = [](int, int) {
+            errno = EOPNOTSUPP;
+            return -1;
+        };
         io.renameNoReplace = [this, real](const char *a, const char *b) {
             log.append(QStringLiteral("renameNoReplace"));
             if (!QFile::decodeName(a).startsWith(dir.path() + QStringLiteral("/to/"))) {

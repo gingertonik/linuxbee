@@ -265,6 +265,29 @@ reads what the link points to, as before.)
 - Taking the copy back (O-ACROSS) goes by whichever name the copy has
   at that moment, the spare one or the target's.
 
+**The bytes are shared where the disk can.** (Found by the review
+of this rule's first version, 2026-11-18: a Copy of a gigabyte on
+one disk went from five milliseconds to four tenths of a second, and
+took the room a second time. The toolkit's copy had asked the disk
+to share the bytes; the careful copy read and wrote them.)
+
+- The first thing done to the spare file is to ask the disk to share
+  the source's bytes with it (a clone, `FICLONE`). Where the disk
+  does that, no byte is read or written.
+- Whatever else the disk answers (it cannot, the files are on two
+  disks, it does not know the call), the bytes are read and written
+  as before. A refusal is nothing to report.
+- Everything after is the same for both: the source is as it was,
+  the copy has its size, its mode and time are given, it is flushed
+  and closed, and only then named. A clone that answers "done" over
+  a file of another size fails as any copy of the wrong size does,
+  with `the copy is not the size of the file`.
+- It is asked for a move to another file system too; there the disk
+  says no, and that costs one call.
+
+Known and left: a disk's "done" is taken for the bytes, as a write
+that reports its count is. Only the size is looked at.
+
 So at whatever moment the program is killed, the target's name holds
 nothing or the whole file. What a kill can leave is the hidden spare
 file. **It is not swept in this version:** to tell a dead run's
@@ -277,7 +300,7 @@ in the way of the next run.
 plausible mistakes lose a file and no test could see them.)
 
 Every system call a move makes on the way (the renames, `link`,
-`read`, `write`, `fchmod`, `futimens`, `fsync`, `close`, `unlink`)
+`read`, `write`, `fchmod`, `futimens`, `fsync`, `close`, `clone`, `unlink`)
 goes through a `TransferIo` (`organise/transfer_io.h`, a locked
 file), whose default is the real calls. `transferFile` is
 `transferFileWith` with the default. A test gives one whose calls
