@@ -382,6 +382,14 @@ int runLibrary(const QStringList &arguments)
                    .arg(report.found.size())
                    .arg(report.notAudio.size())
             << '\n';
+        // L-CLI, L-FOLLOW: directly after the result line; nothing when none was followed.
+        if (!report.followed.isEmpty()) {
+            out << (report.followed.size() == 1
+                    ? QStringLiteral("followed 1 file that was moved")
+                    : QStringLiteral("followed %1 files that were moved")
+                          .arg(report.followed.size()))
+                << '\n';
+        }
         // L-CLI, L-NAMES: the names passed over, after that line, on standard
         // output; the exit status does not change.
         if (report.unreadableNames > 0) {

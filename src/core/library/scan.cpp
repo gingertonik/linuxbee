@@ -166,12 +166,44 @@ void judge(ScanFindings *found, const QString &path, const ScanKnown::Entry &ent
     found->judged.insert(entry.id, was);
 }
 
+// L-FOLLOW: the rows a new file may be, by size and time to the second: every track marked
+// missing, and every track just found gone. Each list is in ascending order of id.
+struct FollowRow {
+    qint64 id = 0;
+    QString path;
+    const ScanKnown::Entry *entry = nullptr;
+};
+using FollowRows = std::map<std::pair<qint64, qint64>, QList<FollowRow>>;
+
+// L-FOLLOW: the new files held back so far, and what was known of the rows they name.
+struct HeldBack {
+    QList<ScanFindings::MaybeMoved> files;
+    ScanFindings judged;
+};
+
+FollowRows followRows(const ScanKnown &known, const QList<qint64> &gone)
+{
+    const QSet<qint64> goneIds(gone.cbegin(), gone.cend());
+    FollowRows rows;
+    for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
+        if ((!entry->missing && !goneIds.contains(entry->id)) || !entry->modified.isValid())
+            continue;
+        rows[{ entry->sizeBytes, entry->modified.toSecsSinceEpoch() }].append(
+            FollowRow { entry->id, entry.key(), &*entry });
+    }
+    for (auto &one : rows)
+        std::sort(one.second.begin(), one.second.end(),
+            [](const FollowRow &a, const FollowRow &b) { return a.id < b.id; });
+    return rows;
+}
+
 // L-PARTS: what looking at one file finds, put into `found`. A file the
 // library does not know is read and is `fresh`; a known file that is marked
 // missing and is there is `found`, and is read again when it differs; a known
 // file as stored, read by this reader or a later one, is unchanged; one that differs, or that an
 // older reader read, is read again (L-SCAN, the reader's number).
-void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found)
+void lookAtFile(const QString &path, const ScanKnown &known, const FollowRows &rows,
+    ScanFindings *found, HeldBack *held)
 {
     const auto entry = known.byPath.constFind(QDir::cleanPath(path));
     if (entry == known.byPath.cend()) {
@@ -179,6 +211,21 @@ void lookAtFile(const QString &path, const ScanKnown &known, ScanFindings *found
         if (!readAsTrack(path, &track)) {
             found->notAudio.append(path); // L-SCAN: nothing is stored for it
             return;
+        }
+        // L-FOLLOW: a file with the size and the time of rows that are missing or gone is held
+        // back, and not `fresh`.
+        if (track.modified.isValid()) {
+            const auto same = rows.find({ track.sizeBytes, track.modified.toSecsSinceEpoch() });
+            if (same != rows.cend()) {
+                ScanFindings::MaybeMoved maybe;
+                maybe.reading = track;
+                for (const FollowRow &row : same->second) {
+                    maybe.rows.append(row.id);
+                    judge(&held->judged, row.path, *row.entry);
+                }
+                held->files.append(maybe);
+                return;
+            }
         }
         found->fresh.append(track);
         return;
@@ -266,6 +313,11 @@ ScanFindings findForScan(
     ScanFindings found;
     const bool inParts = options.partSize > 0 && static_cast<bool>(options.part);
     const QStringList files = filesToScan(folders);
+    // L-FOLLOW: what has gone is found before the files, so that a new file can be matched to it.
+    ScanFindings goneJudged;
+    const QList<qint64> gone = goneFromFolders(known, folders, &goneJudged);
+    const FollowRows rows = followRows(known, gone);
+    HeldBack held;
     int sinceHandOver = 0;
     for (int index = 0; index < files.size(); ++index) {
         // L-SCAN: before each file, the number of files looked at and the
@@ -274,7 +326,7 @@ ScanFindings findForScan(
             found.cancelled = true;
             break;
         }
-        lookAtFile(files.at(index), known, &found);
+        lookAtFile(files.at(index), known, rows, &found, &held);
         // L-PARTS: every partSize files looked at, hand over what was found
         // and start afresh.
         if (inParts && ++sinceHandOver == options.partSize) {
@@ -286,7 +338,10 @@ ScanFindings findForScan(
     // L-SCAN, L-NAMES: a cancelled scan leaves out what has gone and claims
     // nothing about names.
     if (!found.cancelled) {
-        found.nowMissing = goneFromFolders(known, folders, &found);
+        found.nowMissing = gone;
+        found.maybeMoved = held.files; // L-FOLLOW: the last part only, and none when cancelled
+        found.judged.insert(goneJudged.judged);
+        found.judged.insert(held.judged.judged);
         findUnreadableNames(folders, &found);
     }
     return found;
@@ -299,6 +354,7 @@ ScanReport addedUp(const ScanReport &a, const ScanReport &b)
     sum.updated += b.updated;
     sum.nowMissing += b.nowMissing;
     sum.found += b.found;
+    sum.followed += b.followed;
     sum.unchanged += b.unchanged;
     sum.notAudio += b.notAudio;
     sum.unreadableNames += b.unreadableNames;
@@ -374,6 +430,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         named.insert(again.id);
     for (const qint64 id : findings.nowMissing)
         named.insert(id);
+    for (const ScanFindings::MaybeMoved &maybe : findings.maybeMoved) {
+        for (const qint64 id : maybe.rows)
+            named.insert(id);
+    }
     QList<qint64> toAsk;
     for (const qint64 id : std::as_const(named)) {
         if (findings.judged.contains(id))
@@ -444,7 +504,57 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
             return refuse();
         }
     }
+    // L-FOLLOW: a row is a held-back file's own when the library still holds it as it was looked
+    // at and its stored reading is the file's. A file with exactly one own row that no other
+    // held-back file has as its own takes the row over; every other held-back file is a new
+    // track, after the fresh ones.
+    const qsizetype heldCount = findings.maybeMoved.size();
+    QList<QList<qint64>> own(heldCount);
+    QHash<qint64, int> claimed;
+    for (qsizetype i = 0; i < heldCount; ++i) {
+        const ScanFindings::MaybeMoved &maybe = findings.maybeMoved.at(i);
+        for (const qint64 row : maybe.rows) {
+            if (!findings.judged.contains(row) || !stillFits(row))
+                continue;
+            const std::optional<LibraryTrack> stored = d->store.byId(row);
+            if (stored && stored->tags.fields == maybe.reading.tags.fields
+                && stored->pictureCount == maybe.reading.pictureCount
+                && sameSound(stored->tags.audio, maybe.reading.tags.audio)) {
+                own[i].append(row);
+                ++claimed[row];
+            }
+        }
+    }
+    QHash<QString, QString> moves;
+    for (qsizetype i = 0; i < heldCount; ++i) {
+        const LibraryTrack &reading = findings.maybeMoved.at(i).reading;
+        // L-PARTS: a file the library holds by now is left alone.
+        if (d->store.byPath(libraryPath(reading.path)))
+            continue;
+        if (own[i].size() == 1 && claimed.value(own[i].first()) == 1) {
+            const qint64 row = own[i].first();
+            const QString newPath = libraryPath(reading.path);
+            if (d->store.setPath(row, newPath, false)) {
+                report.followed.append(row);
+                report.found.removeAll(row); // in no other list of the report
+                moves.insert(findings.judged.value(row).path, newPath);
+                continue;
+            }
+            return refuse(); // L-FAILED: a refused write ends the storing
+        }
+        LibraryTrack track = reading;
+        track.category = options.category;
+        track.dateAdded = options.now;
+        const qint64 id = d->store.insert(track);
+        if (id > 0)
+            report.added.append(id);
+        else if (!d->store.lastError().isEmpty())
+            return refuse();
+    }
     for (const qint64 id : findings.nowMissing) {
+        // L-FOLLOW: a row that was followed is not marked missing afterwards.
+        if (report.followed.contains(id))
+            continue;
         if (stillFits(id) && d->store.setMissing(id, true))
             report.nowMissing.append(id);
         else if (!d->store.lastError().isEmpty())
@@ -465,9 +575,13 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // about a track, in the order found, updated, gone missing.
     if (!report.added.isEmpty())
         emit tracksAdded(report.added);
-    const QList<qint64> changed = report.found + report.updated + report.nowMissing;
+    const QList<qint64> changed
+        = report.found + report.updated + report.followed + report.nowMissing;
     if (!changed.isEmpty())
         emit tracksUpdated(changed);
+    // L-FOLLOW, L-MOVED: after tracksUpdated, one move for the rows followed.
+    if (!moves.isEmpty())
+        emit pathsMoved(moves);
     return report;
 }
 
