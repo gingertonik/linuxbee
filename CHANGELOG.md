@@ -33,6 +33,7 @@ settings and the library file may still change.
 - **Organise no longer moves a symbolic link to where it would lead nowhere.** A link whose text is relative (`../album/x.mp3`) was renamed into another folder and from there pointed at nothing; the run said it had moved the file, and the library then marked the track missing. Such a move now fails and says `the link would not lead to its file from there`; the link stays. A link that still leads to its file from the new folder, and one that leads nowhere already, are moved as before.
 - **`linuxbeectl organise` says when it passed over files whose names are not valid UTF-8.** Such a file was left where it was, with no line and exit 0. After everything else (and after the plan of `--dry-run`) it now prints how many names it passed over and the folders that hold them. The exit status does not change.
 - **Organise given a folder together with the folder above it no longer copies its files twice, and a Move no longer fails on them.** A file named twice was planned once for each naming: a Copy made `x.mp3` and `x_1.mp3`, and a Move moved it and then reported `the file is gone`. Now it is planned once, and a folder that was named is never removed when it is left empty.
+- **A link and the file it leads to can be organised together again, in either order.** A link planned before its file was refused, and the file then moved and left it leading nowhere; one planned after its file failed with "the file is gone". The link now follows its file and is judged against it where it now is.
 
 ## 0.8.0 (2026-11-18)
 

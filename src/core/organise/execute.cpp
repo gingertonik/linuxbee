@@ -3,9 +3,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QSet>
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <utility>
 
@@ -86,6 +88,24 @@ bool fileIdOf(const QString &path, FileId *id)
     return true;
 }
 
+// O-EXECUTE, a link and its own file in one run: true when the link at `source`, with its
+// text read from the folder of `target`, leads to the file whose identity is `file`.
+bool linkLeadsTo(const QString &source, const QString &target, const FileId &file)
+{
+    QByteArray text(4096, '\0');
+    const ssize_t n
+        = ::readlink(QFile::encodeName(source).constData(), text.data(), size_t(text.size()));
+    if (n <= 0 || n >= text.size())
+        return false;
+    text.truncate(int(n));
+    const QString written = QFile::decodeName(text);
+    const QString from = written.startsWith(QLatin1Char('/'))
+        ? written
+        : QFileInfo(target).absolutePath() + QLatin1Char('/') + written;
+    FileId there;
+    return fileIdOf(from, &there) && there == file;
+}
+
 MoveOutcome failedWith(MoveOutcome outcome, const QString &message)
 {
     outcome.status = MoveOutcome::Status::Failed;
@@ -94,16 +114,19 @@ MoveOutcome failedWith(MoveOutcome outcome, const QString &message)
 }
 
 // O-EXECUTE for one Ready entry. The source and the target are checked again
-// first, because the disk may have changed since planning.
+// first, because the disk may have changed since planning. `fileNow` is given for a link whose
+// file this run has moved: the identity of that file where it now is. The link is then there
+// though it leads nowhere, and is judged against that file.
 MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options,
-    const QSet<FileId> &filesOfTheRun, const FileId &ownSource, bool ownKnown)
+    const QSet<FileId> &filesOfTheRun, const FileId &ownSource, bool ownKnown,
+    const FileId *fileNow = nullptr)
 {
     MoveOutcome outcome;
     outcome.status = MoveOutcome::Status::Done;
     outcome.source = move.source;
     outcome.target = move.target;
 
-    if (!QFileInfo::exists(move.source))
+    if (!QFileInfo::exists(move.source) && !(fileNow && QFileInfo(move.source).isSymLink()))
         return failedWith(outcome, QStringLiteral("the file is gone"));
     const bool targetThere = QFileInfo::exists(move.target);
     if (targetThere && QFileInfo(move.target).isDir())
@@ -121,6 +144,10 @@ MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options,
     }
     if (!QDir().mkpath(QFileInfo(move.target).absolutePath()))
         return failedWith(outcome, QStringLiteral("could not create the folder"));
+    if (fileNow && !linkLeadsTo(move.source, move.target, *fileNow)) {
+        return failedWith(
+            outcome, QStringLiteral("the link would not lead to its file from there"));
+    }
 
     // The file being replaced waits in a folder of its own, beside the target,
     // until the newcomer is in place. Only then is it trashed or deleted, and
@@ -201,11 +228,76 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
         if (known)
             filesOfTheRun.insert(id);
     }
+    const bool moving = options.mode == OrganiseOptions::Mode::Move;
+    // A link and its own file (Move only): which sources are links, and the entry of each file
+    // that is not a link and is Ready.
+    QHash<FileId, int> entryOfFile;
+    QList<bool> isLink;
+    for (int index = 0; index < count; ++index) {
+        const PlannedMove &entry = plan.at(index);
+        const QFileInfo info(entry.source);
+        isLink.append(moving && info.isSymLink());
+        if (moving && entry.status == PlannedMove::Status::Ready && sourceKnown.at(index)
+            && !isLink.at(index) && !entryOfFile.contains(sourceIds.at(index))) {
+            entryOfFile.insert(sourceIds.at(index), index);
+        }
+    }
+    // The entry of the file a link waits for, or -1; and the links waiting for each file.
+    QList<int> waitsFor(count, -1);
+    QHash<int, QList<int>> waiting;
+    for (int index = 0; index < count; ++index) {
+        const PlannedMove &entry = plan.at(index);
+        if (!isLink.at(index) || entry.status != PlannedMove::Status::Ready
+            || !sourceKnown.at(index)) {
+            continue;
+        }
+        const int file = entryOfFile.value(sourceIds.at(index), -1);
+        if (file > index) {
+            waitsFor[index] = file;
+            waiting[file].append(index);
+        }
+    }
+
+    // The outcomes by entry: a link that waits is filled in after its file, and the report
+    // takes them in the plan's order.
+    QList<MoveOutcome> outcomes(count);
+    QList<bool> have(count, false);
+    const auto settle = [&](int index, const MoveOutcome &outcome) {
+        if (outcome.status == MoveOutcome::Status::Done)
+            ++report.done;
+        else if (outcome.status == MoveOutcome::Status::Failed)
+            ++report.failed;
+        else
+            ++report.skipped;
+        outcomes[index] = outcome;
+        have[index] = true;
+    };
+    const auto carryOutEntry = [&](int index) {
+        const PlannedMove &move = plan.at(index);
+        const int file = isLink.at(index) ? entryOfFile.value(sourceIds.at(index), -1) : -1;
+        FileId now;
+        const bool fileMoved = file >= 0 && have.at(file)
+            && outcomes.at(file).status == MoveOutcome::Status::Done && outcomes.at(file).moved
+            && fileIdOf(plan.at(file).target, &now);
+        settle(index,
+            carryOut(move, options, filesOfTheRun, sourceIds.at(index), sourceKnown.at(index),
+                fileMoved ? &now : nullptr));
+    };
+    // The links waiting for the file of `file`, carried out in the plan's order.
+    const auto releaseLinksOf = [&](int file) {
+        for (const int link : waiting.value(file)) {
+            if (!have.at(link))
+                carryOutEntry(link);
+        }
+    };
+
+    int reached = 0;
     for (int index = 0; index < count; ++index) {
         if (progress && !progress(index, count)) {
             report.cancelled = true;
             break;
         }
+        reached = index + 1;
         const PlannedMove &move = plan.at(index);
         if (move.status != PlannedMove::Status::Ready) {
             MoveOutcome outcome;
@@ -213,18 +305,21 @@ OrganiseReport executeOrganise(const QList<PlannedMove> &plan, const OrganiseOpt
             outcome.source = move.source;
             outcome.target = move.target;
             outcome.message = skipMessage(move.status, move.missingFields);
-            ++report.skipped;
-            report.outcomes.append(outcome);
+            settle(index, outcome);
             continue;
         }
-        const MoveOutcome outcome
-            = carryOut(move, options, filesOfTheRun, sourceIds.at(index), sourceKnown.at(index));
-        if (outcome.status == MoveOutcome::Status::Done)
-            ++report.done;
-        else
-            ++report.failed;
-        report.outcomes.append(outcome);
+        if (waitsFor.at(index) >= 0)
+            continue; // its file comes later; the link is carried out straight after it
+        carryOutEntry(index);
+        releaseLinksOf(index);
     }
+    // Stopped while a link waits: it is carried out now, its file being where it is.
+    for (int index = 0; index < reached; ++index) {
+        if (!have.at(index))
+            carryOutEntry(index);
+    }
+    for (int index = 0; index < reached; ++index)
+        report.outcomes.append(outcomes.at(index));
 
     // O-OTHER, then O-EMPTY: only for moves, and never after a cancelled run.
     if (!report.cancelled && options.mode == OrganiseOptions::Mode::Move) {
