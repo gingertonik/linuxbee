@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QIODevice>
 #include <QSaveFile>
+#include <QRandomGenerator>
 #include <QSet>
 
 #include <algorithm>
@@ -12,8 +13,12 @@
 #include <memory>
 #include <optional>
 
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <cstdio>
 
 #include "formatdetail.h"
 
@@ -303,21 +308,58 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
         return Written::Failed;
     }
     if (first) {
-        // The bytes are in the file beside, on disk, before the hook; the commit then has
-        // nothing left to wait for between the second look and the replacing.
-        if (!file.flush()) {
+        // Y-SAME steps 3 to 6: the bytes are whole and flushed, and the file beside has a name of
+        // its own and the playlist's mode, before the hook. After the second look the only call is
+        // the rename; commit() is not used here, it flushes and names again.
+        if (!file.flush() || file.handle() < 0) {
             file.cancelWriting();
             return Written::Failed;
         }
-        if (file.handle() >= 0)
-            ::fsync(file.handle());
+        const int fd = file.handle();
+        if (::fsync(fd) != 0) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
+        struct stat existing { };
+        const mode_t mode = ::stat(QFile::encodeName(path).constData(), &existing) == 0
+            ? (existing.st_mode & 07777)
+            : mode_t(0644);
+        if (::fchmod(fd, mode) != 0) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
+        const QByteArray from = "/proc/self/fd/" + QByteArray::number(fd);
+        const QString folder = QFileInfo(path).absolutePath();
+        static const char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+        QByteArray spare;
+        bool named = false;
+        for (int attempt = 0; attempt < 100 && !named; ++attempt) {
+            QString name = QStringLiteral(".lbsave-");
+            for (int i = 0; i < 6; ++i)
+                name += QLatin1Char(alphabet[QRandomGenerator::system()->bounded(36)]);
+            spare = QFile::encodeName(QDir(folder).filePath(name));
+            if (::linkat(AT_FDCWD, from.constData(), AT_FDCWD, spare.constData(), AT_SYMLINK_FOLLOW)
+                == 0)
+                named = true;
+            else if (errno != EEXIST)
+                break;
+        }
+        if (!named) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
         if (hook)
             hook(path);
-        // Nothing may stand between this look and commit().
-        if (!(lookAt(path) == *first)) {
-            file.cancelWriting();
+        const bool same = lookAt(path) == *first;
+        // Nothing between the look and the rename.
+        const int renamed
+            = same ? ::rename(spare.constData(), QFile::encodeName(path).constData()) : -1;
+        if (renamed != 0)
+            ::unlink(spare.constData());
+        file.cancelWriting();
+        if (!same)
             return Written::Changed;
-        }
+        return renamed == 0 ? Written::Written : Written::Failed;
     }
     if (!file.commit())
         return Written::Failed;
