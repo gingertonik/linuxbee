@@ -31,6 +31,7 @@ file(GLOB LINUXBEE_CLI_TESTS CONFIGURE_DEPENDS
 foreach(test_script IN LISTS LINUXBEE_CLI_TESTS)
   get_filename_component(test_name ${test_script} NAME_WE)
   add_test(NAME ${test_name} COMMAND sh ${test_script} $<TARGET_FILE:linuxbeectl>)
-  set_tests_properties(${test_name} PROPERTIES
+  # A shell test that could not do its work where it is run answers 77: skipped, and shown so.
+  set_tests_properties(${test_name} PROPERTIES SKIP_RETURN_CODE 77
     ENVIRONMENT "LINUXBEE_TEST_DATA=${CMAKE_CURRENT_SOURCE_DIR}/data;LINUXBEE_APP=$<TARGET_FILE:linuxbee>;QT_QPA_PLATFORM=offscreen")
 endforeach()
