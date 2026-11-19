@@ -159,8 +159,18 @@ QStringList locationsOf(const QByteArray &data)
     return out;
 }
 
+// Y-EDIT, "Not a file": only a file is opened. A pipe or a device with a playlist's name is not,
+// because opening a pipe waits for ever. A link to a file is the file. This is asked before the
+// opener, so that an opener cannot open the pipe either.
+bool isFile(const QString &path)
+{
+    return QFileInfo(path).isFile();
+}
+
 QStringList readLocations(const QString &path)
 {
+    if (!isFile(path))
+        return { };
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return { };
@@ -176,6 +186,8 @@ QStringList readLocations(const QString &path)
 // the file is not tried then.
 std::optional<QByteArray> readWhole(const PlaylistStore::FileOpener &opener, const QString &path)
 {
+    if (!isFile(path))
+        return std::nullopt;
     std::unique_ptr<QIODevice> device;
     if (opener) {
         device = opener(path);
@@ -557,11 +569,11 @@ int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
     const QList<PlaylistInfo> lists = playlists();
     for (const PlaylistInfo &info : lists) {
         const QString path = fileFor(m_folder, info.id);
-        QFile in(path);
-        if (!in.open(QIODevice::ReadOnly))
+        // The one read of this playlist, whole; one that was not is passed over.
+        const std::optional<QByteArray> read = readWhole(m_opener, path);
+        if (!read)
             continue;
-        const QByteArray data = in.readAll();
-        in.close();
+        const QByteArray &data = *read;
 
         QByteArray out;
         out.reserve(data.size());

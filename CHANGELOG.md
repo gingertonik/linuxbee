@@ -18,6 +18,7 @@ settings and the library file may still change.
 - **Undo keeps a file it could not put back, and its removed cover,** so that Undo can be tried again; they were dropped at the first failure.
 - A playlist that a disk error cut short while it was read is no longer taken for a short playlist and written back.
 - Convert with Overwrite plays the result through before it replaces a file, and refuses one that is shorter than the source or than the file it would replace. This needs `ffprobe`, which comes with ffmpeg.
+- A playlist that cannot be read whole is no longer rewritten when its files move (Relink), and a pipe with a playlist's name is no longer opened.
 
 ## 0.8.0 (2026-11-18)
 
