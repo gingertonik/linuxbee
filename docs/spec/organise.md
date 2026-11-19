@@ -146,6 +146,38 @@ contains `another file of this run`, and nothing is moved for it. A plan
 is checked this way wherever it came from: a path spelled through a
 linked folder is the same file.
 
+**A link and its own file in one run.** (`Mode::Move` only.) What each
+source that is a link leads to is noted when the run begins, as the
+sources themselves are. When that file is the source of another `Ready`
+entry of the plan, the link is its link:
+
+- The link is carried out **after its file**, wherever the two stand in
+  the plan. One planned before its file waits for it; the progress
+  function is asked about each entry once, in the plan's order, as
+  before.
+- It is then asked what "A source that is a link" (O-ACROSS) asks, of
+  **the file where it now is**: where the link's text would lead from
+  the link's target folder must be that file, at the place its own
+  entry moved it to, or where it was when its move failed. If not, the
+  link's entry fails with
+  `the link would not lead to its file from there` and the link stays.
+- A link whose file has been moved away is there, though it leads
+  nowhere for the moment: it is not `the file is gone`.
+- The outcomes are in the plan's order, as always. When the run is
+  stopped while a link waits for its file, the link is carried out
+  then, against its file where it is, so that the outcomes are still
+  the plan's first entries, each with its outcome.
+
+(Found by the review of the rule on links, 2026-11-19. A link planned
+before its file, both going to one folder, was refused, because its
+file was not there yet; the file then moved, and the link was left
+behind leading nowhere. Before that rule both had moved and the link
+had worked. A link planned after its file had always failed with `the
+file is gone`.)
+
+Known and left: a file that was moved to another file system is a new
+file there; no test holds that its link is judged against the new one.
+
 - An entry that is not `Ready` is `Skipped`. Its message is the status in
   words: `already in place`, `missing tags: A, B`, `the template leaves no
   file name`, `the template is not valid`, `not found`, `not a music file`.
