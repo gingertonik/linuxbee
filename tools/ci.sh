@@ -46,7 +46,7 @@ sanitize) # C-SANITIZE: every test again, built with the address and undefined-b
         UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
         dbus-run-session -- ctest --timeout 900 --output-on-failure > ../asan-ctest.log 2>&1) || rc=$?
     rm -rf "$box"
-    grep -E 'tests passed|\*\*\*Failed|\*\*\*Exception|Not Run|Timeout' build/asan-ctest.log || true
+    grep -E 'tests passed|\*\*\*Failed|\*\*\*Exception|\*\*\*Skipped|Not Run|Timeout' build/asan-ctest.log || true
     # What each failed test printed, as the gate prints it (check.sh, failed_output).
     [ "$rc" = 0 ] || awk '
         function flush(   i, cut) {

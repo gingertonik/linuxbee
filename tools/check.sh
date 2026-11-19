@@ -82,7 +82,8 @@ if [ -n "$strays" ]; then
     echo "rc=1 (a test sent files to a trash it did not name: $strays)"
     exit 1
 fi
-grep -E "tests passed|\*\*\*Failed|\*\*\*Timeout|\*\*\*Exception|Not Run|No tests" build/ctest.log
+# A test that was skipped is named too: its rule was not held by this run, and rc=0 does not say so.
+grep -E "tests passed|\*\*\*Failed|\*\*\*Timeout|\*\*\*Exception|\*\*\*Skipped|Not Run|No tests" build/ctest.log
 [ "$rc" = 0 ] || failed_output build/ctest.log
 echo "rc=$rc"
 exit $rc
