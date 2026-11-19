@@ -20,6 +20,9 @@
 # After the review of that correction: a command that never started, or was killed, is not "stopped"
 # either; a run with anything skipped answers 77; inside, the work folder must be one this script
 # made.
+# After the review of that one: the command of the self-test that is killed is a real program, and is
+# killed; and a signal that comes to the command is handed on to it, so that the debugger's halt at a
+# signal (a fault in the command, say) is never taken for the stop at the call a probe waits for.
 set -u
 case "${1:-}" in
 '') echo "usage: second-disk-trash.sh BUILD-FOLDER | LINUXBEECTL" >&2; exit 2 ;;
@@ -193,14 +196,18 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
     # stopped CALLS CONDITION: runs the command under gdb; where it stops at one of CALLS (and
     # CONDITION holds, when one is given), the file $W/step is run. True when it was.
     # "Stopped" is: a thread is there, and the command has neither ended nor been killed. (When the
-    # command could not be started there is no exit code either, and no thread.)
+    # command could not be started there is no exit code either, and no thread.) The debugger is told
+    # to hand every signal on and not to halt at one; then the only halt left is the one at CALLS.
+    # The self-test puts another command in the place of this one: PROGRAM, with ARG1 and ARG2.
     PROGRAM=$ctl
+    ARG1=trash
+    ARG2=
     stopped() {
         export LINUXBEE_SDT_STEP="$W/step" LINUXBEE_SDT_W="$W" LINUXBEE_SDT_T="$T"
         printf '%s\n' "$STEP" ': > "$LINUXBEE_SDT_W/stopped"' > "$W/step"
         set -- "$1" "${2:-1}"
-        gdb -q -batch -nx -ex 'set debuginfod enabled off' -ex 'set pagination off' -ex "catch syscall $1" -ex "condition 1 $2" -ex run \
-            -ex 'eval "shell [ %d%d = 11 ] && [ %d != 0 ] && sh \"$LINUXBEE_SDT_STEP\"", $_isvoid($_exitcode), $_isvoid($_exitsignal), $_thread' -ex delete -ex continue --args "$PROGRAM" trash "$SRC" > "$W/gdb.out" 2>&1
+        gdb -q -batch -nx -ex 'set debuginfod enabled off' -ex 'set pagination off' -ex 'handle all nostop noprint pass' -ex "catch syscall $1" -ex "condition 1 $2" -ex run \
+            -ex 'eval "shell [ %d%d = 11 ] && [ %d != 0 ] && sh \"$LINUXBEE_SDT_STEP\"", $_isvoid($_exitcode), $_isvoid($_exitsignal), $_thread' -ex delete -ex continue --args "$PROGRAM" "$ARG1" "${ARG2:-$SRC}" > "$W/gdb.out" 2>&1
         [ -e "$W/stopped" ]
     }
     RECORD='[Trash Info]\nPath=/elsewhere/a.mp3\nDeletionDate=2026-01-01T00:00:00\n'
@@ -263,18 +270,25 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
         [ ! -e "$W/theirs" ] && ! grep -q elsewhere "$T/info/"* 2> /dev/null && pass "the script itself, $which: and its step was not run" || fail "the script itself, $which: its step was run all the same"
         done_with
     done
-    # The same for a command that cannot be started, and for one that is killed: neither has an
-    # exit code, and neither was stopped.
-    for which in "never started" "killed"; do
+    # The same for a command that cannot be started, for one that is killed, and for one that a
+    # signal comes to (the debugger would halt there, were it not told otherwise): none has an exit
+    # code, and none was stopped at a call. The last two are the shell itself, a real program, which
+    # sends the signal to itself; a script would not do, the debugger cannot start one.
+    for which in "never started" "killed" "that a signal comes to"; do
         fresh "never-$(echo "$which" | tr -d ' ')" dash || continue
         orphan
         STEP=$theirs_made
         case $which in
         "never started") PROGRAM=$W/no-such-program ;;
         killed)
-            printf '#!/bin/sh\nkill -9 $$\n' > "$W/dies"
-            chmod +x "$W/dies"
-            PROGRAM=$W/dies
+            PROGRAM=/bin/sh
+            ARG1=-c
+            ARG2='kill -9 $$'
+            ;;
+        "that a signal comes to")
+            PROGRAM=/bin/sh
+            ARG1=-c
+            ARG2='kill -USR1 $$'
             ;;
         esac
         if stopped vhangup ''; then
@@ -284,6 +298,8 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
         fi
         [ ! -e "$W/theirs" ] && pass "the script itself, a command $which: and its step was not run" || fail "the script itself, a command $which: its step was run all the same"
         PROGRAM=$ctl
+        ARG1=trash
+        ARG2=
         done_with
     done
 else
