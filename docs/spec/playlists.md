@@ -211,8 +211,17 @@ and when the line of a moved file was in that part, the short list
 was written over the playlist.) Each playlist is read once and whole
 (Y-EDIT, "One read, and a whole one"). One that was not read whole,
 or could not be opened, is not written, not counted and not
-announced; the others are relinked. Nothing says which were passed
-over: that is not in this version.
+announced; the others are relinked. `relinkPassedOver()`
+gives the ids of those the last `relink` left, in the order of
+`playlists()`: each one that was not read whole or could not be
+opened (whether it names a moved file or not: nobody knows), and
+each one that was read, had a line to change and could not be
+written. One read whole in which nothing changed is not among them.
+A `relink` with no moves looks at nothing and leaves none.
+
+The store lists a link, and a link may lead to a pipe; `relink`
+meets that one, does not open it (Y-EDIT, "Not a file"), and names
+it among those left.
 
 ### Y-NAME
 
