@@ -5,12 +5,20 @@
 #include <QFileInfo>
 #include <QIODevice>
 #include <QSaveFile>
+#include <QRandomGenerator>
 #include <QSet>
 
 #include <algorithm>
 #include <functional>
 #include <memory>
 #include <optional>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <cstdio>
 
 #include "formatdetail.h"
 
@@ -237,33 +245,139 @@ QString problemWith(const std::optional<QByteArray> &read)
     return { };
 }
 
-enum class Written { Failed, Unchanged, Written };
+enum class Written { Failed, Unchanged, Written, Changed };
+
+// Y-SAME: what the system says of a name at one moment: which file it is, its size, and the
+// times of its contents and of its record. A name that is not there is a look too.
+struct Look {
+    bool there = false;
+    quint64 device = 0;
+    quint64 number = 0;
+    qint64 size = 0;
+    qint64 contentsSeconds = 0;
+    qint64 contentsNanoseconds = 0;
+    qint64 recordSeconds = 0;
+    qint64 recordNanoseconds = 0;
+
+    bool operator==(const Look &other) const
+    {
+        return there == other.there && device == other.device && number == other.number
+            && size == other.size && contentsSeconds == other.contentsSeconds
+            && contentsNanoseconds == other.contentsNanoseconds
+            && recordSeconds == other.recordSeconds && recordNanoseconds == other.recordNanoseconds;
+    }
+};
+
+Look lookAt(const QString &path)
+{
+    Look look;
+    struct stat info { };
+    if (::stat(QFile::encodeName(path).constData(), &info) != 0)
+        return look;
+    look.there = true;
+    look.device = static_cast<quint64>(info.st_dev);
+    look.number = static_cast<quint64>(info.st_ino);
+    look.size = static_cast<qint64>(info.st_size);
+    look.contentsSeconds = static_cast<qint64>(info.st_mtim.tv_sec);
+    look.contentsNanoseconds = static_cast<qint64>(info.st_mtim.tv_nsec);
+    look.recordSeconds = static_cast<qint64>(info.st_ctim.tv_sec);
+    look.recordNanoseconds = static_cast<qint64>(info.st_ctim.tv_nsec);
+    return look;
+}
 
 // Files are written whole and then moved into place (QSaveFile), so a crash
 // cannot leave half a playlist. Nothing is written when the file already
 // holds exactly this, so a call that changes nothing changes nothing.
 // `asRead` is what the file held when the caller read it: the one read of the call, so the
 // comparison does not read the file again.
-Written writeLocationsOver(
-    const QString &path, const QStringList &locations, const std::optional<QByteArray> &asRead)
+// Y-SAME: `first` is the look taken before that read. With one, the new bytes are written beside
+// the file, flushed, the hook is called, and a second look is taken straight before the
+// replacing; a name that is gone or a look that differs replaces nothing (Changed).
+Written writeBytesOver(const QString &path, const QByteArray &data,
+    const std::optional<QByteArray> &asRead, const std::optional<Look> &first,
+    const PlaylistStore::BeforeReplace &hook)
 {
-    QByteArray data;
-    for (const QString &location : locations)
-        data += location.toUtf8() + '\n';
-
     if (asRead && *asRead == data)
         return Written::Unchanged;
 
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return Written::Failed;
-    if (file.write(data) != data.size() || !file.commit())
+    if (file.write(data) != data.size()) {
+        file.cancelWriting();
+        return Written::Failed;
+    }
+    if (first) {
+        // Y-SAME steps 3 to 6: the bytes are whole and flushed, and the file beside has a name of
+        // its own and the playlist's mode, before the hook. After the second look the only call is
+        // the rename; commit() is not used here, it flushes and names again.
+        if (!file.flush() || file.handle() < 0) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
+        const int fd = file.handle();
+        if (::fsync(fd) != 0) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
+        struct stat existing { };
+        const mode_t mode = ::stat(QFile::encodeName(path).constData(), &existing) == 0
+            ? (existing.st_mode & 07777)
+            : mode_t(0644);
+        if (::fchmod(fd, mode) != 0) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
+        const QByteArray from = "/proc/self/fd/" + QByteArray::number(fd);
+        const QString folder = QFileInfo(path).absolutePath();
+        static const char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+        QByteArray spare;
+        bool named = false;
+        for (int attempt = 0; attempt < 100 && !named; ++attempt) {
+            QString name = QStringLiteral(".lbsave-");
+            for (int i = 0; i < 6; ++i)
+                name += QLatin1Char(alphabet[QRandomGenerator::system()->bounded(36)]);
+            spare = QFile::encodeName(QDir(folder).filePath(name));
+            if (::linkat(AT_FDCWD, from.constData(), AT_FDCWD, spare.constData(), AT_SYMLINK_FOLLOW)
+                == 0)
+                named = true;
+            else if (errno != EEXIST)
+                break;
+        }
+        if (!named) {
+            file.cancelWriting();
+            return Written::Failed;
+        }
+        if (hook)
+            hook(path);
+        const bool same = lookAt(path) == *first;
+        // Nothing between the look and the rename.
+        const int renamed
+            = same ? ::rename(spare.constData(), QFile::encodeName(path).constData()) : -1;
+        if (renamed != 0)
+            ::unlink(spare.constData());
+        file.cancelWriting();
+        if (!same)
+            return Written::Changed;
+        return renamed == 0 ? Written::Written : Written::Failed;
+    }
+    if (!file.commit())
         return Written::Failed;
     return Written::Written;
 }
 
+Written writeLocationsOver(const QString &path, const QStringList &locations,
+    const std::optional<QByteArray> &asRead, const std::optional<Look> &first,
+    const PlaylistStore::BeforeReplace &hook)
+{
+    QByteArray data;
+    for (const QString &location : locations)
+        data += location.toUtf8() + '\n';
+    return writeBytesOver(path, data, asRead, first, hook);
+}
+
 // For the callers that did not read the file for editing (create): as it was, the file is read
-// here for the comparison.
+// here for the comparison. No looks are taken: create is not under Y-SAME.
 Written writeLocations(const QString &path, const QStringList &locations)
 {
     std::optional<QByteArray> asIs;
@@ -272,8 +386,11 @@ Written writeLocations(const QString &path, const QStringList &locations)
         asIs = current.readAll();
         current.close();
     }
-    return writeLocationsOver(path, locations, asIs);
+    return writeLocationsOver(path, locations, asIs, std::nullopt, { });
 }
+
+const QString changedLine = QStringLiteral("the file was changed by another program");
+const QString unwrittenLine = QStringLiteral("the file could not be written");
 
 }
 
@@ -463,14 +580,26 @@ QString PlaylistStore::editProblem(const QString &id) const
 
 bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
 {
-    if (!exists(id))
+    m_editProblem.clear();
+    if (!exists(id)) {
+        m_editProblem = QStringLiteral("there is no such playlist");
         return false;
+    }
+    const Look first = lookAt(fileFor(m_folder, id));
     const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
-    if (!problemWith(read).isEmpty())
+    m_editProblem = problemWith(read);
+    if (!m_editProblem.isEmpty())
         return false;
-    const Written written = writeLocationsOver(fileFor(m_folder, id), paths, read);
-    if (written == Written::Failed)
+    const Written written
+        = writeLocationsOver(fileFor(m_folder, id), paths, read, first, m_beforeReplace);
+    if (written == Written::Changed) {
+        m_editProblem = changedLine;
         return false;
+    }
+    if (written == Written::Failed) {
+        m_editProblem = unwrittenLine;
+        return false;
+    }
     if (written == Written::Written)
         emit tracksChanged(id);
     return true;
@@ -478,10 +607,15 @@ bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
 
 int PlaylistStore::append(const QString &id, const QStringList &paths, bool allowDuplicates)
 {
-    if (!exists(id))
+    m_editProblem.clear();
+    if (!exists(id)) {
+        m_editProblem = QStringLiteral("there is no such playlist");
         return 0;
+    }
+    const Look first = lookAt(fileFor(m_folder, id));
     const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
-    if (!problemWith(read).isEmpty())
+    m_editProblem = problemWith(read);
+    if (!m_editProblem.isEmpty())
         return 0;
     QStringList all = locationsOf(*read);
     QStringList seen = all;
@@ -495,19 +629,31 @@ int PlaylistStore::append(const QString &id, const QStringList &paths, bool allo
     }
     if (added == 0)
         return 0;
-    if (writeLocationsOver(fileFor(m_folder, id), all, read) != Written::Failed) {
-        emit tracksChanged(id);
-        return added;
+    const Written written
+        = writeLocationsOver(fileFor(m_folder, id), all, read, first, m_beforeReplace);
+    if (written == Written::Changed) {
+        m_editProblem = changedLine;
+        return 0;
     }
-    return 0;
+    if (written == Written::Failed) {
+        m_editProblem = unwrittenLine;
+        return 0;
+    }
+    emit tracksChanged(id);
+    return added;
 }
 
 int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
 {
-    if (!exists(id))
+    m_editProblem.clear();
+    if (!exists(id)) {
+        m_editProblem = QStringLiteral("there is no such playlist");
         return 0;
+    }
+    const Look first = lookAt(fileFor(m_folder, id));
     const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
-    if (!problemWith(read).isEmpty())
+    m_editProblem = problemWith(read);
+    if (!m_editProblem.isEmpty())
         return 0;
     const QStringList all = locationsOf(*read);
     QSet<int> doomed;
@@ -522,19 +668,31 @@ int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
         if (!doomed.contains(i))
             kept.append(all.at(i));
     }
-    if (writeLocationsOver(fileFor(m_folder, id), kept, read) != Written::Failed) {
-        emit tracksChanged(id);
-        return all.size() - kept.size();
+    const Written written
+        = writeLocationsOver(fileFor(m_folder, id), kept, read, first, m_beforeReplace);
+    if (written == Written::Changed) {
+        m_editProblem = changedLine;
+        return 0;
     }
-    return 0;
+    if (written == Written::Failed) {
+        m_editProblem = unwrittenLine;
+        return 0;
+    }
+    emit tracksChanged(id);
+    return all.size() - kept.size();
 }
 
 bool PlaylistStore::moveTrack(const QString &id, int from, int to)
 {
-    if (!exists(id))
+    m_editProblem.clear();
+    if (!exists(id)) {
+        m_editProblem = QStringLiteral("there is no such playlist");
         return false;
+    }
+    const Look first = lookAt(fileFor(m_folder, id));
     const std::optional<QByteArray> read = readWhole(m_opener, fileFor(m_folder, id));
-    if (!problemWith(read).isEmpty())
+    m_editProblem = problemWith(read);
+    if (!m_editProblem.isEmpty())
         return false;
     QStringList all = locationsOf(*read);
     // The entry ends up at the position given; a position outside the list fails.
@@ -544,11 +702,18 @@ bool PlaylistStore::moveTrack(const QString &id, int from, int to)
         return true; // nowhere to go: nothing changes
     const QString moved = all.takeAt(from);
     all.insert(to, moved);
-    if (writeLocationsOver(fileFor(m_folder, id), all, read) != Written::Failed) {
-        emit tracksChanged(id);
-        return true;
+    const Written written
+        = writeLocationsOver(fileFor(m_folder, id), all, read, first, m_beforeReplace);
+    if (written == Written::Changed) {
+        m_editProblem = changedLine;
+        return false;
     }
-    return false;
+    if (written == Written::Failed) {
+        m_editProblem = unwrittenLine;
+        return false;
+    }
+    emit tracksChanged(id);
+    return true;
 }
 
 QString PlaylistStore::validateName(const QString &name)
@@ -570,6 +735,8 @@ int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
     const QList<PlaylistInfo> lists = playlists();
     for (const PlaylistInfo &info : lists) {
         const QString path = fileFor(m_folder, info.id);
+        // Y-SAME: the first look, before the one read of this playlist.
+        const Look first = lookAt(path);
         // The one read of this playlist, whole; one that was not is passed over.
         const std::optional<QByteArray> read = readWhole(m_opener, path);
         if (!read) {
@@ -608,8 +775,7 @@ int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
         if (!changed)
             continue;
 
-        QSaveFile file(path);
-        if (!file.open(QIODevice::WriteOnly) || file.write(out) != out.size() || !file.commit()) {
+        if (writeBytesOver(path, out, read, first, m_beforeReplace) != Written::Written) {
             m_passedOver.append(info.id);
             continue;
         }

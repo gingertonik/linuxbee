@@ -61,6 +61,15 @@ public:
     using FileOpener = std::function<std::unique_ptr<QIODevice>(const QString &path)>;
     void setFileOpener(FileOpener opener);
 
+    // Y-SAME: why the last append, removeAt, moveTrack or setTracks did nothing. Empty when it
+    // wrote, or had nothing to do.
+    QString lastEditProblem() const { return m_editProblem; }
+    // Y-SAME: called with the playlist file's path when its new bytes are written beside it and
+    // it is not yet replaced. For the test, which is the other program there; the program sets
+    // none.
+    using BeforeReplace = std::function<void(const QString &path)>;
+    void setBeforeReplace(BeforeReplace hook) { m_beforeReplace = std::move(hook); }
+
     // Y-NAME: empty when the name can be used, otherwise what is wrong.
     static QString validateName(const QString &name);
 
@@ -72,6 +81,8 @@ private:
     QString m_folder;
     FileOpener m_opener;
     QStringList m_passedOver;
+    QString m_editProblem;
+    BeforeReplace m_beforeReplace;
 };
 
 }

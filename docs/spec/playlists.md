@@ -196,6 +196,102 @@ as they were.
 Not in this version: converting such a file to UTF-8 for the user;
 editing it by its byte lines.
 
+### Y-SAME: a playlist is written only over the file that was read
+
+(Found by the write-path audit, part 4, 2026-11-18. A call read the
+file, worked out the new list and put it in the file's place, and
+asked nothing of the file in between. What another program wrote
+there meanwhile was replaced, and the call answered success: of two
+writers making 300 additions each, 300 entries were left.)
+
+The other writer is another program. linuxBee has one writer of the
+store, the window, and the window runs once a profile; so there is no
+lock, which only a program that asks for it would heed.
+
+`append`, `removeAt`, `moveTrack`, `setTracks`, and `relink` for each
+playlist, go this way:
+
+1. The first look, before the file is opened for reading: what the
+   system says of the name. Which file it is (device and file
+   number), its size, when its contents were last changed and when
+   its record was.
+2. The one read (Y-EDIT), through the opener.
+3. When there is something to write, the new bytes are written
+   beside the file. **Before step 4 they are all there, flushed to
+   the disk, in a file that has a name of its own** in the
+   playlist's folder: `.lbsave-` and six characters of `a` to `z`
+   and `0` to `9`, made new (never a name that is there). Nothing is
+   written to that file after this step, and it gets no other name
+   but the playlist's.
+4. `setBeforeReplace`'s hook is called with the file's path, if one
+   is set. It is there for the test, which is the other program at
+   that moment; the program sets none.
+5. The second look, straight before the file is replaced. When the
+   name is gone, or the two looks differ in any of the five, nothing
+   is replaced: what was written beside the file is removed, the
+   file is as the other program left it, the call answers 0 or false
+   and `tracksChanged` is not emitted.
+6. The file is replaced: **one call, the rename of the spare name
+   onto the playlist's, made straight after the look of step 5.**
+   Nothing is done between the two: no flush, no close, no naming.
+   (Found by the review of this rule's first build, 2026-11-19: the
+   look was taken, and then the file beside was flushed, named and
+   closed before it was put in place. That took about four tenths of
+   a millisecond on a disk of the btrfs kind, half the time of the
+   whole call, and about half of what another program wrote
+   meanwhile was still lost.)
+
+A refusal at step 5, and a replacing that fails, take the spare name
+away. A run that is killed between step 3 and step 6 can leave it:
+it is hidden, it is no playlist (Y-STORE lists `.m3u8` files), it is
+not in the way of a later call, and nothing removes or uses it.
+
+A call with nothing to write (Y-STORE) ends before step 3: it writes
+nothing beside the file, calls no hook and takes no second look.
+
+A call refused at step 5 is refused once. The same call made again
+reads the file as it now is.
+
+`relink` goes on to the next playlist after one that was refused at
+step 5; that one is among `relinkPassedOver()` (Y-RELINK).
+
+`lastEditProblem()` says why the last `append`, `removeAt`,
+`moveTrack` or `setTracks` did nothing:
+
+| The last of the four calls | Answer |
+|---|---|
+| wrote, or had nothing to do (a position outside the list too) | empty |
+| was refused by Y-EDIT | `editProblem`'s line |
+| was refused at step 5 | `the file was changed by another program` |
+| could not write beside the file, or could not replace it | `the file could not be written` |
+
+Each of the four begins by forgetting the line of the call before.
+
+The five are compared because a file put in another's place can be
+given its size and the time of its contents. On Linux the time of
+the record moves with every change, so no test here can tell a
+comparison of all five from one of that time alone; the other four
+are for a file system that keeps that time badly.
+
+Known and left:
+
+- A change made after the second look and before the replacing is
+  still lost. With nothing between the two but the replacing itself
+  that moment measured two to three millionths of a second (the
+  review's trace, 2026-11-19). No test reaches it, and no test can
+  see a flush put back between the two: the review reads for it,
+  and measures it.
+- Two changes inside one tick of the file system's clock that leave
+  the size as it was are one state to the looks.
+- `removeAt` and `moveTrack` are given positions. A file changed
+  since the caller read it, and before the call began, is edited at
+  those positions as it now is. Not in this version.
+- `create` looks through `playlists()` and then writes; a file made
+  at that name in between is replaced by the empty one. Not in this
+  version.
+- The window still says `the file could not be written` for every
+  refusal. Not in this version.
+
 ### Y-RELINK
 
 `relink(oldToNew)` (library.md, L-MOVED): in every playlist of the
