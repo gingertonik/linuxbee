@@ -113,8 +113,9 @@ MoveOutcome carryOut(const PlannedMove &move, const OrganiseOptions &options,
     // The second lock (O-EXECUTE): by what it is, not by its path, the file
     // at the target is not another file of this run.
     FileId there;
-    if (targetThere && fileIdOf(move.target, &there) && filesOfTheRun.contains(there)
-        && !(ownKnown && there == ownSource)) {
+    if (targetThere && !fileIdOf(move.target, &there))
+        return failedWith(outcome, QStringLiteral("could not look at the file at the target"));
+    if (targetThere && filesOfTheRun.contains(there) && !(ownKnown && there == ownSource)) {
         return failedWith(
             outcome, QStringLiteral("the file at the target is another file of this run"));
     }

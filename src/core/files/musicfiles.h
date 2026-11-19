@@ -14,4 +14,15 @@ bool hasMusicExtension(const QString &fileName);
 // are not followed.
 QStringList findMusicFiles(const QString &folder, bool recursive = true);
 
+// L-NAMES (library.md) and O-CLI: the entries below `folders` whose own names are not valid
+// UTF-8, files and folders alike. `names` counts them, `folders` holds each folder that
+// has any, once, in ascending order. Such a folder is counted by its parent and not gone
+// into; hidden folders and links are not gone into; a folder reached twice is walked once.
+// Each folder is a clean absolute path.
+struct UnreadableNames {
+    int names = 0;
+    QStringList folders;
+};
+UnreadableNames unreadableNamesBelow(const QStringList &folders);
+
 }

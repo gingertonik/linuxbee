@@ -30,6 +30,8 @@ settings and the library file may still change.
 - **A playlist that another program changed while linuxBee was editing it is no longer written over.** An editor, a sync client or another player that wrote the file between linuxBee reading it and replacing it had its change lost, and the call said it had worked. The change is now refused, and the file is left as the other program made it.
 - **Playlists can be edited again on disks without hard links (FAT, exFAT).** The refusal of a change made by another program needed a second name for a file, which those disks do not give, and every edit failed there.
 - **A file renamed or moved by another program keeps its plays, skips and date added at the next scan**, when it is otherwise unchanged (same size, time and tags); its playlists follow. Before, the scan saw a track gone and a track new, and the history stayed on the row marked missing.
+- **Organise no longer moves a symbolic link to where it would lead nowhere.** A link whose text is relative (`../album/x.mp3`) was renamed into another folder and from there pointed at nothing; the run said it had moved the file, and the library then marked the track missing. Such a move now fails and says `the link would not lead to its file from there`; the link stays. A link that still leads to its file from the new folder, and one that leads nowhere already, are moved as before.
+- **`linuxbeectl organise` says when it passed over files whose names are not valid UTF-8.** Such a file was left where it was, with no line and exit 0. After everything else (and after the plan of `--dry-run`) it now prints how many names it passed over and the folders that hold them. The exit status does not change.
 
 ## 0.8.0 (2026-11-18)
 

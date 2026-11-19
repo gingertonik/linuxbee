@@ -104,6 +104,19 @@ void printOutcome(QTextStream &out, QTextStream &err, const linuxbee::MoveOutcom
     }
 }
 
+// O-CLI: names that are not valid UTF-8, said last. Nothing is printed when there are none.
+void printUnreadableNames(QTextStream &out, const linuxbee::UnreadableNames &found)
+{
+    if (found.names == 0)
+        return;
+    out << (found.names == 1
+            ? QStringLiteral("passed over 1 name that is not valid UTF-8, in:\n")
+            : QStringLiteral("passed over %1 names that are not valid UTF-8, in:\n")
+                  .arg(found.names));
+    for (const QString &folder : found.folders)
+        out << QStringLiteral("  %1\n").arg(folder);
+}
+
 int runOrganise(const QStringList &arguments)
 {
     QCommandLineParser parser;
@@ -168,22 +181,26 @@ int runOrganise(const QStringList &arguments)
     // A folder stands for the music files in it, below it too. Each folder
     // named, and the folder of each file named, is a floor O-EMPTY never removes.
     QStringList files;
+    QStringList folderArguments;
     for (const QString &input : inputs) {
         if (QFileInfo(input).isDir()) {
             files += linuxbee::findMusicFiles(input, true);
             options.sourceRoots.append(input);
+            folderArguments.append(QDir::cleanPath(QFileInfo(input).absoluteFilePath()));
         } else {
             files.append(input);
             options.sourceRoots.append(QFileInfo(input).absolutePath());
         }
     }
     const QList<PlannedMove> plan = linuxbee::planOrganise(files, options);
+    const linuxbee::UnreadableNames unreadable = linuxbee::unreadableNamesBelow(folderArguments);
 
     QTextStream out(stdout);
     QTextStream err(stderr);
     if (parser.isSet(dryRunOption)) {
         for (const PlannedMove &move : plan)
             printPlanned(out, move, options.mode);
+        printUnreadableNames(out, unreadable);
         out.flush();
         return 0;
     }
@@ -193,6 +210,7 @@ int runOrganise(const QStringList &arguments)
         printOutcome(out, err, outcome, options.mode);
     for (const QString &folder : report.removedFolders)
         out << QStringLiteral("removed folder: %1\n").arg(folder);
+    printUnreadableNames(out, unreadable);
     out.flush();
     err.flush();
     // O-CLI: 3 when anything failed. Skips are not failures.
