@@ -156,6 +156,9 @@ command-line tool, or both.
 - `linuxbeectl rules` checks a rule set, and tests a track against it.
 - Convert Format (Tools menu) and `linuxbeectl convert` convert files with
   presets. `linuxbeectl convert --list-presets` lists them.
+  A conversion to a disk that can neither move a file without replacing one
+  nor give it a second name (some network mounts) fails and says so;
+  converting to a local folder and copying is the way round.
 
 ### Settings, skins and import
 

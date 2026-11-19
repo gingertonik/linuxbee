@@ -7,10 +7,8 @@
 #include <cerrno>
 #include <optional>
 
-#include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -120,18 +118,28 @@ bool isShorter(qint64 length, qint64 reference)
     return length < reference - allowanceMs(reference);
 }
 
+// C-EXISTS: a name is there when the system says so of the name itself (lstat),
+// not of what it leads to: a link that leads nowhere is there.
+bool nameIsThere(const QString &path)
+{
+    struct stat info;
+    return ::lstat(QFile::encodeName(path).constData(), &info) == 0;
+}
+
 // How a count ended: with a length (or -1 when it cannot be counted), asked to
-// stop by the progress function, or silent for longer than the job allows.
-enum class Count { Counted, Cancelled, Silent };
+// stop by the progress function, silent for longer than the job allows, or
+// over the limit of what the part file can hold.
+enum class Count { Counted, Cancelled, Silent, TooMuch };
 
 // C-REPLACE 1: the sound of `path` counted by playing it through. The length
 // in milliseconds, or -1 when it cannot be counted (not started, ended badly,
 // no sample rate or no samples). The output is read as it comes: an hour of
 // Opus is some 180,000 lines. The count is watched: the progress function is
 // asked about once a second with `reported`, and ffprobe is killed and waited
-// for when it says stop or has printed nothing for `silenceMs`.
+// for when it says stop, has counted over `limitSamples` (0: no limit), or has
+// counted no samples for `silenceMs`.
 qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenceMs,
-    const ConvertProgress &progress, double reported, Count &how)
+    qint64 limitSamples, const ConvertProgress &progress, double reported, Count &how)
 {
     how = Count::Counted;
     QString program = QStringLiteral("ffprobe");
@@ -156,6 +164,10 @@ qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenc
     qint64 samples = 0;
     qint64 rate = 0;
     QByteArray pending;
+    QElapsedTimer sinceOutput;
+    sinceOutput.start();
+    // Only a frame with samples breaks the silence; any other line, however
+    // many, does not.
     const auto consume = [&](const QByteArray &chunk) {
         pending.append(chunk);
         for (int newline = pending.indexOf('\n'); newline >= 0; newline = pending.indexOf('\n')) {
@@ -164,8 +176,10 @@ qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenc
             bool ok = false;
             if (line.startsWith("nb_samples=")) {
                 const qint64 n = line.mid(11).toLongLong(&ok);
-                if (ok && n > 0)
+                if (ok && n > 0) {
                     samples += n;
+                    sinceOutput.restart();
+                }
             } else if (line.startsWith("sample_rate=")) {
                 const qint64 n = line.mid(12).toLongLong(&ok);
                 if (ok && rate == 0)
@@ -173,21 +187,19 @@ qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenc
             }
         }
     };
-    QElapsedTimer sinceOutput;
-    sinceOutput.start();
+    const auto overLimit = [&]() { return limitSamples > 0 && samples > limitSamples; };
     QElapsedTimer sinceCall;
     sinceCall.start();
     while (probe.state() != QProcess::NotRunning) {
         probe.waitForReadyRead(100);
-        const QByteArray chunk = probe.readAllStandardOutput();
-        if (!chunk.isEmpty())
-            sinceOutput.restart();
-        consume(chunk);
+        consume(probe.readAllStandardOutput());
         if (sinceCall.hasExpired(1000)) {
             sinceCall.restart();
             if (progress && !progress(reported))
                 how = Count::Cancelled;
         }
+        if (how == Count::Counted && overLimit())
+            how = Count::TooMuch;
         if (how == Count::Counted && probe.state() != QProcess::NotRunning
             && sinceOutput.hasExpired(silenceMs))
             how = Count::Silent;
@@ -199,6 +211,10 @@ qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenc
     }
     probe.waitForFinished(-1);
     consume(probe.readAllStandardOutput() + "\n");
+    if (overLimit()) {
+        how = Count::TooMuch;
+        return -1;
+    }
     if (probe.exitStatus() != QProcess::NormalExit || probe.exitCode() != 0 || rate <= 0
         || samples <= 0)
         return -1;
@@ -210,7 +226,7 @@ qint64 playedLengthMs(const QString &ffmpegPath, const QString &path, int silenc
 std::optional<ConvertResult> resolveExisting(
     const ConvertJob &job, const ReadResult &source, QString &destination)
 {
-    if (!QFileInfo::exists(destination))
+    if (!nameIsThere(destination))
         return std::nullopt;
 
     ConvertResult result;
@@ -238,7 +254,7 @@ std::optional<ConvertResult> resolveExisting(
         return result;
     case ConvertJob::IfExists::Rename: {
         const QString free = uniqueRelativePath(
-            destination, [](const QString &path) { return QFileInfo::exists(path); });
+            destination, [](const QString &path) { return nameIsThere(path); });
         if (free.isEmpty())
             return withStatus(
                 ConvertResult::Status::Failed, QStringLiteral("no free file name is left"));
@@ -253,12 +269,21 @@ std::optional<ConvertResult> resolveExisting(
 }
 
 // C-PLACE: what was at the destination's name when C-EXISTS answered, known by
-// what the system says it is (device and number), never by its name.
+// what the system says it is: device and number, and the size, the time of the
+// contents and the time of the record. Never by its name.
 struct Seen {
     bool file = false;
     dev_t device = 0;
     ino_t number = 0;
+    off_t size = 0;
+    timespec contents { };
+    timespec record { };
 };
+
+bool sameTime(const timespec &a, const timespec &b)
+{
+    return a.tv_sec == b.tv_sec && a.tv_nsec == b.tv_nsec;
+}
 
 Seen lookAt(const QString &destination)
 {
@@ -268,37 +293,62 @@ Seen lookAt(const QString &destination)
         seen.file = true;
         seen.device = info.st_dev;
         seen.number = info.st_ino;
+        seen.size = info.st_size;
+        seen.contents = info.st_mtim;
+        seen.record = info.st_ctim;
     }
     return seen;
 }
 
-enum class Placed { Done, Taken, Failed };
+enum class Placed { Done, Taken, Changed, Gone, NoWay, Failed };
+
+bool diskLacks(int error)
+{
+    return error == EINVAL || error == ENOSYS || error == ENOTSUP || error == EOPNOTSUPP;
+}
 
 // Step 9, nothing seen: the part file gets the name by a move that never
-// replaces. Where the disk cannot do that, a link and then an unlink.
-Placed moveWithoutReplacing(const QString &partPath, const QString &destination)
+// replaces. Where the disk cannot do that, a second name and then the taking
+// away of the part file's own. All three calls are the job's own; errno is read
+// straight after the call that set it. Nothing that can replace is called.
+Placed moveWithoutReplacing(
+    const convert::PlaceIo &io, const QString &partPath, const QString &destination)
 {
     const QByteArray from = QFile::encodeName(partPath);
     const QByteArray to = QFile::encodeName(destination);
-    if (::renameat2(AT_FDCWD, from.constData(), AT_FDCWD, to.constData(), RENAME_NOREPLACE) == 0)
+    if (io.renameNoReplace(from.constData(), to.constData()) == 0)
         return Placed::Done;
-    if (errno == EEXIST)
+    const int moveError = errno;
+    if (moveError == EEXIST)
         return Placed::Taken;
-    if (errno != EINVAL && errno != ENOSYS && errno != ENOTSUP && errno != EOPNOTSUPP)
+    if (!diskLacks(moveError))
         return Placed::Failed;
-    if (::link(from.constData(), to.constData()) != 0)
-        return errno == EEXIST ? Placed::Taken : Placed::Failed;
-    ::unlink(from.constData());
+    if (io.link(from.constData(), to.constData()) != 0) {
+        const int linkError = errno;
+        if (linkError == EEXIST)
+            return Placed::Taken;
+        if (linkError == EPERM || diskLacks(linkError))
+            return Placed::NoWay;
+        return Placed::Failed;
+    }
+    // The result has its name. If the part file's own name stays, that is a
+    // second name of the same file, and the job is not failed for it.
+    io.unlink(from.constData());
     return Placed::Done;
 }
 
 // Step 9, a file was seen (Overwrite): it is replaced only while the file at
-// the name is still that file, by device and number as C-EXISTS saw it.
+// the name is still that file, and as it was.
 Placed replaceSeen(const QString &partPath, const QString &destination, const Seen &seen)
 {
     const Seen now = lookAt(destination);
-    if (!now.file || now.device != seen.device || now.number != seen.number)
+    if (!now.file)
+        return Placed::Gone;
+    if (now.device != seen.device || now.number != seen.number)
         return Placed::Taken;
+    if (now.size != seen.size || !sameTime(now.contents, seen.contents)
+        || !sameTime(now.record, seen.record))
+        return Placed::Changed;
     return ::rename(
                QFile::encodeName(partPath).constData(), QFile::encodeName(destination).constData())
             == 0
@@ -316,14 +366,12 @@ Placed moveIntoPlace(
         return replaceSeen(partPath, destination, seen);
     QStringList tried;
     for (;;) {
-        const Placed placed = moveWithoutReplacing(partPath, destination);
+        const Placed placed = moveWithoutReplacing(job.placeIo, partPath, destination);
         if (placed != Placed::Taken || job.ifExists != ConvertJob::IfExists::Rename)
             return placed;
         tried.append(destination);
-        const QString next = uniqueRelativePath(job.destination, [&tried](const QString &path) {
-            const QFileInfo info(path);
-            return info.exists() || info.isSymLink() || tried.contains(path);
-        });
+        const QString next = uniqueRelativePath(job.destination,
+            [&tried](const QString &path) { return nameIsThere(path) || tried.contains(path); });
         if (next.isEmpty())
             return Placed::Failed;
         destination = next;
@@ -359,14 +407,14 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (std::optional<ConvertResult> done = resolveExisting(job, source, destination))
         return *done;
 
-    // file as readTags gives it (0 when it is not music).
-    // C-PLACE: what is at the name is looked at once, here. Only Overwrite onto a
-    // file that is there has a file seen; every other job saw nothing.
+    // C-PLACE: what is at the name is looked at once, here (by the name itself,
+    // not by what it leads to). Only Overwrite onto a file that is there has a
+    // file seen; every other job saw nothing.
     // C-REPLACE: with Overwrite onto a file that is there, the length of that
     // file as readTags gives it (0 when it is not music).
-    const bool replaces
-        = job.ifExists == ConvertJob::IfExists::Overwrite && QFileInfo::exists(destination);
-    const Seen seen = replaces ? lookAt(destination) : Seen();
+    const Seen seen
+        = job.ifExists == ConvertJob::IfExists::Overwrite ? lookAt(destination) : Seen();
+    const bool replaces = seen.file;
     qint64 oldLengthMs = 0;
     if (replaces) {
         ReadOptions oldOptions;
@@ -458,7 +506,10 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
 
     // C-WHOLE: the encoder is not taken at its word. The part file is read
     // whether or not tags are copied; one that cannot be read, or that is more
-    // than a second shorter than a source of known length, is refused.
+    // than a second shorter than a source of known length, is refused. Its own
+    // length and rate are what the count of C-REPLACE is limited by.
+    qint64 madeLengthMs = 0;
+    qint64 madeRateHz = 0;
     {
         ReadOptions lookOptions;
         lookOptions.pictures = false;
@@ -474,13 +525,19 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
             return withStatus(ConvertResult::Status::Failed,
                 QStringLiteral("the converted file is shorter than the source"));
         }
+        madeLengthMs = made.tags.audio.durationMs;
+        madeRateHz = made.tags.audio.sampleRateHz;
     }
 
     // C-REPLACE: what replaces a file is played through first.
     if (replaces) {
         Count how = Count::Counted;
-        const qint64 played
-            = playedLengthMs(job.ffmpegPath, partPath, job.countSilenceMs, progress, reported, how);
+        // More samples than ten times the length and a minute, at the header's
+        // rate, is a count that does not end. No limit when the rate is 0.
+        const qint64 limitSamples
+            = madeRateHz > 0 ? (10 * madeLengthMs + 60000) * madeRateHz / 1000 : 0;
+        const qint64 played = playedLengthMs(
+            job.ffmpegPath, partPath, job.countSilenceMs, limitSamples, progress, reported, how);
         if (how == Count::Cancelled) {
             QFile::remove(partPath);
             return withStatus(ConvertResult::Status::Cancelled, QStringLiteral("cancelled"));
@@ -489,6 +546,12 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
             QFile::remove(partPath);
             return withStatus(ConvertResult::Status::Failed,
                 QStringLiteral("the converted file could not be checked: ffprobe gave no answer"));
+        }
+        if (how == Count::TooMuch) {
+            QFile::remove(partPath);
+            return withStatus(ConvertResult::Status::Failed,
+                QStringLiteral("the converted file could not be checked: ffprobe counted far "
+                               "more than the file's length"));
         }
         if (played < 0) {
             QFile::remove(partPath);
@@ -527,10 +590,30 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
     if (placed != Placed::Done) {
         QFile::remove(partPath);
         result.status = ConvertResult::Status::Failed;
-        result.message = placed == Placed::Taken
-            ? QStringLiteral(
-                  "a file appeared at the destination while converting; it was not replaced")
-            : QStringLiteral("could not move the converted file into place");
+        switch (placed) {
+        case Placed::Taken:
+            result.message = QStringLiteral(
+                "a file appeared at the destination while converting; it was not replaced");
+            break;
+        case Placed::Changed:
+            result.message = QStringLiteral(
+                "the file at the destination was changed while converting; it was not replaced");
+            break;
+        case Placed::Gone:
+            result.message = QStringLiteral("the file at the destination was removed while "
+                                            "converting; the converted file was not put there");
+            break;
+        case Placed::NoWay:
+            result.message
+                = QStringLiteral("the converted file could not be put in place: this disk can "
+                                 "neither move a file without replacing one nor give it a second "
+                                 "name");
+            break;
+        case Placed::Failed:
+        case Placed::Done:
+            result.message = QStringLiteral("could not move the converted file into place");
+            break;
+        }
         return result;
     }
     // The file is in place. The final report cannot undo that, so the answer
