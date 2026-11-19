@@ -28,6 +28,7 @@ settings and the library file may still change.
 - **A check that prints without end no longer holds a conversion.** Convert with Overwrite ends `ffprobe` and fails the file when it counts far more than the file can hold, and lines that count nothing no longer keep it waiting.
 - **Copy on a disk that can share data (btrfs, XFS) is immediate again and takes no second room.** The careful copy asks the disk to share the bytes first, and reads and writes them only when the disk says no.
 - **A playlist that another program changed while linuxBee was editing it is no longer written over.** An editor, a sync client or another player that wrote the file between linuxBee reading it and replacing it had its change lost, and the call said it had worked. The change is now refused, and the file is left as the other program made it.
+- **Playlists can be edited again on disks without hard links (FAT, exFAT).** The refusal of a change made by another program needed a second name for a file, which those disks do not give, and every edit failed there.
 
 ## 0.8.0 (2026-11-18)
 
