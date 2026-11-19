@@ -563,6 +563,7 @@ QString PlaylistStore::validateName(const QString &name)
 // nothing changed is not written.
 int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
 {
+    m_passedOver.clear(); // Y-RELINK: the list starts empty at every call
     if (oldToNew.isEmpty())
         return 0;
     int written = 0;
@@ -571,8 +572,10 @@ int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
         const QString path = fileFor(m_folder, info.id);
         // The one read of this playlist, whole; one that was not is passed over.
         const std::optional<QByteArray> read = readWhole(m_opener, path);
-        if (!read)
+        if (!read) {
+            m_passedOver.append(info.id);
             continue;
+        }
         const QByteArray &data = *read;
 
         QByteArray out;
@@ -606,10 +609,10 @@ int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
             continue;
 
         QSaveFile file(path);
-        if (!file.open(QIODevice::WriteOnly))
+        if (!file.open(QIODevice::WriteOnly) || file.write(out) != out.size() || !file.commit()) {
+            m_passedOver.append(info.id);
             continue;
-        if (file.write(out) != out.size() || !file.commit())
-            continue;
+        }
         ++written;
         emit tracksChanged(info.id);
     }

@@ -20,6 +20,7 @@ settings and the library file may still change.
 - Convert with Overwrite plays the result through before it replaces a file, and refuses one that is shorter than the source or than the file it would replace. This needs `ffprobe`, which comes with ffmpeg.
 - Undo now says when the files changed since will not be put back by trying again: the message ends "(a new edit drops this)" when nothing failed and only changed files are left.
 - A playlist that cannot be read whole is no longer rewritten when its files move (Relink), and a pipe with a playlist's name is no longer opened.
+- **Playlists that could not follow files that moved are named.** When files move (Organise, for one), a playlist that cannot be read whole or written is passed over; the window now says which ones, instead of leaving a person to take every playlist to have followed.
 
 ## 0.8.0 (2026-11-18)
 
