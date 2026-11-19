@@ -135,9 +135,29 @@ TagLib does it. `readTags` returns them as separate values again.
   |---|---|---|---|---|---|---|---|---|---|---|
   | Byte | 13 | 1 | 54 | 64 | 118 | 128 | 186 | 196 | 242 | 255 |
 
-  If the file has a `POPM` frame, its address text and its play counter are
-  kept. A new frame has an empty address and a counter of 0. Removing the
-  rating removes the frame.
+  **One byte of one frame.** (Ruled 2026-11-18. Until then every
+  `POPM` frame was taken out and one written: another player's frame
+  was lost, and taking a rating out lost the play counter.)
+
+  - The rating is the byte of the first `POPM` frame, the one it is
+    read from (R-RATING). Setting it changes that byte and nothing
+    else of that frame: its address and its counter stay. This holds
+    also when the first frame's byte is 0.
+  - Every other `POPM` frame stays: its address, byte and counter,
+    and its place among them.
+  - A file with no `POPM` frame gets one, with an empty address and a
+    counter of 0.
+  - Taking the rating out sets the first frame's byte to 0 and keeps
+    the frame when it has a counter above 0 or is not the only `POPM`
+    frame. (Were the first of two taken out, the second would be
+    read as the rating.) A lone frame with a counter of 0 is removed.
+  - Where the file reads as not rated, taking the rating out is
+    `Unchanged` (W-UNCHANGED), frames or none.
+  - Remove Tags with "All tags" does not come this way: it hands the
+    frames whole, none of them (tagging-tools.md, G-REMOVE).
+
+  Known and left: the tag library writes a frame's two flag bytes as
+  zeros, for every frame it writes, these among them.
 
   **The frames whole.** A change can carry the `POPM` frames
   themselves: the address, rating byte and counter of each, in order.

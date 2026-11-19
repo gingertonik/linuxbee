@@ -118,8 +118,9 @@ not touch them. In every other format the rating is a key like any
 other, and UN-RECORD is all there is.
 
 This is about undo only. What a rating change does to the frames is
-W-RATING, as it was: one frame is left, with the address and counter
-of the first, and removing the rating removes the frame.
+W-RATING: the byte of the first frame, and the others stay. Undo is
+still needed for the byte itself (200 reads as four stars and is
+written as 196), and for a lone frame that was removed.
 
 ## UN-KEEP: a file that was not put back stays in the step
 
