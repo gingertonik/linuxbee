@@ -93,8 +93,10 @@ passes over), and runs `linuxbeectl trash`. It also holds that a
 record another program made is never removed, with the other
 program's step put in the middle of the command by the debugger. The
 gate runs it as `tests/locked/cli_trash_seconddisk.sh`. Where a user
-name space is refused it prints `SKIPPED:` and passes; a run that
-says so has not held this rule.
+name space is refused it prints `SKIPPED:` and answers 77, and so it
+does when any one of its probes was skipped and none failed; ctest
+shows that as a test skipped, not passed. A run that says so has not
+held this rule. It answers 0 only when everything was tried.
 
 ## FD-SEND: "it went" is said only when it went
 

@@ -8,13 +8,18 @@
 # (`unshare -r -m`, no root needed) it mounts a memory disk, puts a trash on it, and runs the real
 # command. Nothing outside its own temporary folder is touched; the mounts end with the name space.
 #
-# Where a user name space is refused (most build services) it prints "SKIPPED: ..." and passes: the
-# rule is then not held there, and the line says so. The last line is "second-disk-trash: N failed".
+# Where a user name space is refused (most build services) it prints "SKIPPED: ..." and answers 77,
+# which the gate shows as a test that was skipped, not passed: the rule is then not held there. It
+# answers 77 too when any one probe was skipped and none failed. 0 is only for a run in which
+# everything was tried. The last line is "second-disk-trash: N failed".
 #
 # Corrected after the review of fix-92: no path is pasted into a debugger line any more (the steps
 # are files, named to the debugger's shell by the environment); a work folder whose path has a
 # character outside A-Z a-z 0-9 . _ / - is refused; a debugger probe counts only when the command
 # was really stopped, and the script tries that on itself each run.
+# After the review of that correction: a command that never started, or was killed, is not "stopped"
+# either; a run with anything skipped answers 77; inside, the work folder must be one this script
+# made.
 set -u
 case "${1:-}" in
 '') echo "usage: second-disk-trash.sh BUILD-FOLDER | LINUXBEECTL" >&2; exit 2 ;;
@@ -27,7 +32,7 @@ esac
 skipped() {
     echo "SKIPPED: $1; FD-TAKEN on another disk is not held by this run"
     echo "second-disk-trash: 0 failed"
-    exit 0
+    exit 77
 }
 # A name space of this run's own: the user map is not the one every process starts with.
 own_space() {
@@ -59,9 +64,17 @@ own_space || { echo "second-disk-trash: not in a name space of its own; nothing 
 case $S in
 '' | *[!A-Za-z0-9._/-]*) echo "second-disk-trash: no work folder, or one this script does not work with" >&2; exit 2 ;;
 esac
+# And only in a folder that the outer run made: its name is mktemp's, and it is empty.
+case ${S##*/} in
+lb-sdt.??????) ;;
+*) echo "second-disk-trash: the work folder is not one this script made; nothing was done" >&2; exit 2 ;;
+esac
+[ -d "$S" ] && [ ! -L "$S" ] && [ -z "$(ls -A "$S")" ] || { echo "second-disk-trash: the work folder is not there, or not empty; nothing was done" >&2; exit 2; }
 : > "$S/began"
 uid=$(id -u)
 fails=0
+skips=0
+skip() { echo "SKIPPED: $1"; skips=$((skips + 1)); }
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 is() { if [ "$2" = "$3" ]; then pass "$1"; else fail "$1: [$2], wanted [$3]"; fi; }
@@ -73,7 +86,7 @@ mkdir -p "$S/try"
 if ! mount -t tmpfs -o size=1m tmpfs "$S/try" 2> /dev/null; then
     echo "SKIPPED: a memory disk cannot be mounted in the name space; FD-TAKEN on another disk is not held by this run"
     echo "second-disk-trash: 0 failed"
-    exit 0
+    exit 77
 fi
 umount "$S/try"
 
@@ -152,7 +165,7 @@ if mount --bind "$W/real" "$W/disk" 2> /dev/null; then
     is "a second mount: the file in the data folder's trash has its bytes" "$(cat "$W/data/Trash/files/a.mp3")" "$ORPHAN"
     umount "$W/disk"
 else
-    echo "SKIPPED: a second mount of a folder (mount --bind is refused here)"
+    skip "a second mount of a folder (mount --bind is refused here)"
 fi
 
 # 3. A record that another program made is not linuxBee's to remove.
@@ -179,12 +192,15 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
     export SHELL=/bin/sh
     # stopped CALLS CONDITION: runs the command under gdb; where it stops at one of CALLS (and
     # CONDITION holds, when one is given), the file $W/step is run. True when it was.
+    # "Stopped" is: a thread is there, and the command has neither ended nor been killed. (When the
+    # command could not be started there is no exit code either, and no thread.)
+    PROGRAM=$ctl
     stopped() {
         export LINUXBEE_SDT_STEP="$W/step" LINUXBEE_SDT_W="$W" LINUXBEE_SDT_T="$T"
         printf '%s\n' "$STEP" ': > "$LINUXBEE_SDT_W/stopped"' > "$W/step"
         set -- "$1" "${2:-1}"
         gdb -q -batch -nx -ex 'set debuginfod enabled off' -ex 'set pagination off' -ex "catch syscall $1" -ex "condition 1 $2" -ex run \
-            -ex 'eval "shell [ %d = 1 ] && sh \"$LINUXBEE_SDT_STEP\"", $_isvoid($_exitcode)' -ex delete -ex continue --args "$ctl" trash "$SRC" > "$W/gdb.out" 2>&1
+            -ex 'eval "shell [ %d%d = 11 ] && [ %d != 0 ] && sh \"$LINUXBEE_SDT_STEP\"", $_isvoid($_exitcode), $_isvoid($_exitsignal), $_thread' -ex delete -ex continue --args "$PROGRAM" trash "$SRC" > "$W/gdb.out" 2>&1
         [ -e "$W/stopped" ]
     }
     RECORD='[Trash Info]\nPath=/elsewhere/a.mp3\nDeletionDate=2026-01-01T00:00:00\n'
@@ -201,7 +217,7 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
             is "a record made between the look and the making: still there, and theirs" "$(ls -i "$T/info/a.mp3.trashinfo" 2> /dev/null | cut -d' ' -f1)" "$(cat "$W/theirs")"
             is "a record made between the look and the making: the file under the name has its bytes" "$(cat "$T/files/a.mp3")" "$ORPHAN"
         else
-            echo "SKIPPED: a record made between the look and the making (the command did not stop where this probe waits)"
+            skip "a record made between the look and the making (the command did not stop where this probe waits)"
         fi
         done_with
     }
@@ -212,7 +228,7 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
         if stopped 'renameat renameat2' ''; then
             grep -q '^Path=/elsewhere/a.mp3$' "$T/info/a.mp3.trashinfo" 2> /dev/null && pass "a record put in the place of the empty one: still there" || fail "a record put in the place of the empty one: removed"
         else
-            echo "SKIPPED: a record put in the place of the empty one (the library did not stop where this probe waits)"
+            skip "a record put in the place of the empty one (the library did not stop where this probe waits)"
         fi
         done_with
     }
@@ -223,7 +239,7 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
         if stopped 'renameat renameat2' ''; then
             grep -q '^Path=/elsewhere/a.mp3$' "$T/info/a.mp3.trashinfo" 2> /dev/null && pass "a record written into the empty one: still there" || fail "a record written into the empty one: removed"
         else
-            echo "SKIPPED: a record written into the empty one (the library did not stop where this probe waits)"
+            skip "a record written into the empty one (the library did not stop where this probe waits)"
         fi
         done_with
     }
@@ -247,9 +263,35 @@ if command -v gdb > /dev/null 2>&1 && [ "$(uname -m)" = x86_64 ]; then
         [ ! -e "$W/theirs" ] && ! grep -q elsewhere "$T/info/"* 2> /dev/null && pass "the script itself, $which: and its step was not run" || fail "the script itself, $which: its step was run all the same"
         done_with
     done
+    # The same for a command that cannot be started, and for one that is killed: neither has an
+    # exit code, and neither was stopped.
+    for which in "never started" "killed"; do
+        fresh "never-$(echo "$which" | tr -d ' ')" dash || continue
+        orphan
+        STEP=$theirs_made
+        case $which in
+        "never started") PROGRAM=$W/no-such-program ;;
+        killed)
+            printf '#!/bin/sh\nkill -9 $$\n' > "$W/dies"
+            chmod +x "$W/dies"
+            PROGRAM=$W/dies
+            ;;
+        esac
+        if stopped vhangup ''; then
+            fail "the script itself, a command $which: said to have been stopped"
+        else
+            pass "the script itself, a command $which: not said to have been stopped"
+        fi
+        [ ! -e "$W/theirs" ] && pass "the script itself, a command $which: and its step was not run" || fail "the script itself, a command $which: its step was run all the same"
+        PROGRAM=$ctl
+        done_with
+    done
 else
-    echo "SKIPPED: the three probes that need the debugger (no gdb, or not x86-64)"
+    skip "the three probes that need the debugger (no gdb, or not x86-64)"
 fi
 
+[ "$skips" = 0 ] || echo "second-disk-trash: $skips skipped; this run has not held the whole rule"
 echo "second-disk-trash: $fails failed"
-[ "$fails" = 0 ]
+[ "$fails" = 0 ] || exit 1
+[ "$skips" = 0 ] || exit 77
+exit 0
