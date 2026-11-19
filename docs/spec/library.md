@@ -258,8 +258,16 @@ file.)
 - What has gone (L-SCAN, "after the files") is found before the
   files are looked at. It is reported as before: `nowMissing`, in the
   last part, and not when the scan was cancelled.
-- The rows a file may be are every track marked missing, wherever
-  its path lies, and every track just found gone.
+- The rows a file may be are every track marked missing **at whose
+  path nothing is**, wherever its path lies, and every track just
+  found gone. That is asked of the disk, once for each track marked
+  missing, whether or not its folder is scanned. (Found by the
+  review of this rule's first build, 2026-11-19: a track marked
+  missing whose file was back at its own path was such a row. A copy
+  alike in size, time and tags took it, in one call and not in parts
+  of one; the plays and the playlists went to the copy, and the file
+  that was the track came back as a new one.) Such a track is found
+  again by the scan of its folder, as before (L-SCAN).
 - A file the library does not know, whose size and modification time
   (to the second, as stored) are those of one or more such rows, is
   **held back**. It is read as any new file is, and it is not in
@@ -279,9 +287,10 @@ file.)
 
 - For each held-back file, the rows that are its own: those of its
   rows that the library still holds as they were looked at (L-PARTS,
-  `judged`), and whose stored reading is the file's reading: the
-  same fields, the same properties of the sound, the same count of
-  pictures.
+  `judged`), **at whose path nothing is by now**, and whose stored
+  reading is the file's reading: the same fields, the same
+  properties of the sound, the same count of pictures. A row is
+  never moved away from a file that is there.
 - **One to one, or not at all.** When a file has exactly one row of
   its own, and no other held-back file of this call has that row as
   its own, the row takes the file over: its path is the file's, it
@@ -313,8 +322,19 @@ Known and left:
   file are not brought together: the file is known, so it is not
   new.
 - No counter holds the cost. The sizes and times come from what the
-  scan knows already; one track is read from the library for each
-  row of a held-back file.
+  scan knows already; the disk is asked once for each track marked
+  missing; one track is read from the library for each row of a
+  held-back file. With 500 files moved of 5,000 a scan took nine
+  times as long as with none (the review, a debug build).
+- **A disk that is away.** Its tracks are marked missing (its folder
+  is there and empty), nothing is at their paths, and copies alike in
+  size, time and tags that are found elsewhere take the rows over.
+  When the disk is back its files are new tracks. Nothing is lost:
+  the plays are on the copies. A scan cannot tell a disk that is
+  away from one that was given up for the copy, and following in the
+  second case is what this rule is for.
+- `linuxbeectl library scan` has no playlists: a file it follows
+  keeps its old path in them until the window relinks.
 
 ### L-NAMES
 
