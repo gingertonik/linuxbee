@@ -24,6 +24,7 @@ settings and the library file may still change.
 - **A check that hangs no longer stops a conversion batch.** Convert with Overwrite gives up on `ffprobe` after 30 seconds of silence and fails the file (the file that is there stays), and Cancel is now answered during the check.
 - **Playlists that could not follow files that moved are named.** When files move (Organise, for one), a playlist that cannot be read whole or written is passed over; the window now says which ones, instead of leaving a person to take every playlist to have followed.
 - **Rating a file no longer removes the rating frames of other players or the play counter** (MP3 and WAV): the rating is now one byte of the first rating frame, and everything else in it stays. Remove Tags with "All tags" still takes every rating frame out.
+- **Copy on a disk that can share data (btrfs, XFS) is immediate again and takes no second room.** The careful copy asks the disk to share the bytes first, and reads and writes them only when the disk says no.
 
 ## 0.8.0 (2026-11-18)
 
