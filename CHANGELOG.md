@@ -23,6 +23,7 @@ settings and the library file may still change.
 - **A conversion no longer replaces a file that appeared at its destination while it ran.** In Keep both the result goes to the next free name, and in Skip and Overwrite the job fails and says so; Overwrite replaces only the file it saw when it began.
 - **A check that hangs no longer stops a conversion batch.** Convert with Overwrite gives up on `ffprobe` after 30 seconds of silence and fails the file (the file that is there stays), and Cancel is now answered during the check.
 - **Playlists that could not follow files that moved are named.** When files move (Organise, for one), a playlist that cannot be read whole or written is passed over; the window now says which ones, instead of leaving a person to take every playlist to have followed.
+- **A playlist that another program changed while linuxBee was editing it is no longer written over.** An editor, a sync client or another player that wrote the file between linuxBee reading it and replacing it had its change lost, and the call said it had worked. The change is now refused, and the file is left as the other program made it.
 
 ## 0.8.0 (2026-11-18)
 
