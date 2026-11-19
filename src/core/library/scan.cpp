@@ -5,18 +5,12 @@
 #include <QFileInfo>
 #include <QSet>
 #include <QString>
-#include <QStringConverter>
 #include <QStringList>
 #include <QTimeZone>
 
-#include <dirent.h>
-#include <sys/stat.h>
-
 #include <algorithm>
 #include <chrono>
-#include <cstring>
 #include <optional>
-#include <set>
 #include <utility>
 
 #include "files/musicfiles.h"
@@ -90,60 +84,6 @@ bool insideAnyFolder(const QString &path, const QStringList &folders)
             return true;
     }
     return false;
-}
-
-// L-NAMES: a name is valid when its bytes are UTF-8, checked with a decoder
-// that reports errors and not by a round trip through QString.
-bool isValidUtf8(const QByteArray &name)
-{
-    QStringDecoder decoder(QStringDecoder::Utf8);
-    [[maybe_unused]] const QString decoded = decoder(name); // without this use, no error is seen
-    return !decoder.hasError();
-}
-
-// L-NAMES: what the walk has found so far. A folder is told apart by its
-// device and inode, so one named or reached twice is walked once.
-struct UnreadableWalk {
-    std::set<std::pair<dev_t, ino_t>> visited;
-    int names = 0;
-    QStringList folders;
-};
-
-// L-NAMES: counts the entries of one folder whose names are not valid UTF-8,
-// and walks below it the way the organiser's walk does: hidden folders and
-// symbolic links are not gone into. A folder with an invalid name is counted
-// by its parent and not gone into, since no path to it can be made in text.
-void walkForUnreadable(const QString &folder, UnreadableWalk *walk)
-{
-    const QByteArray path = folder.toUtf8();
-    struct stat rootInfo;
-    if (::stat(path.constData(), &rootInfo) != 0 || !S_ISDIR(rootInfo.st_mode))
-        return;
-    if (!walk->visited.insert({ rootInfo.st_dev, rootInfo.st_ino }).second)
-        return;
-    DIR *dir = ::opendir(path.constData());
-    if (!dir)
-        return;
-    int here = 0;
-    while (const dirent *entry = ::readdir(dir)) {
-        if (std::strcmp(entry->d_name, ".") == 0 || std::strcmp(entry->d_name, "..") == 0)
-            continue;
-        const QByteArray name(entry->d_name);
-        if (!isValidUtf8(name)) {
-            ++walk->names;
-            ++here;
-            continue;
-        }
-        if (name.startsWith('.'))
-            continue;
-        const QByteArray childPath = path + '/' + name;
-        struct stat childInfo;
-        if (::lstat(childPath.constData(), &childInfo) == 0 && S_ISDIR(childInfo.st_mode))
-            walkForUnreadable(folder + QLatin1Char('/') + QString::fromUtf8(name), walk);
-    }
-    ::closedir(dir);
-    if (here > 0)
-        walk->folders.append(folder);
 }
 
 // L-SCAN, the reader's number: the properties of the sound, as the library keeps them.
@@ -298,14 +238,13 @@ QList<qint64> goneFromFolders(
 // UTF-8, each folder named once in ascending order.
 void findUnreadableNames(const QStringList &folders, ScanFindings *found)
 {
-    UnreadableWalk walk;
+    QStringList clean;
     for (const QString &folder : folders) {
-        const QString clean = libraryPath(folder);
-        if (!clean.isEmpty())
-            walkForUnreadable(clean, &walk);
+        const QString path = libraryPath(folder);
+        if (!path.isEmpty())
+            clean.append(path);
     }
-    walk.folders.removeDuplicates();
-    walk.folders.sort();
+    const UnreadableNames walk = unreadableNamesBelow(clean);
     found->unreadableNames = walk.names;
     found->unreadableIn = walk.folders;
 }

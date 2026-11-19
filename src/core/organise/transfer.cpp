@@ -97,6 +97,36 @@ bool sourceStillThere(const QByteArray &from)
     return ::lstat(from.constData(), &st) == 0 || errno != ENOENT;
 }
 
+// O-EXECUTE, a source that is a link: true when the source is a link that leads to a file
+// now and would not lead to that same file (device and file number) from the target's
+// folder. A text that begins at the root leads where it led; a relative one is read from the
+// target's folder. A link that leads nowhere already, a source that is not a link, and a
+// target on another file system (the move across refuses links itself) are not asked.
+bool linkWouldBreak(const QByteArray &from, const QByteArray &to)
+{
+    struct stat own { };
+    if (::lstat(from.constData(), &own) != 0 || !S_ISLNK(own.st_mode))
+        return false;
+    struct stat leadsTo { };
+    if (::stat(from.constData(), &leadsTo) != 0)
+        return false;
+    QByteArray text(4096, '\0');
+    const ssize_t n = ::readlink(from.constData(), text.data(), size_t(text.size()));
+    if (n <= 0 || n >= text.size())
+        return false;
+    text.truncate(int(n));
+    if (text.startsWith('/'))
+        return false;
+    const qsizetype slash = to.lastIndexOf('/');
+    const QByteArray folder
+        = slash > 0 ? to.left(slash) : (slash == 0 ? QByteArray("/") : QByteArray("."));
+    struct stat folderInfo { };
+    if (::stat(folder.constData(), &folderInfo) == 0 && folderInfo.st_dev != own.st_dev)
+        return false;
+    struct stat there { };
+    return ::stat((folder + '/' + text).constData(), &there) != 0 || !sameFile(there, leadsTo);
+}
+
 // The spare name of a copy: `.lbmove-` and six characters of a-z and 0-9, in the target's
 // folder (O-SPARE). Nothing of the file's own name is in it.
 QByteArray spareName(const QByteArray &folder)
@@ -336,6 +366,8 @@ QString transferFileWith(
         // file systems it answers EXDEV and nothing else happens.
         const QByteArray from = QFile::encodeName(source);
         const QByteArray to = QFile::encodeName(target);
+        if (linkWouldBreak(from, to))
+            return QStringLiteral("the link would not lead to its file from there");
         if (io.renameNoReplace(from.constData(), to.constData()) == 0)
             return { };
         switch (errno) {
