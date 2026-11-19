@@ -217,7 +217,12 @@ playlist, go this way:
    its record was.
 2. The one read (Y-EDIT), through the opener.
 3. When there is something to write, the new bytes are written
-   beside the file, whole.
+   beside the file. **Before step 4 they are all there, flushed to
+   the disk, in a file that has a name of its own** in the
+   playlist's folder: `.lbsave-` and six characters of `a` to `z`
+   and `0` to `9`, made new (never a name that is there). Nothing is
+   written to that file after this step, and it gets no other name
+   but the playlist's.
 4. `setBeforeReplace`'s hook is called with the file's path, if one
    is set. It is there for the test, which is the other program at
    that moment; the program sets none.
@@ -226,7 +231,20 @@ playlist, go this way:
    is replaced: what was written beside the file is removed, the
    file is as the other program left it, the call answers 0 or false
    and `tracksChanged` is not emitted.
-6. The file is replaced.
+6. The file is replaced: **one call, the rename of the spare name
+   onto the playlist's, made straight after the look of step 5.**
+   Nothing is done between the two: no flush, no close, no naming.
+   (Found by the review of this rule's first build, 2026-11-19: the
+   look was taken, and then the file beside was flushed, named and
+   closed before it was put in place. That took about four tenths of
+   a millisecond on a disk of the btrfs kind, half the time of the
+   whole call, and about half of what another program wrote
+   meanwhile was still lost.)
+
+A refusal at step 5, and a replacing that fails, take the spare name
+away. A run that is killed between step 3 and step 6 can leave it:
+it is hidden, it is no playlist (Y-STORE lists `.m3u8` files), it is
+not in the way of a later call, and nothing removes or uses it.
 
 A call with nothing to write (Y-STORE) ends before step 3: it writes
 nothing beside the file, calls no hook and takes no second look.
@@ -258,8 +276,11 @@ are for a file system that keeps that time badly.
 Known and left:
 
 - A change made after the second look and before the replacing is
-  still lost. Nothing stands between the two but the replacing
-  itself; no test reaches it.
+  still lost. With nothing between the two but the replacing itself
+  that moment measured two to three millionths of a second (the
+  review's trace, 2026-11-19). No test reaches it, and no test can
+  see a flush put back between the two: the review reads for it,
+  and measures it.
 - Two changes inside one tick of the file system's clock that leave
   the size as it was are one state to the looks.
 - `removeAt` and `moveTrack` are given positions. A file changed
