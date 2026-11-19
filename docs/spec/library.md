@@ -213,8 +213,9 @@ looked at, and its progress function is never called.
 The order of ids. In the findings and in the report, `nowMissing` is in
 ascending order of path, and `fresh`, `reread` and `found` are in the
 order the files were looked at. `tracksAdded` names the ids of the
-report's `added`; `tracksUpdated` names `found`, then `updated`, then
-`nowMissing`.
+report's `added`; `tracksUpdated` names `found`, then `updated`,
+then `followed`, then `nowMissing`. (L-FOLLOW adds `maybeMoved` to the findings and
+`followed` to the report.)
 
 **A library that changed meanwhile.** The looking takes time, and the
 library can change before what was found is stored. So the findings
@@ -243,6 +244,97 @@ in order and then the answer stores what one `applyScan` of the whole
 would; the reports add up to its report (`addedUp(a, b)`: the lists of
 `a` then of `b`, the counts added, `cancelled` if either). Without a
 `part` function, or with a size of 0, nothing is handed over early.
+
+### L-FOLLOW: a scan follows a file that another program moved
+
+(Found by the write-path audit, part 5, F1, 2026-11-18. A file renamed
+or moved by any other hand was a track gone and a track new. The
+plays, the skips, the last play and the date added stayed on a row
+marked missing, and nothing in the program could bring them to the
+file.)
+
+**The looking** (`findForScan`).
+
+- What has gone (L-SCAN, "after the files") is found before the
+  files are looked at. It is reported as before: `nowMissing`, in the
+  last part, and not when the scan was cancelled.
+- The rows a file may be are every track marked missing **at whose
+  path nothing is**, wherever its path lies, and every track just
+  found gone. That is asked of the disk, once for each track marked
+  missing, whether or not its folder is scanned. (Found by the
+  review of this rule's first build, 2026-11-19: a track marked
+  missing whose file was back at its own path was such a row. A copy
+  alike in size, time and tags took it, in one call and not in parts
+  of one; the plays and the playlists went to the copy, and the file
+  that was the track came back as a new one.) Such a track is found
+  again by the scan of its folder, as before (L-SCAN).
+- A file the library does not know, whose size and modification time
+  (to the second, as stored) are those of one or more such rows, is
+  **held back**. It is read as any new file is, and it is not in
+  `fresh`: it is in `maybeMoved`, with the ids of those rows in
+  ascending order. One that cannot be read as audio is in `notAudio`
+  as before. `judged` carries what was known of each row named.
+- `maybeMoved` is carried by the last part only, in the order the
+  files were looked at. A cancelled scan carries none: nothing is
+  stored for those files, not a new track either, and the next scan
+  sees them again.
+- Every other new file is `fresh`, as before. A scan in which no new
+  file has the size and time of a missing or gone row does what it
+  did before.
+
+**The storing** (`applyScan`), after `fresh` and `reread`, before
+`nowMissing`.
+
+- For each held-back file, the rows that are its own: those of its
+  rows that the library still holds as they were looked at (L-PARTS,
+  `judged`), **at whose path nothing is by now**, and whose stored
+  reading is the file's reading: the same fields, the same
+  properties of the sound, the same count of pictures. A row is
+  never moved away from a file that is there.
+- **One to one, or not at all.** When a file has exactly one row of
+  its own, and no other held-back file of this call has that row as
+  its own, the row takes the file over: its path is the file's, it
+  is not missing, and its id, its section, its date added and its
+  statistics stay. Its id is in `followed`, and in no other list of
+  the report: not `found`, not `nowMissing`, not `added`.
+- Every other held-back file is added as a new track, as a `fresh`
+  file is, after the `fresh` files. Its rows are marked missing, or
+  stay so. Two files alike for one row, and two rows alike for one
+  file, are such cases: the rule does not guess.
+- A file whose path the library holds by now is left alone.
+- Whole or not at all, as the scan is (L-FAILED).
+
+**The signals.** `tracksUpdated` names `found`, then `updated`, then
+`followed`, then `nowMissing`. After it, when a row was followed, one
+`pathsMoved` with the path each such row had and the one it has
+(L-MOVED), so that whatever holds the old path follows.
+
+`addedUp` adds `followed` up.
+
+Known and left:
+
+- A file that was changed as well as moved (tagged again, encoded
+  again) has another size or time. It is a track gone and a track
+  new, as before.
+- A track that is not marked missing and lies outside the scanned
+  folders is not looked at. A library moved whole is `relinkPaths`.
+- A row and a track that an earlier scan already made of its moved
+  file are not brought together: the file is known, so it is not
+  new.
+- No counter holds the cost. The sizes and times come from what the
+  scan knows already; the disk is asked once for each track marked
+  missing; one track is read from the library for each row of a
+  held-back file. With 500 files moved of 5,000 a scan took nine
+  times as long as with none (the review, a debug build).
+- **A disk that is away.** Its tracks are marked missing (its folder
+  is there and empty), nothing is at their paths, and copies alike in
+  size, time and tags that are found elsewhere take the rows over.
+  When the disk is back its files are new tracks. Nothing is lost:
+  the plays are on the copies. A scan cannot tell a disk that is
+  away from one that was given up for the copy, and following in the
+  second case is what this rule is for.
+- `linuxbeectl library scan` has no playlists: a file it follows
+  keeps its old path in them until the window relinks.
 
 ### L-NAMES
 
@@ -486,8 +578,8 @@ every track whose path a call changed.
 A call that changed no path does not emit it. It comes after the
 change is stored and after `tracksUpdated`.
 
-Not covered: a file moved by another program. The scan sees a file
-that is gone and a new one.
+Not covered by `recordMoves`: a file moved by another program. A scan
+follows it (L-FOLLOW), and says `pathsMoved` then.
 
 ### L-STATS
 
@@ -571,6 +663,10 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
 
   with `1 name that is` for one, and each folder indented by two spaces.
   The exit status does not change.
+  When the scan followed files (L-FOLLOW) it prints, directly after
+  the result line and before any line about names:
+  `followed N files that were moved`, and for one
+  `followed 1 file that was moved`. Nothing when it followed none.
 - A scan that could not be stored (L-FAILED) prints no result line. On
   standard error: `linuxbeectl: the scan was not stored: ` and the
   database's words. Exit 3.

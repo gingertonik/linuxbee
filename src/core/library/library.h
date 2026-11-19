@@ -68,6 +68,8 @@ struct ScanReport {
     int passedOver = 0;
     // L-FAILED: why nothing was stored; empty when the scan was stored.
     QString refused;
+    // L-FOLLOW: tracks whose file another program moved; each is at its file's path now.
+    QList<qint64> followed;
 };
 
 // L-SCAN: the reader's number. Raised by one whenever what the reader makes of a file changes
@@ -104,6 +106,13 @@ struct ScanFindings {
     // L-PARTS: one entry for each id named in `reread`, `found` and `nowMissing`.
     QHash<qint64, Judged> judged;
     QList<LibraryTrack> fresh; // files not known, read: no id, category or date added yet
+    // L-FOLLOW: a file not known that has the size and the time of rows that are missing or
+    // gone: read, held back from `fresh`, with the ids of those rows in ascending order.
+    struct MaybeMoved {
+        LibraryTrack reading;
+        QList<qint64> rows;
+    };
+    QList<MaybeMoved> maybeMoved; // carried by the last part only; none when cancelled
     QList<Reread> reread; // known files that differ, read again
     QList<qint64> found; // marked missing, and the file is there
     QList<qint64> nowMissing; // not marked missing, inside the folders, and the file has gone

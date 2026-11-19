@@ -29,6 +29,7 @@ settings and the library file may still change.
 - **Copy on a disk that can share data (btrfs, XFS) is immediate again and takes no second room.** The careful copy asks the disk to share the bytes first, and reads and writes them only when the disk says no.
 - **A playlist that another program changed while linuxBee was editing it is no longer written over.** An editor, a sync client or another player that wrote the file between linuxBee reading it and replacing it had its change lost, and the call said it had worked. The change is now refused, and the file is left as the other program made it.
 - **Playlists can be edited again on disks without hard links (FAT, exFAT).** The refusal of a change made by another program needed a second name for a file, which those disks do not give, and every edit failed there.
+- **A file renamed or moved by another program keeps its plays, skips and date added at the next scan**, when it is otherwise unchanged (same size, time and tags); its playlists follow. Before, the scan saw a track gone and a track new, and the history stayed on the row marked missing.
 
 ## 0.8.0 (2026-11-18)
 
