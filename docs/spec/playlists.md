@@ -223,6 +223,14 @@ playlist, go this way:
    and `0` to `9`, made new (never a name that is there). Nothing is
    written to that file after this step, and it gets no other name
    but the playlist's.
+   **No step needs a second name for a file.** The file is made
+   under its spare name, only if nothing has that name, readable and
+   writable by its owner alone; it is given the playlist's mode
+   before step 4. (Found by the second review of this rule,
+   2026-11-19: the file got its name as a second name of an open
+   file. A disk without second names, as FAT, exFAT and some FUSE
+   disks are, refuses that, and every edit of a playlist there
+   failed, where it had worked before.)
 4. `setBeforeReplace`'s hook is called with the file's path, if one
    is set. It is there for the test, which is the other program at
    that moment; the program sets none.
@@ -242,7 +250,8 @@ playlist, go this way:
    meanwhile was still lost.)
 
 A refusal at step 5, and a replacing that fails, take the spare name
-away. A run that is killed between step 3 and step 6 can leave it:
+away. A run that is killed in step 3, or between it and step 6, can
+leave it, with part of the new bytes or all of them:
 it is hidden, it is no playlist (Y-STORE lists `.m3u8` files), it is
 not in the way of a later call, and nothing removes or uses it.
 
@@ -277,10 +286,26 @@ Known and left:
 
 - A change made after the second look and before the replacing is
   still lost. With nothing between the two but the replacing itself
-  that moment measured two to three millionths of a second (the
-  review's trace, 2026-11-19). No test reaches it, and no test can
-  see a flush put back between the two: the review reads for it,
-  and measures it.
+  that moment measured three millionths of a second on a disk of the
+  btrfs kind (the reviews' traces, 2026-11-19). No test reaches it,
+  and no test can see a flush put back between the two: the review
+  reads for it, and measures it.
+- That moment is as long as the replacing has to wait. On a memory
+  disk (tmpfs), with a hundred processes each adding to one
+  playlist, the replacing waits for another's, and 10 to 37 calls a
+  process that answered 1 were not in the file (the second review's
+  stress). On btrfs, in the same run, none. An exchange of the two
+  names with a look at what came out, and an exchange back, lost
+  none there in the review's hands. It is not built: for a moment a
+  list that is then refused would be the playlist, the way back is a
+  second replacing with a gap of its own, and not every disk has the
+  call. One other writer, which is the case this rule is for, kept
+  all of its lines but one in 82.
+- A program that holds the old file open goes on writing into the
+  old file, which is no playlist any more once it is replaced.
+- Of a hundred spare names tried, none may be free; the call then
+  answers `the file could not be written`. No test reaches the
+  choosing of the name.
 - Two changes inside one tick of the file system's clock that leave
   the size as it was are one state to the looks.
 - `removeAt` and `moveTrack` are given positions. A file changed
