@@ -326,6 +326,37 @@ Known and left: the file that is there is measured by its header,
 and the source too. A source whose own header overstates it fails as
 in C-WHOLE.
 
+### C-PLACE: the move into place replaces only the file it saw
+
+(Found by the review of fix-85b, 2026-11-18. The last step set aside
+and removed whatever was at the destination by then. A file that
+another program put at a name that was free when the conversion
+began was replaced, in Keep both and in Skip: against "no file is
+overwritten".)
+
+What is at the name the result is to have is looked at once, when
+C-EXISTS has answered: nothing, or a file, known by what the system
+says it is (device and number), not by its name.
+
+At step 9:
+
+- **Nothing was seen there.** The part file is given the name by a
+  move that never replaces. When a file has the name by now:
+  - Keep both (`Rename`): the next free name is taken (P-DUP, from
+    the destination asked for), and that move never replaces either.
+    So on until one is free. `outputPath` is the name it got.
+  - Skip, and Overwrite: `Failed`, `a file appeared at the
+    destination while converting; it was not replaced`.
+- **A file was seen there** (Overwrite, C-REPLACE). It is replaced
+  when the file at the name is still that file. When it is another
+  one, or none: `Failed`, with the same message.
+
+A failed job leaves the file that is at the name as it is, and the
+part file is removed (C-CLEAN).
+
+Known and left: between the last look and the move itself, in
+Overwrite, there is still a moment; it is two system calls long.
+
 ### C-CLEAN
 
 ffmpeg writes to a part file in the destination's folder. Its name is
