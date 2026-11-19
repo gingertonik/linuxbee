@@ -16,6 +16,13 @@ TagChanges removeTags(const TrackTags &tags, const RemoveOptions &options)
 {
     TagChanges changes;
     if (options.allTags) {
+        // G-REMOVE, D74: an ID3v2 tag also loses every POPM frame, even one that only counts plays.
+        for (const QString &type : tags.tagTypes) {
+            if (type.startsWith(QLatin1String("ID3v2"))) {
+                changes.ratingFrames = QList<RatingFrame>();
+                break;
+            }
+        }
         for (auto it = tags.fields.cbegin(); it != tags.fields.cend(); ++it) {
             if (!it.value().isEmpty())
                 changes.fields.insert(it.key(), QStringList());
