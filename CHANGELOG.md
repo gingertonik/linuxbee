@@ -32,7 +32,7 @@ settings and the library file may still change.
 - **A file renamed or moved by another program keeps its plays, skips and date added at the next scan**, when it is otherwise unchanged (same size, time and tags); its playlists follow. Before, the scan saw a track gone and a track new, and the history stayed on the row marked missing.
 - **Organise no longer moves a symbolic link to where it would lead nowhere.** A link whose text is relative (`../album/x.mp3`) was renamed into another folder and from there pointed at nothing; the run said it had moved the file, and the library then marked the track missing. Such a move now fails and says `the link would not lead to its file from there`; the link stays. A link that still leads to its file from the new folder, and one that leads nowhere already, are moved as before.
 - **`linuxbeectl organise` says when it passed over files whose names are not valid UTF-8.** Such a file was left where it was, with no line and exit 0. After everything else (and after the plan of `--dry-run`) it now prints how many names it passed over and the folders that hold them. The exit status does not change.
-- **A few Ogg and Opus files in a thousand were shown about a second short** by the library and by Convert's check of lengths. They are now shown whole.
+- **A few Ogg and Opus files in a thousand were shown about a second short** by the library and by Convert's check of lengths. They are now shown whole. The first scan after the update reads every file once, so that libraries scanned before get the right lengths too.
 
 ## 0.8.0 (2026-11-18)
 

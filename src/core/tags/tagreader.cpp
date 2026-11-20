@@ -6,6 +6,8 @@
 #include <QFileInfo>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include <fileref.h>
 #include <flacfile.h>
@@ -19,6 +21,7 @@
 #include <oggfile.h>
 #include <oggpageheader.h>
 #include <opusfile.h>
+#include <speexfile.h>
 #include <tdebuglistener.h>
 #include <tpropertymap.h>
 #include <vorbisfile.h>
@@ -261,20 +264,33 @@ qint64 lastOggPagePosition(const QString &filePath)
     return -1;
 }
 
-// R-AUDIO: what to add to TagLib's length when it took a page before the last one.
-qint64 missedOggMilliseconds(TagLib::File *file, const QString &filePath, int sampleRate)
+// R-AUDIO: the length when TagLib took a page before the last one. Only for the kinds whose
+// length TagLib takes from the last page; the addition is guarded and rounded to the nearest.
+int oggLengthMilliseconds(TagLib::File *file, const QString &filePath, int sampleRate, int taglibMs)
 {
+    constexpr qint64 kMaxAdded = 255 * 8192; // one page: 255 packets of 8192 samples
     auto *ogg = dynamic_cast<TagLib::Ogg::File *>(file);
     if (!ogg || sampleRate <= 0)
-        return 0;
+        return taglibMs;
+    if (!dynamic_cast<TagLib::Ogg::Vorbis::File *>(file)
+        && !dynamic_cast<TagLib::Ogg::Opus::File *>(file)
+        && !dynamic_cast<TagLib::Ogg::Speex::File *>(file))
+        return taglibMs;
     const TagLib::Ogg::PageHeader *taken = ogg->lastPageHeader();
     if (!taken)
-        return 0;
+        return taglibMs;
+    const qint64 was = static_cast<qint64>(taken->absoluteGranularPosition());
     const qint64 last = lastOggPagePosition(filePath);
-    const qint64 was = taken->absoluteGranularPosition();
-    if (last < 0 || last <= was)
-        return 0;
-    return (last - was) * 1000 / sampleRate;
+    if (was < 0 || last < 0 || last <= was)
+        return taglibMs;
+    const qint64 difference = last - was;
+    if (difference > kMaxAdded)
+        return taglibMs;
+    const qint64 sum
+        = static_cast<qint64>(taglibMs) + std::llround(double(difference) * 1000.0 / sampleRate);
+    if (sum > std::numeric_limits<int>::max())
+        return taglibMs;
+    return static_cast<int>(sum);
 }
 
 }
@@ -306,8 +322,8 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
         TrackTags &tags = result.tags;
         tags.format = formatName(file, filePath);
         tags.tagTypes = tagTypesOf(file);
-        tags.audio.durationMs = properties->lengthInMilliseconds()
-            + missedOggMilliseconds(file, filePath, properties->sampleRate());
+        tags.audio.durationMs = oggLengthMilliseconds(
+            file, filePath, properties->sampleRate(), properties->lengthInMilliseconds());
         tags.audio.bitrateKbps = properties->bitrate();
         tags.audio.sampleRateHz = properties->sampleRate();
         tags.audio.channels = properties->channels();
