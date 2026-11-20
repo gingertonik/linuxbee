@@ -358,6 +358,14 @@ answered.)
   counted far more than the file's length`. The samples are taken at
   the rate that header states; there is no such limit when it states
   none. The part file is removed, and the file that is there stays.
+- Known and left. A check that counts slowly is not ended: the
+  limit is in samples, not in time, and each frame with samples
+  starts the 30 seconds again. One frame a second holds a conversion
+  of a 30-second file for hours. Cancel still answers at once.
+- Known and left, from reading and not measured: a part file whose
+  header states a rate and a length of 0 has a limit of one minute
+  of samples, and a good file longer than that would be refused
+  with `counted far more`. No file of the reviews did this.
 - Known and left: the 30 seconds are the same on every disk. The
   part file was written and read a moment before the count, so a
   disk that sleeps is awake by then. An ffprobe that itself lies on
@@ -437,8 +445,12 @@ Known and left:
 - A file that was seen and has only been touched since, or tagged by
   another program, is not replaced either. The conversion is run
   again.
-- On a disk with neither call every conversion fails, and says why.
-  Earlier versions moved the file there with a call that replaces.
+- On a disk with neither call a conversion to a name that is free
+  fails, and says why. Earlier versions moved the file there with a
+  call that replaces. One that replaces a file that is there
+  (Overwrite) still converts: the file seen is replaced by a plain
+  rename. Such disks are some FUSE ones (rclone, gvfs, exfat-fuse);
+  sshfs 3 is not one.
 
 ### C-CLEAN
 
