@@ -296,7 +296,7 @@ Look lookAt(const QString &path)
 // replacing; a name that is gone or a look that differs replaces nothing (Changed).
 Written writeBytesOver(const QString &path, const QByteArray &data,
     const std::optional<QByteArray> &asRead, const std::optional<Look> &first,
-    const PlaylistStore::BeforeReplace &hook)
+    const PlaylistStore::BeforeReplace &hook, const PlaylistStore::SpareNames &spares)
 {
     if (asRead && *asRead == data)
         return Written::Unchanged;
@@ -313,10 +313,18 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
         int fd = -1;
         for (int attempt = 0; attempt < 100 && fd < 0; ++attempt) {
             QString name = QStringLiteral(".lbsave-");
-            for (int i = 0; i < 6; ++i)
-                name += QLatin1Char(alphabet[QRandomGenerator::system()->bounded(36)]);
+            if (spares) {
+                name += spares();
+            } else {
+                for (int i = 0; i < 6; ++i)
+                    name += QLatin1Char(alphabet[QRandomGenerator::system()->bounded(36)]);
+            }
             spare = QFile::encodeName(QDir(folder).filePath(name));
-            fd = ::open(spare.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+            // An open that a signal broke off (EINTR) is asked again under the same name; that
+            // is no try of the hundred.
+            do {
+                fd = ::open(spare.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+            } while (fd < 0 && errno == EINTR);
             if (fd < 0 && errno != EEXIST)
                 break;
         }
@@ -376,12 +384,12 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
 
 Written writeLocationsOver(const QString &path, const QStringList &locations,
     const std::optional<QByteArray> &asRead, const std::optional<Look> &first,
-    const PlaylistStore::BeforeReplace &hook)
+    const PlaylistStore::BeforeReplace &hook, const PlaylistStore::SpareNames &spares)
 {
     QByteArray data;
     for (const QString &location : locations)
         data += location.toUtf8() + '\n';
-    return writeBytesOver(path, data, asRead, first, hook);
+    return writeBytesOver(path, data, asRead, first, hook, spares);
 }
 
 // For the callers that did not read the file for editing (create): as it was, the file is read
@@ -394,7 +402,7 @@ Written writeLocations(const QString &path, const QStringList &locations)
         asIs = current.readAll();
         current.close();
     }
-    return writeLocationsOver(path, locations, asIs, std::nullopt, { });
+    return writeLocationsOver(path, locations, asIs, std::nullopt, { }, { });
 }
 
 const QString changedLine = QStringLiteral("the file was changed by another program");
@@ -598,8 +606,8 @@ bool PlaylistStore::setTracks(const QString &id, const QStringList &paths)
     m_editProblem = problemWith(read);
     if (!m_editProblem.isEmpty())
         return false;
-    const Written written
-        = writeLocationsOver(fileFor(m_folder, id), paths, read, first, m_beforeReplace);
+    const Written written = writeLocationsOver(
+        fileFor(m_folder, id), paths, read, first, m_beforeReplace, m_spareNames);
     if (written == Written::Changed) {
         m_editProblem = changedLine;
         return false;
@@ -637,8 +645,8 @@ int PlaylistStore::append(const QString &id, const QStringList &paths, bool allo
     }
     if (added == 0)
         return 0;
-    const Written written
-        = writeLocationsOver(fileFor(m_folder, id), all, read, first, m_beforeReplace);
+    const Written written = writeLocationsOver(
+        fileFor(m_folder, id), all, read, first, m_beforeReplace, m_spareNames);
     if (written == Written::Changed) {
         m_editProblem = changedLine;
         return 0;
@@ -676,8 +684,8 @@ int PlaylistStore::removeAt(const QString &id, const QList<int> &positions)
         if (!doomed.contains(i))
             kept.append(all.at(i));
     }
-    const Written written
-        = writeLocationsOver(fileFor(m_folder, id), kept, read, first, m_beforeReplace);
+    const Written written = writeLocationsOver(
+        fileFor(m_folder, id), kept, read, first, m_beforeReplace, m_spareNames);
     if (written == Written::Changed) {
         m_editProblem = changedLine;
         return 0;
@@ -710,8 +718,8 @@ bool PlaylistStore::moveTrack(const QString &id, int from, int to)
         return true; // nowhere to go: nothing changes
     const QString moved = all.takeAt(from);
     all.insert(to, moved);
-    const Written written
-        = writeLocationsOver(fileFor(m_folder, id), all, read, first, m_beforeReplace);
+    const Written written = writeLocationsOver(
+        fileFor(m_folder, id), all, read, first, m_beforeReplace, m_spareNames);
     if (written == Written::Changed) {
         m_editProblem = changedLine;
         return false;
@@ -783,7 +791,8 @@ int PlaylistStore::relink(const QHash<QString, QString> &oldToNew)
         if (!changed)
             continue;
 
-        if (writeBytesOver(path, out, read, first, m_beforeReplace) != Written::Written) {
+        if (writeBytesOver(path, out, read, first, m_beforeReplace, m_spareNames)
+            != Written::Written) {
             m_passedOver.append(info.id);
             continue;
         }

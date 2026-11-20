@@ -69,6 +69,10 @@ public:
     // none.
     using BeforeReplace = std::function<void(const QString &path)>;
     void setBeforeReplace(BeforeReplace hook) { m_beforeReplace = std::move(hook); }
+    // Y-SAME, step 3: the six characters of the next spare name. For the test, which hands out
+    // a name that is taken; the program sets none, and the store draws them by chance.
+    using SpareNames = std::function<QString()>;
+    void setSpareNames(SpareNames names) { m_spareNames = std::move(names); }
 
     // Y-NAME: empty when the name can be used, otherwise what is wrong.
     static QString validateName(const QString &name);
@@ -83,6 +87,7 @@ private:
     QStringList m_passedOver;
     QString m_editProblem;
     BeforeReplace m_beforeReplace;
+    SpareNames m_spareNames;
 };
 
 }
