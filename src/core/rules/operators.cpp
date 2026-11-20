@@ -27,6 +27,8 @@ const char *const kOperatorIds[] = {
     "after",
     "in-the-last",
     "not-in-the-last",
+    "matches-case",
+    "does-not-match-case",
 };
 
 constexpr int kOperatorCount = int(std::size(kOperatorIds));
@@ -39,6 +41,23 @@ QString ruleOperatorId(RuleOperator op)
     if (index < 0 || index >= kOperatorCount)
         return { };
     return QString::fromLatin1(kOperatorIds[index]);
+}
+
+// U-NAMES: MusicBee's names for the regular expressions; the id with spaces otherwise.
+QString ruleOperatorLabel(RuleOperator op)
+{
+    switch (op) {
+    case RuleOperator::MatchesCase:
+        return QStringLiteral("match RegEx");
+    case RuleOperator::Matches:
+        return QStringLiteral("match RegEx/i");
+    case RuleOperator::DoesNotMatchCase:
+        return QStringLiteral("does not match RegEx");
+    case RuleOperator::DoesNotMatch:
+        return QStringLiteral("does not match RegEx/i");
+    default:
+        return ruleOperatorId(op).replace(QLatin1Char('-'), QLatin1Char(' '));
+    }
 }
 
 bool ruleOperatorFromId(const QString &id, RuleOperator *op)

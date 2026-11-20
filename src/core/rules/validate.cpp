@@ -59,6 +59,8 @@ QString arityProblem(const Rule &rule)
     }
     case RuleOperator::Matches:
     case RuleOperator::DoesNotMatch:
+    case RuleOperator::MatchesCase:
+    case RuleOperator::DoesNotMatchCase:
         if (count != 1)
             return QStringLiteral("needs exactly one regular expression");
         return QRegularExpression(rule.values.first()).isValid()
