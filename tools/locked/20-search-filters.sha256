@@ -1,2 +1,3 @@
 4658a70972e39f269258694f621e2b00efc8e3a8deab86baf31a7b0aba8183a2  tests/locked/tst_search.cpp
-3934141f7cf2ab4bdcbaf1b13fab541130cef6b1e1e0589b07ecf0b09078e81c  docs/spec/search.md
+cd9f91f88c173df45316f7076ecda9a4275e22f3e56308d517d5db1b1db5f99e  docs/spec/search.md
+3fe4cd7f1c462b5a5ca10f7e99f1aa5bab8d40ac7e091a229407da790130bdce  tests/locked/tst_search_plus.cpp
