@@ -69,6 +69,11 @@ entry and failed.)
 Known and left: one file reached by two paths that differ as text (a
 folder and a link to that folder) is two inputs.
 
+On a terminal that shows standard output and standard error together,
+the lines of standard error (`failed:`) can come after the last line
+of standard output: the two are flushed apart. On standard output
+itself the order is as said here.
+
 For each file, in order:
 
 1. `useTemplate` is true and the template is not valid: `InvalidTemplate`.
@@ -175,8 +180,25 @@ behind leading nowhere. Before that rule both had moved and the link
 had worked. A link planned after its file had always failed with `the
 file is gone`.)
 
-Known and left: a file that was moved to another file system is a new
-file there; no test holds that its link is judged against the new one.
+A file that was moved to another file system is a new file there; its
+link is judged against the new one, and a test holds it.
+
+Known and left, each seen by a review and none a loss:
+
+- A link that leads to another link, planned before it: the first is
+  refused (`the link would not lead to its file from there`) and
+  stays at its source, where it leads nowhere once the other has
+  moved.
+- A link whose text begins with `/`, and whose file this run moves,
+  is refused and stays, leading nowhere, with that message.
+- A run that is killed between the move of a file and the move of
+  its link leaves the link at its source, leading nowhere. A second
+  run passes it over as `not found`.
+- A link whose file went to another file system, and which would
+  have to follow it there, fails with `could not copy the file`: a
+  link never crosses (O-ACROSS).
+- A link whose folder and text together are longer than a path may
+  be (4096 bytes) is refused though it would lead.
 
 - An entry that is not `Ready` is `Skipped`. Its message is the status in
   words: `already in place`, `missing tags: A, B`, `the template leaves no
@@ -270,7 +292,9 @@ file from there**:
 - A link whose text begins at the root leads where it led. So does a
   relative one moved to a folder from which its text reaches the
   same file.
-- A link that leads nowhere already is renamed as before.
+- A link that leads nowhere already is renamed as before. (So for
+  the move itself. A plan made by `planOrganise` passes such a link
+  over before that: `skip: not found`.)
 - A Copy reads what the link leads to, as before, and asks nothing.
 
 (Found by the write-path audit, part 2, F5, 2026-11-18: a relative

@@ -62,7 +62,8 @@ struct PlannedMove {
     bool replaces = false; // an existing file at `target` will be replaced
 };
 
-// O-PLAN. One entry per input, in input order. Reads tags; writes nothing.
+// O-PLAN. One entry for each different input, at the place of its first naming. Reads tags;
+// writes nothing.
 QList<PlannedMove> planOrganise(const QStringList &files, const OrganiseOptions &options);
 
 struct MoveOutcome {
