@@ -36,6 +36,7 @@ settings and the library file may still change.
 - **A link and the file it leads to can be organised together again, in either order.** A link planned before its file was refused, and the file then moved and left it leading nowhere; one planned after its file failed with "the file is gone". The link now follows its file and is judged against it where it now is.
 - **A few Ogg and Opus files in a thousand were shown about a second short** by the library and by Convert's check of lengths. They are now shown whole. The first scan after the update reads every file once, so that libraries scanned before get the right lengths too.
 - **A library of an older version is copied before it is brought up to date.** The step changes the library file for good, and an older linuxBee then refuses it. The window and `linuxbeectl library` now first keep the library as it was, beside it, as `library.db.schema-1` (the version it had; `-2`, `-3` and so on when that name is taken), and say where in one line (on standard error for the command, so its answer is unchanged; also in the window's status bar). linuxBee never removes the copy: that is for the person to do. If no copy can be made (no room, say), the library is not brought up to date and does not open, and says why.
+- **The copy of a library made before a schema step has the library's permissions**, so a library kept for its owner alone no longer has a copy that everyone can read. The folder is flushed to the disk once the copy has its name, before the step runs.
 
 ## 0.8.0 (2026-11-18)
 
