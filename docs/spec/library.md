@@ -115,6 +115,22 @@ older program then refuses it. So the library as it was is kept.
   database said it was made, it opens as a database, its version is
   N and it holds as many tracks as the library. It is flushed to the
   disk before it gets its name.
+- **Whose.** (Found by the review of the first building: a library
+  kept for its owner alone got a copy everyone could read.) The spare
+  file is made by this program, new, for its owner alone (0600), and
+  the database writes into that file. Before it gets its name it is
+  given the mode of the library's file. So no one can read the copy
+  who cannot read the library, at any moment.
+- **Kept.** When the copy has its name, the folder is flushed to the
+  disk, before the first step, so that a power cut after the step
+  cannot leave a library of the new version beside no copy. Where the
+  disk knows no such flush (`EINVAL`, `ENOTSUP`) this is passed over.
+  Any other failure is as when no copy could be made: the copy is
+  taken away, no step runs, and the reason is `its folder could not
+  be flushed to the disk`. No test can cut the power: this is checked
+  by reading the code.
+- A library opened through a link: the copy lies beside the link,
+  under the link's name, and is a file of its own.
 - **When no copy can be made, no step runs.** The library does not
   open. The message is `The library was not brought up to date: no
   copy of it could be made in FOLDER (REASON)`. The file is at the
@@ -144,7 +160,11 @@ Known and left:
   while the copy is made leaves a `.lbcopy-` file, which is not
   swept.
 - The line in the status bar is replaced by the next thing the
-  window says.
+  window says. Where the media keys cannot be had the window says so
+  at once, and the line is not seen. It is on standard error always.
+- When no copy could be made the library's rows and version are as
+  they were; its first bytes may differ (the switch to a write-ahead
+  log comes before the step).
 
 **Version 2** holds, for each track, the number of the reader that
 read its file (L-SCAN, "the reader's number"). The step from 1 gives

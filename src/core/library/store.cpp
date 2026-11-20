@@ -15,8 +15,11 @@
 #include <QVariant>
 
 #include <atomic>
+#include <cerrno>
+#include <cstring>
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace linuxbee::library {
@@ -277,6 +280,26 @@ bool flushToDisk(const QString &file)
     return flushed;
 }
 
+// The folder's entries to the disk. EINVAL and ENOTSUP mean the disk knows no such flush, and
+// that is passed over; any other failure is a failure.
+bool flushFolderToDisk(const QString &folder)
+{
+    const int fd
+        = ::open(QFile::encodeName(folder).constData(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0)
+        return false;
+    const bool synced = ::fsync(fd) == 0;
+    const int error = errno;
+    ::close(fd);
+    return synced || error == EINVAL || error == ENOTSUP;
+}
+
+// The words of a failed system call.
+QString systemWords(int error)
+{
+    return QString::fromLocal8Bit(std::strerror(error));
+}
+
 // L-SCHEMA, "A copy before a step": the library as it is, kept beside it before the first step
 // runs. Called with the write lock held and the version looked at again, so nothing can come
 // between the copy and the step. On success `*copyPath` is the copy's place; otherwise nothing is
@@ -301,14 +324,23 @@ bool copyBeforeStep(QSqlDatabase &database, const QString &databasePath, int fou
     // The spare name: a name that nothing holds, in the library's own folder.
     static const QString alphabet
         = QStringLiteral("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+    // The spare file is made here, new, for its owner alone (0600), before the database writes
+    // into it. O_EXCL refuses a name that is there, a folder or a link included.
     QString spare;
-    for (int attempt = 0; attempt < 100; ++attempt) {
+    for (int attempt = 0; attempt < 100 && spare.isEmpty(); ++attempt) {
         QString name = folder + QStringLiteral("/.lbcopy-");
         for (int index = 0; index < 6; ++index)
             name += alphabet.at(int(QRandomGenerator::system()->bounded(alphabet.size())));
-        if (!isTaken(name)) {
+        if (isTaken(name))
+            continue;
+        const int fd = ::open(
+            QFile::encodeName(name).constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd >= 0) {
+            ::close(fd);
             spare = name;
-            break;
+        } else if (errno != EEXIST) {
+            *reason = systemWords(errno);
+            return false;
         }
     }
     if (spare.isEmpty()) {
@@ -338,6 +370,19 @@ bool copyBeforeStep(QSqlDatabase &database, const QString &databasePath, int fou
         giveUp();
         return false;
     }
+    // Before the copy gets its name it has the library's mode: a link is followed, so a library
+    // reached through one gives its own mode, not the link's.
+    struct stat libraryStat { };
+    if (::stat(QFile::encodeName(databasePath).constData(), &libraryStat) != 0) {
+        *reason = systemWords(errno);
+        giveUp();
+        return false;
+    }
+    if (::chmod(QFile::encodeName(spare).constData(), libraryStat.st_mode & 0777) != 0) {
+        *reason = systemWords(errno);
+        giveUp();
+        return false;
+    }
 
     // The name: the library's own name and `.schema-N`, then `-2`, `-3` and so on. QFile::rename
     // does not replace, so a name taken since it was looked at is never written over.
@@ -348,6 +393,13 @@ bool copyBeforeStep(QSqlDatabase &database, const QString &databasePath, int fou
             continue;
         QFile spareFile(spare);
         if (spareFile.rename(name)) {
+            // The folder is flushed once the copy has its name, before the step runs. A failure
+            // takes the copy away: it is the one removing call here, and only for this copy.
+            if (!flushFolderToDisk(folder)) {
+                *reason = QStringLiteral("its folder could not be flushed to the disk");
+                QFile::remove(name);
+                return false;
+            }
             *copyPath = name;
             return true;
         }
