@@ -43,6 +43,18 @@ A linuxBee decision is a guess about what users expect. It is listed in the
 spec's "open parity questions" so it can be corrected when someone who knows
 the original behaviour reports a difference.
 
+The MusicBee wiki's text is under CC-BY-SA. It is cited, never copied:
+a spec says in its own words what a page establishes, links the page,
+and quotes a few words at most, in marks. `docs/sources.md` lists every
+page cited, with the version it describes.
+
+A page that describes a third-party add-on (a plugin) is evidence for
+that add-on, not for MusicBee. A tool that only an add-on gives is
+linuxBee's own when linuxBee has it, and the spec says so.
+
+How an open question is closed is in `docs/questions.md`. A decision the
+owner makes is written in `docs/decisions/`, dated, with its status.
+
 ## If you are unsure
 
 Stop and ask the project owner. Nothing in this project is urgent enough to
