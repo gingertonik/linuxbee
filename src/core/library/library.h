@@ -157,6 +157,17 @@ struct StatisticsMerge {
     TrackStatistics statistics;
 };
 
+// L-SCHEMA: what the opening did to a file of an older schema. `from` and `to` are 0, and
+// `copyPath` is empty, when no step ran.
+struct SchemaStep {
+    int from = 0;
+    int to = 0;
+    QString copyPath; // the library as it was before the step
+};
+
+// L-SCHEMA: the one line a program says after a step; empty when none ran.
+QString schemaStepNotice(const SchemaStep &step);
+
 class Library : public QObject {
     Q_OBJECT
 public:
@@ -168,6 +179,7 @@ public:
 
     static QStringList categories(); // L-CATEGORY
     static int currentSchemaVersion();
+    SchemaStep stepAtOpening() const; // L-SCHEMA
 
     // L-SCAN
     ScanReport scan(const QStringList &folders, const ScanOptions &options);

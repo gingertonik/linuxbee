@@ -1,10 +1,13 @@
 #include "store.h"
 
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QMap>
+#include <QRandomGenerator>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -12,6 +15,9 @@
 #include <QVariant>
 
 #include <atomic>
+
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace linuxbee::library {
 namespace {
@@ -183,13 +189,189 @@ LibraryTrack rowFromRead(const QSqlQuery &query)
     return track;
 }
 
+// L-SCHEMA, "A copy before a step": a connection of its own to a file, named so that no two are
+// alike. The QSqlDatabase object must be out of scope before the name is removed.
+QString nextCopyConnection()
+{
+    static std::atomic<qint64> counter { 0 };
+    return QStringLiteral("linuxbee-copy-%1").arg(++counter);
+}
+
+// A name that nothing holds: a file, a folder or a link (a dangling link included, which
+// QFileInfo::exists does not count).
+bool isTaken(const QString &path)
+{
+    const QFileInfo info(path);
+    return info.isSymLink() || info.exists();
+}
+
+// The library as the database itself writes it into `target`, by `VACUUM INTO` on a connection of
+// its own: the write lock of the first connection does not hold it up, and it takes along what is
+// still in the write-ahead log. The place goes into the statement as text, with every ' doubled.
+bool vacuumInto(const QString &source, const QString &target, QString *reason)
+{
+    const QString name = nextCopyConnection();
+    bool made = false;
+    {
+        QSqlDatabase second = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+        second.setDatabaseName(source);
+        if (!second.open()) {
+            *reason = second.lastError().text();
+        } else {
+            QString quoted = target;
+            quoted.replace(QLatin1Char('\''), QStringLiteral("''"));
+            QSqlQuery query(second);
+            made = query.exec(QStringLiteral("VACUUM INTO '%1'").arg(quoted));
+            if (!made)
+                *reason = query.lastError().text();
+            query.finish();
+            second.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    if (!made && reason->isEmpty())
+        *reason = QStringLiteral("the database could not make it");
+    return made;
+}
+
+// The version and the count of tracks of a file, read on a connection of its own.
+bool readCopy(const QString &file, int *version, int *tracks, QString *reason)
+{
+    const QString name = nextCopyConnection();
+    bool read = false;
+    {
+        QSqlDatabase copy = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+        copy.setDatabaseName(file);
+        if (!copy.open()) {
+            *reason = copy.lastError().text();
+        } else {
+            QSqlQuery query(copy);
+            if (query.exec(QStringLiteral("PRAGMA user_version")) && query.next()) {
+                *version = query.value(0).toInt();
+                query.finish();
+                if (query.exec(QStringLiteral("SELECT count(*) FROM tracks")) && query.next()) {
+                    *tracks = query.value(0).toInt();
+                    read = true;
+                }
+            }
+            if (!read)
+                *reason = query.lastError().text();
+            query.finish();
+            copy.close();
+        }
+    }
+    QSqlDatabase::removeDatabase(name);
+    if (!read && reason->isEmpty())
+        *reason = QStringLiteral("the copy could not be read");
+    return read;
+}
+
+// The copy's bytes to the disk before it gets its name.
+bool flushToDisk(const QString &file)
+{
+    const int fd = ::open(QFile::encodeName(file).constData(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return false;
+    const bool flushed = ::fsync(fd) == 0;
+    ::close(fd);
+    return flushed;
+}
+
+// L-SCHEMA, "A copy before a step": the library as it is, kept beside it before the first step
+// runs. Called with the write lock held and the version looked at again, so nothing can come
+// between the copy and the step. On success `*copyPath` is the copy's place; otherwise nothing is
+// left beside the library but what was there, and `*reason` says why.
+bool copyBeforeStep(QSqlDatabase &database, const QString &databasePath, int found,
+    QString *copyPath, QString *reason)
+{
+    const QFileInfo library(databasePath);
+    const QString folder = library.absolutePath();
+
+    int heldTracks = 0;
+    {
+        QSqlQuery counting(database);
+        if (!counting.exec(QStringLiteral("SELECT count(*) FROM tracks")) || !counting.next()) {
+            *reason = counting.lastError().text();
+            return false;
+        }
+        heldTracks = counting.value(0).toInt();
+        counting.finish();
+    }
+
+    // The spare name: a name that nothing holds, in the library's own folder.
+    static const QString alphabet
+        = QStringLiteral("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+    QString spare;
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        QString name = folder + QStringLiteral("/.lbcopy-");
+        for (int index = 0; index < 6; ++index)
+            name += alphabet.at(int(QRandomGenerator::system()->bounded(alphabet.size())));
+        if (!isTaken(name)) {
+            spare = name;
+            break;
+        }
+    }
+    if (spare.isEmpty()) {
+        *reason = QStringLiteral("no free name for the spare file");
+        return false;
+    }
+
+    // Only the spare file this call chose is ever taken away.
+    const auto giveUp = [&spare] { QFile::remove(spare); };
+    if (!vacuumInto(library.absoluteFilePath(), spare, reason)) {
+        giveUp(); // VACUUM INTO leaves an empty file when it fails
+        return false;
+    }
+    int copyVersion = 0;
+    int copyTracks = 0;
+    if (!readCopy(spare, &copyVersion, &copyTracks, reason)) {
+        giveUp();
+        return false;
+    }
+    if (copyVersion != found || copyTracks != heldTracks) {
+        *reason = QStringLiteral("what was written is not the library as it is");
+        giveUp();
+        return false;
+    }
+    if (!flushToDisk(spare)) {
+        *reason = QStringLiteral("it could not be flushed to the disk");
+        giveUp();
+        return false;
+    }
+
+    // The name: the library's own name and `.schema-N`, then `-2`, `-3` and so on. QFile::rename
+    // does not replace, so a name taken since it was looked at is never written over.
+    const QString base = library.absoluteFilePath() + QStringLiteral(".schema-%1").arg(found);
+    for (int number = 1; number <= 10000; ++number) {
+        const QString name = number == 1 ? base : base + QStringLiteral("-%1").arg(number);
+        if (isTaken(name))
+            continue;
+        QFile spareFile(spare);
+        if (spareFile.rename(name)) {
+            *copyPath = name;
+            return true;
+        }
+        // A name taken since it was looked at is the next one's business; any other failure ends
+        // it.
+        if (!isTaken(name)) {
+            *reason = spareFile.errorString();
+            giveUp();
+            return false;
+        }
+    }
+    *reason = QStringLiteral("no free name for the copy");
+    giveUp();
+    return false;
+}
+
 // L-SCHEMA: create what a version-0 file has no rows for, and take a version-1 file up to version
 // 2. All of it is this program's own text: nothing here carries a path, a tag or any other data.
 // L-WAIT, L-OPEN: the write lock is taken first and waited for. Another start may have made the
 // tables or run the step while this one waited, so the version is looked at again once the lock is
 // held, and the steps run from what is found then; a file already at this version needs none and
 // this succeeds. The steps and the new `user_version` are one transaction.
-bool createSchema(QSqlDatabase &database, QString *error)
+bool createSchema(
+    QSqlDatabase &database, const QString &databasePath, QString *error, SchemaStep *step)
 {
     QSqlQuery query(database);
     if (!query.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
@@ -214,6 +396,27 @@ bool createSchema(QSqlDatabase &database, QString *error)
         database.rollback();
         return true;
     }
+    // L-SCHEMA: a file that holds a schema of 1 or more is copied before the first step; a new
+    // file has nothing to copy. One opening makes one copy, however many steps it runs.
+    QString copyPath;
+    if (found >= 1) {
+        QString reason;
+        if (!copyBeforeStep(database, databasePath, found, &copyPath, &reason)) {
+            database.rollback();
+            setError(error,
+                QStringLiteral(
+                    "The library was not brought up to date: no copy of it could be made "
+                    "in %1 (%2)")
+                    .arg(QFileInfo(databasePath).absolutePath(), reason));
+            return false;
+        }
+    }
+    // The copy lies only beside a library whose step ran: the one removing call besides the spare
+    // file's, and it takes away only the file this opening made.
+    const auto takeCopyAway = [&copyPath] {
+        if (!copyPath.isEmpty())
+            QFile::remove(copyPath);
+    };
     QStringList statements;
     if (found < 1) {
         statements += QStringLiteral("CREATE TABLE tracks ("
@@ -243,6 +446,7 @@ bool createSchema(QSqlDatabase &database, QString *error)
         if (!query.exec(statement)) {
             const QString reason = query.lastError().text();
             database.rollback();
+            takeCopyAway();
             setError(error,
                 found < 1 ? QStringLiteral("Cannot create the library tables: %1").arg(reason)
                           : QStringLiteral("Cannot bring the library up to date: %1").arg(reason));
@@ -252,15 +456,22 @@ bool createSchema(QSqlDatabase &database, QString *error)
     if (!database.commit()) {
         const QString reason = database.lastError().text();
         database.rollback();
+        takeCopyAway();
         setError(error, QStringLiteral("Cannot save the new library: %1").arg(reason));
         return false;
+    }
+    if (step && !copyPath.isEmpty()) {
+        step->from = found;
+        step->to = kSchemaVersionValue;
+        step->copyPath = copyPath;
     }
     return true;
 }
 
 // Opens the file and checks what it holds. The QSqlDatabase for `connection`
 // is gone when this returns, which is what lets the caller remove it.
-bool openAndCheckSchema(const QString &databasePath, const QString &connection, QString *error)
+bool openAndCheckSchema(
+    const QString &databasePath, const QString &connection, QString *error, SchemaStep *step)
 {
     QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
     database.setDatabaseName(databasePath);
@@ -305,7 +516,7 @@ bool openAndCheckSchema(const QString &databasePath, const QString &connection, 
             while (wal.next()) { }
         wal.finish();
     }
-    if (found < kSchemaVersionValue && !createSchema(database, error))
+    if (found < kSchemaVersionValue && !createSchema(database, databasePath, error, step))
         return false;
     return true;
 }
@@ -366,10 +577,10 @@ void Store::close()
     d->inBatch = false;
 }
 
-bool Store::open(const QString &databasePath, QString *error)
+bool Store::open(const QString &databasePath, QString *error, SchemaStep *step)
 {
     const QString name = Private::nextName();
-    if (!openAndCheckSchema(databasePath, name, error)) {
+    if (!openAndCheckSchema(databasePath, name, error, step)) {
         QSqlDatabase::removeDatabase(name);
         return false;
     }

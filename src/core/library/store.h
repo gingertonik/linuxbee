@@ -29,7 +29,9 @@ public:
     // Returns false and sets *error, leaving the file as it was, when the file
     // cannot be opened, is not a database, or holds a schema newer than this
     // program's.
-    bool open(const QString &databasePath, QString *error);
+    // L-SCHEMA: when `step` is given it says what a step did to a file of an older schema (the
+    // versions and the place of the copy made before it), and stays as it was when none ran.
+    bool open(const QString &databasePath, QString *error, SchemaStep *step = nullptr);
 
     // L-STORE: how many tracks are stored, the missing ones included.
     int count() const;

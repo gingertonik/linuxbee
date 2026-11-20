@@ -87,6 +87,65 @@ the write lock held and in one transaction with the new
 between, and two programs started together do not both run it
 (L-OPEN).
 
+**A copy before a step.** (Audit of the library, F7. The owner,
+2026-11-19: a step may run without a question, after a whole copy,
+with one line of notice.) A step changes the file for good, and an
+older program then refuses it. So the library as it was is kept.
+
+- A copy is made when a step is to run on a file that holds a schema
+  of 1 or more, and then only. A new file and a library in memory
+  have nothing to copy. One opening makes one copy, however many
+  steps it runs.
+- **When.** With the write lock held and the version looked at again,
+  before the first step. So no change can come between the copy and
+  the step, and of several programs started together one makes a
+  copy.
+- **How.** By the database itself (`VACUUM INTO`), on a second
+  connection, which the lock does not hold up. The copy is one file
+  and holds everything committed, also what is still in the
+  write-ahead log. It is not a copy of the library's bytes: a file
+  copied beside its log would lack what the log holds.
+- **Where, and its name.** In the library's own folder, under the
+  library's file name with `.schema-N` after it, N being the version
+  found: `library.db.schema-1`. A name that is taken, by a file, a
+  folder or a link, is never written over: the copy is then
+  `.schema-N-2`, `.schema-N-3` and so on.
+- **Whole.** The copy is made under a spare name (`.lbcopy-` and six
+  characters, in that folder) and gets its name only when the
+  database said it was made, it opens as a database, its version is
+  N and it holds as many tracks as the library. It is flushed to the
+  disk before it gets its name.
+- **When no copy can be made, no step runs.** The library does not
+  open. The message is `The library was not brought up to date: no
+  copy of it could be made in FOLDER (REASON)`. The file is at the
+  version it had, and the spare file is taken away. The copy needs
+  as much room as the library.
+- When the step fails after the copy was made, the copy is taken
+  away again: a copy lies only beside a library whose step ran.
+- The program never opens, reads or removes a copy afterwards. That
+  is the person's.
+- **What is said.** `Library::stepAtOpening()` gives the version
+  found, the version now and the place of the copy; all empty when
+  no step ran. `schemaStepNotice()` makes the one line of it: `The
+  library was brought up to date (schema 1 to 2). A copy of it as it
+  was before: PLACE`. `linuxbeectl library` writes that line to
+  standard error after `linuxbeectl: `; what it writes to standard
+  output does not change. The application writes it to standard
+  error after `linuxbee: ` and shows it in the status bar of the
+  window. No question is asked.
+
+Known and left:
+
+- Every program that opens the library runs the step, a command that
+  only reads too. With the copy nothing is lost by that.
+- A run that is killed between the naming of the copy and the end of
+  the step leaves the copy beside a library of the old version; the
+  next opening makes another, under the next name. A run killed
+  while the copy is made leaves a `.lbcopy-` file, which is not
+  swept.
+- The line in the status bar is replaced by the next thing the
+  window says.
+
 **Version 2** holds, for each track, the number of the reader that
 read its file (L-SCAN, "the reader's number"). The step from 1 gives
 every track the number 0, which is lower than any reader's: nothing
