@@ -19,7 +19,7 @@ state.
 | Tag | Source |
 |---|---|
 | MPRIS | MPRIS D-Bus Interface Specification, version 2.2: https://specifications.freedesktop.org/mpris-spec/latest/ |
-| W-HK | MusicBee wiki, "Hotkeys Preferences" (global hotkeys, multimedia keys): see preferences.md |
+| W-HK | MusicBee wiki, "Hotkeys" (global hotkeys, multimedia keys): https://musicbee.fandom.com/wiki/Hotkeys |
 | MP-… | A linuxBee decision. |
 
 Read on 2026-11-13. MusicBee handles multimedia keys and global hotkeys
@@ -29,6 +29,9 @@ player is on the bus. This is how the same wish is met here.
 Where this document and the MPRIS specification disagree about what
 goes over the bus, the MPRIS specification is right and the disagreement
 is reported.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Hotkeys" (3.0.5903; 2020-12-31).
 
 ## MP-START
 

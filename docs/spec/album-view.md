@@ -17,8 +17,15 @@ check it.
 | W-ATV | MusicBee wiki, "Album and Tracks View": a hybrid of the tracks view and the album covers view; clicking on the album art selects the entire album (it acts like a grouping header); a blank line is put between different discs of the same album: https://musicbee.fandom.com/wiki/Album_and_Tracks_View (matches version 3.0; read 2026-11-13) |
 | W-MPV | MusicBee wiki, "Main Panel Views": the default views are Tracks, Album and Tracks, Album Covers, Artists and Jukebox, chosen from the panel's menu: https://musicbee.fandom.com/wiki/Main_Panel_Views |
 | W-LNE | MusicBee wiki, "Library Navigation Elements", Jump Bar: clicking a letter takes you to that letter in the main panel, according to the first sort tag: https://musicbee.fandom.com/wiki/Library_Navigation_Elements |
+| W-NPP | MusicBee wiki, "Now Playing Preferences": what a double click plays, and that a click on an album cover plays the album only: https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 | SHOT | The user's own MusicBee window and preferences, 2026-11-13: the main panel is headed `Album and Tracks`; a bar `# A B C ... Z` runs above it; the panel's Sort By is `Album Artist / Year / Album`; under Now Playing, Play Now is `clear list and play all tracks`, with `except when clicking album covers - play album only` ticked. |
 | AV-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Album and Tracks View" (3.0.6006;
+2016-10-23); "Main Panel Views" (3.0.5913; 2023-09-02); "Library Navigation
+Elements" (3.0.5972; 2016-06-12); "Now Playing Preferences" (3.3.7491;
+2020-12-30).
 
 ## AV-ORDER: the order of the view
 

@@ -17,7 +17,7 @@ process and never linked.
 
 | Tag | Source |
 |---|---|
-| W-CV | MusicBee wiki, "Convert Format": https://musicbee.fandom.com/wiki/Convert_Format |
+| W-CF | MusicBee wiki, "Convert Format": https://musicbee.fandom.com/wiki/Convert_Format |
 | FF | The ffmpeg manuals: https://ffmpeg.org/ffmpeg.html , https://ffmpeg.org/ffmpeg-codecs.html , https://ffmpeg.org/ffmpeg-formats.html |
 | GEN | `tests/data/convert/make_fixtures.py` |
 | C-… | A linuxBee decision. |
@@ -25,12 +25,17 @@ process and never linked.
 Pages were read on 2026-11-13. The manuals carry no version; the proofs for
 this document were run with ffmpeg n9.0.2.
 
-What MusicBee documents (W-CV): a choice of output format and of an
+What MusicBee documents (W-CF): a choice of output format and of an
 "encoding profile"; output to a new folder with sub-folders from the naming
 template, or beside the source; converted files keep their tags; artwork is
 carried over; an option to skip a file whose output exists and only bring
 its tags in step. It gives no bitrate for any profile, so the presets below
 are linuxBee's own.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Convert Format" (2.1.4923;
+2016-10-26). The page on converting is the oldest in use; what it says of a
+current MusicBee is a guess.
 
 ## 1. Formats
 
@@ -191,7 +196,7 @@ When the destination exists already:
 | Skip (default) | `Skipped`. Nothing is run or written. `outputPath` is the destination. |
 | Overwrite | The conversion runs. The old file is replaced only at step 9, so a failed or cancelled run leaves it as it was. |
 | Rename | The result goes to the first free name from `uniqueRelativePath` (`song_1.mp3`, `song_2.mp3`: P-DUP in `docs/spec/paths.md`). Two conversions started at the same moment into one folder may both choose the same free name; then one of them ends `Failed` and no file is overwritten. Callers that run several at once give each its own destination (convert-batch.md). |
-| UpdateTags | ffmpeg is not run. C-TAGS is applied to the existing file: `TagsUpdated`. With `copyTags` false this is `Skipped`. (W-CV: "skip conversion when the output exists and sync tags only".) |
+| UpdateTags | ffmpeg is not run. C-TAGS is applied to the existing file: `TagsUpdated`. With `copyTags` false this is `Skipped`. (W-CF: "skip conversion when the output exists and sync tags only".) |
 
 **What "exists" is.** The name is asked, not what it leads to
 (`lstat`): a link is there, also one that leads nowhere. (Review of
@@ -525,7 +530,7 @@ linuxbeectl convert [--preset ID | --format F] [--bitrate K] [--quality Q]
 
 - Several conversions at once. `convertFile` may be called from several
   threads; a queue with a thread limit comes with the convert dialog.
-- Volume levelling ("permanently adjust volume" in W-CV) and ReplayGain.
+- Volume levelling ("permanently adjust volume" in W-CF) and ReplayGain.
 - Replacing the source file, adding results to the library or inbox, and
   play-count handling: these belong to the dialog and the library.
 - Encoders ffmpeg does not have, and user-defined command lines.

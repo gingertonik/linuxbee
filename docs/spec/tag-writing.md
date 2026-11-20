@@ -26,6 +26,10 @@ TagLib does the writing. No TagLib type appears in a public header.
 
 Pages were read on 2026-11-13.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Tagging" (3.0.5962; 2020-10-11);
+"Tags Preferences" (3.0.5976; 2020-04-26).
+
 ## 1. The order of work
 
 1. **W-STATUS.** Read the file as `readTags` does. A path that is not a
@@ -457,7 +461,7 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
   mid-write. TagLib rewrites the file in place. The organiser and the
   converter work on copies; the tag editor will need a decision here.
 - Choosing the text encoding of ID3 frames (MusicBee's "ID3v2.3, ASCII
-  only").
+  only", W-TP).
 - Writing APEv2 tags into MP3 files; synchronised lyrics; custom tags;
   the artist roles; album rating, Love and the other MusicBee-only tags.
 - Undo.

@@ -14,8 +14,13 @@ is and what the store does are playlists.md (Y-NAME, Y-STORE).
 
 | Tag | Source |
 |---|---|
-| W-NAV | MusicBee wiki, "Navigator": playlists are managed from the left sidebar's context menu (see navigator.md) |
+| W-NAV | MusicBee wiki, "Navigator": playlists are managed from the left sidebar's context menu: https://musicbee.fandom.com/wiki/Navigator |
+| W-PL | MusicBee wiki, "Playlists" (the List menu and its Remove Duplicates): https://musicbee.fandom.com/wiki/Playlists |
 | PE-… | A linuxBee decision. The wording and order of MusicBee's menu are not documented in what could be read. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Navigator" (3.0.5918; 2020-07-30);
+"Playlists" (3.0.5992; 2020-04-28).
 
 ## PE-MENU
 
@@ -70,7 +75,7 @@ changes nothing, when the row does not offer that command.
 - Then the tracks are added to the end of the playlist, in one call of
   `PlaylistStore::append` with duplicates allowed: a track that is in
   the playlist already is added once more (playlists.md; MusicBee's
-  List menu has "Remove Duplicates" for this). The message is
+  List menu has "Remove Duplicates" for this, W-PL). The message is
   `Added 1 track to "ID"` or `Added N tracks to "ID"`. When the store
   could not write, false and
   `Could not add to the playlist "ID": the file could not be written`.

@@ -25,6 +25,10 @@ album picked; the results are loaded for the user to save; MusicBrainz is
 the first of the services it can use. How MusicBee matches files to tracks
 is not documented; M-MATCH is linuxBee's.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Auto-Tagging" (3.0.5999;
+2016-10-26).
+
 ## M-AGENT
 
 Every request carries the User-Agent

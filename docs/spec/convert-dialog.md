@@ -20,6 +20,11 @@ Tools, with the format to encode to, a destination (a folder, or the
 same location), what to do if the file already exists, and whether tags
 and artwork are carried over. Its layout and wording are not documented.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Convert Format" (2.1.4923;
+2016-10-26). The page on converting is the oldest in use; what it says of a
+current MusicBee is a guess.
+
 ## CD-FRAME
 
 `ConvertDialog` (`convertDialog`) is given the files to convert and a

@@ -24,6 +24,9 @@ places (services, devices, the computer's folders), with the number of
 files beside a node. Its exact rows and order are configurable there and
 are not copied here.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Navigator" (3.0.5918; 2020-07-30).
+
 ## V-FRAME
 
 The panel holds one `QTreeWidget` named `navigatorTree` that fills it: one

@@ -122,3 +122,8 @@ at a merge.
 
 A section is released by the tag, not by the bump: between
 `bump-version.sh` and the tag the new section may still be put right.
+
+## Sources
+
+None outside this project: this document is engineering only, and every
+rule in it is a linuxBee decision. Nothing in it describes MusicBee.

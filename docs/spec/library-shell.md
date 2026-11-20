@@ -17,9 +17,14 @@ navigator.md and playlists.md. The shell only passes things between them.
 
 | Tag | Source |
 |---|---|
-| W-MP | MusicBee wiki, "Main Panel" and "Navigator": see track-list.md and navigator.md |
-| W-FILE | MusicBee wiki, "File Menu" (Add Files, Scan Folders, Send To): see main-window.md |
+| W-MP | MusicBee wiki, "Main Panel Views" and "Navigator": https://musicbee.fandom.com/wiki/Main_Panel_Views , https://musicbee.fandom.com/wiki/Navigator |
+| W-FILE | MusicBee wiki, "File Menu" (Add Files, Scan Folders, Send To): https://musicbee.fandom.com/wiki/File_Menu |
 | SH-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Main Panel Views" (3.0.5913;
+2023-09-02); "Navigator" (3.0.5918; 2020-07-30); "File Menu" (3.0.5899;
+2020-05-01).
 
 ## SH-BUILD
 

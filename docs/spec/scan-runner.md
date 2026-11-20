@@ -130,11 +130,11 @@ puts one widget into the window's status bar, by object name:
 | `scanProgressText` | a label | SP-VALUE |
 | `scanStopButton` | a tool button, tool tip `Stop the scan` | SP-STOP |
 
-(MusicBee wiki, "Status Bar": the left of the status bar shows ongoing
+(W-SB: the left of the status bar shows ongoing
 processes such as scanning; "Clicking on the X will terminate it (with
 a confirmation)".)
 
-**Seen.** The row is a permanent widget of the status bar
+**Where.** The row is a permanent widget of the status bar
 (`QStatusBar::addPermanentWidget`): it sits at the right end, and a
 message in the status bar, whoever wrote it and however long it stays,
 does not put it away. (A status bar hides its ordinary widgets while a
@@ -226,3 +226,13 @@ with no shortcut.
 | Rule | Question |
 |---|---|
 | SR-SHELL | What MusicBee shows while it scans, and whether the tracks appear as they are found. linuxBee: a status line; yes. |
+
+## Sources
+
+| Tag | Source |
+|---|---|
+| W-SB | MusicBee wiki, "Status Bar": https://musicbee.fandom.com/wiki/Status_Bar |
+| SR-…, SP-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Status Bar" (3.0.5992; 2016-05-29).

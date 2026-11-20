@@ -167,3 +167,11 @@ nothing.
   the script, which guards against a broken download, not a hostile
   one; the commit check is what binds the script to the source.
 - Running the tests on the user's machine.
+
+## Sources
+
+None outside this project: this document is engineering only, and every
+rule in it is a linuxBee decision. Nothing in it describes MusicBee.
+
+Its rules begin with `I-`, as those of import.md do; they are told apart
+by the document.

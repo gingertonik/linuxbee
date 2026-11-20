@@ -17,8 +17,12 @@ a scan does in library.md.
 
 | Tag | Source |
 |---|---|
-| W-LP | MusicBee wiki, "Library Preferences" (monitored folders, inbox, check on startup): see folder-monitor.md |
+| W-LP | MusicBee wiki, "Library Preferences" (monitored folders, inbox, check on startup): https://musicbee.fandom.com/wiki/Library_Preferences |
 | BG-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Library Preferences" (3.0.5976;
+2017-10-12).
 
 ## BG-BUILD
 

@@ -1,4 +1,4 @@
-c1b1484967e1e0cc9d1ea0ba1a65fd298432567a11cbe6ae9a8e72e064a9830a  docs/spec/delete-files.md
+7c3a447c404f0123b9e16b9a55177bba0a3c2c1e808154593f9244c052def421  docs/spec/delete-files.md
 e8b870cab6de20914743a02f6e43a2ff9570dbddde8c01990c5bdb3ae7fa2761  src/core/files/trash.h
 960c1d0777914d557c712d344bb639b4f3bd6a227b59f5597f0bc3ff488d1ffe  tests/locked/cli_trash.sh
 964965c6bbab6d0117d9b10101a67a256ec82ef2583e63cb568ef5fad776d964  tests/locked/cli_trash_truth.sh

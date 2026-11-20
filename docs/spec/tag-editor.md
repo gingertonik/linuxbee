@@ -11,7 +11,7 @@ check it.
 
 | Tag | Source |
 |---|---|
-| W-TE | MusicBee wiki, "Tag Editor": https://musicbee.fandom.com/wiki/Tag_Editor |
+| W-TE | MusicBee wiki, "Tagging", the part on the tag editor: https://musicbee.fandom.com/wiki/Tagging#Tag_Editor |
 | E-… | A linuxBee decision. |
 
 Read on 2026-11-13. What MusicBee documents: the editor opens for one
@@ -20,6 +20,9 @@ differ is shown specially and is left alone unless the user changes it;
 several artists or genres are entered separated by `;`; the editor has
 further pages for artwork, lyrics and other tags. The exact wording and
 layout are not documented.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Tagging" (3.0.5962; 2020-10-11).
 
 ## 1. The thinking (core)
 

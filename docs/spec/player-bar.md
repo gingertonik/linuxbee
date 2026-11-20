@@ -15,12 +15,16 @@ and the play queue (play-queue.md) and shows what they report.
 
 | Tag | Source |
 |---|---|
-| W-PC | MusicBee wiki, "Player Controls" and "Controls Menu": see player.md |
+| W-PC | MusicBee wiki, "Player Controls" and "Controls Menu": https://musicbee.fandom.com/wiki/Player_Controls , https://musicbee.fandom.com/wiki/Controls_Menu |
 | PB-… | A linuxBee decision. |
 
 What MusicBee documents: a player controls panel with transport buttons,
 a progress bar that seeks, volume, and toggles for shuffle, repeat and
 stop-after-current. Its layout is skinnable there and is not copied.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Player Controls" (no version given;
+2016-03-23); "Controls Menu" (3.0.5900; 2018-02-02).
 
 ## PB-FRAME
 

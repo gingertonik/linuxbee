@@ -14,13 +14,17 @@ the plans that own those settings; each is a `PreferencesPage`.
 
 | Tag | Source |
 |---|---|
-| W-PREF | MusicBee wiki, "Preferences": https://musicbee.fandom.com/wiki/Preferences |
-| W-HK | MusicBee wiki, "Hotkeys Preferences": https://musicbee.fandom.com/wiki/Hotkeys_Preferences |
+| W-PREF | MusicBee wiki, the preferences pages, of which "General Preferences" is the first: https://musicbee.fandom.com/wiki/General_Preferences |
+| W-HK | MusicBee wiki, "Hotkeys": https://musicbee.fandom.com/wiki/Hotkeys |
 | PF-…, HK-… | A linuxBee decision. |
 
 What MusicBee documents: a preferences window with a list of sections on
 the left, Apply, Save and Cancel; and a Hotkeys section that lists every
 command, lets the user type a key for one, and can restore the defaults.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "General Preferences" (3.0.5903;
+2016-10-23); "Hotkeys" (3.0.5903; 2020-12-31).
 
 ## 1. The window
 

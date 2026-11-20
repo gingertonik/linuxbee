@@ -18,13 +18,17 @@ plan; the test uses a stand-in.
 | Tag | Source |
 |---|---|
 | W-PC | MusicBee wiki, "Player Controls" and the Controls menu (Play/Pause, Stop, Stop After Current, Next, Previous, Mute): https://musicbee.fandom.com/wiki/Controls_Menu |
-| W-NP | MusicBee wiki, "Now Playing" preferences (when a play and a skip are counted): see play-queue.md |
+| W-NP | MusicBee wiki, "Now Playing Preferences" (when a play and a skip are counted): see play-queue.md |
 | X-… | A linuxBee decision. |
 
 Read on 2026-11-13. The wiki names the controls. It does not say what
 Previous does in the middle of a track, what happens to a playing track
 that is removed from the list, or what follows a file that cannot be
 played.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Controls Menu" (3.0.5900;
+2018-02-02).
 
 ## X-STATE
 

@@ -20,10 +20,10 @@ person, from the screenshot this plan's last task takes.
 
 | Tag | Source |
 |---|---|
-| W-ANAT | MusicBee wiki, "The Anatomy of MusicBee" (panels and their default places): https://musicbee.fandom.com/wiki/Panels_Configuration |
+| W-ANAT | MusicBee wiki, "The Anatomy of MusicBee" (panels and their default places): https://musicbee.fandom.com/wiki/The_Anatomy_of_MusicBee |
 | W-MENU | MusicBee wiki, the menu pages: https://musicbee.fandom.com/wiki/File_Menu , `Edit_Menu`, `View_Menu`, `Controls_Menu`, `Tools_Menu`, `Help_Menu` |
-| W-HOT | MusicBee wiki, "Hotkeys": https://musicbee.fandom.com/wiki/Hotkeys_Preferences |
-| H-…, W-… | A linuxBee decision. |
+| W-HOT | MusicBee wiki, "Hotkeys": https://musicbee.fandom.com/wiki/Hotkeys |
+| H-…, W-… | A linuxBee decision. (Here `W-` followed by a word in capitals that is not in this table is a rule of this document, not a wiki page.) |
 
 Read on 2026-11-13. What MusicBee documents: a left sidebar (the
 navigator), a main panel, a right sidebar (playing tracks, track
@@ -32,6 +32,11 @@ bar (W-ANAT); six menus, File, Edit, View, Controls, Tools and Help, with
 the entries listed on their pages (W-MENU); a default hotkey for some
 sixty commands, each of which the user can reassign (W-HOT). The wiki
 gives names and places, not sizes.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "The Anatomy of MusicBee" (3.3.7367;
+2023-06-13); "File Menu" (3.0.5899; 2020-05-01); "Hotkeys" (3.0.5903;
+2020-12-31).
 
 ## 1. Commands
 

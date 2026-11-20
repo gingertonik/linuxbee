@@ -18,9 +18,15 @@ Category, Playlist) are added by the library, not here.
 |---|---|
 | W-SF | MusicBee wiki, "Special Fields": https://musicbee.fandom.com/wiki/Special_Fields |
 | W-H | MusicBee wiki, "How to Create a File-Naming Template": https://musicbee.fandom.com/wiki/How_to_Create_a_File-Naming_Template |
+| W-UV | MusicBee wiki, "Useful Virtual Tag Formulas" (users' examples): https://musicbee.fandom.com/wiki/Useful_Virtual_Tag_Formulas |
 | F-… | A linuxBee decision. Listed under "Open parity questions" where MusicBee's behaviour is unknown. |
 
 Pages were read on 2026-11-13.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Special Fields" (3.0.5972;
+2020-12-31); "How to Create a File-Naming Template" (no version given;
+2016-08-09); "Useful Virtual Tag Formulas" (no version given; 2017-07-26).
 
 ## Rules
 
@@ -52,10 +58,10 @@ A catalogue field gives its values joined with `"; "`, exactly as
 | Path | the folder the file is in | W-SF |
 | URL | the full path | W-SF |
 | Kind | F-KIND | W-SF |
-| Time | `formatDuration(durationMs)` (F-TIME) | F |
+| Time | `formatDuration(durationMs)` (F-TIME) || F (the name: W-SF) |
 | Bitrate | the bitrate and a `k`: `320k` | F |
-| Sample Rate | kilohertz with no trailing zeros, then ` kHz`: `44.1 kHz`, `48 kHz` | F |
-| Channels | `Mono` for 1, `Stereo` for 2, otherwise the number | F |
+| Sample Rate | kilohertz with no trailing zeros, then ` kHz`: `44.1 kHz`, `48 kHz` || F (the name: W-SF) |
+| Channels | `Mono` for 1, `Stereo` for 2, otherwise the number || F (the name: W-SF) |
 
 ### F-DISCTRACK
 

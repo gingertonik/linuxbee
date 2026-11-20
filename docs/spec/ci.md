@@ -78,3 +78,8 @@ run as root.
   A real race would be lost among them. It needs a Qt built for it.
 - **Leaks.** Qt's own at exit drown the program's.
 - **Another compiler, another distribution.**
+
+## Sources
+
+None outside this project: this document is engineering only, and every
+rule in it is a linuxBee decision. Nothing in it describes MusicBee.

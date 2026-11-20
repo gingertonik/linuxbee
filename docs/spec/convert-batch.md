@@ -11,12 +11,17 @@ locked test `tests/locked/tst_convertbatch.cpp` checks it.
 
 | Tag | Source |
 |---|---|
-| W-CF | MusicBee wiki, "Convert Format" (converting a selection; "the maximum number of files to convert in parallel"): https://musicbee.fandom.com/wiki/Convert_Format |
+| W-CF | MusicBee wiki, "Convert Format" (converting a selection): https://musicbee.fandom.com/wiki/Convert_Format |
 | B-… | A linuxBee decision. |
 
 Read on 2026-11-12. The wiki documents that a selection is converted to a
 chosen folder or alongside the originals, several files at a time. How
 names are kept apart is not documented.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Convert Format" (2.1.4923;
+2016-10-26). The page on converting is the oldest in use; what it says of a
+current MusicBee is a guess.
 
 ## B-DEST
 

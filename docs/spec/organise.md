@@ -34,6 +34,11 @@ be replaced" is ticked, in which case the replaced file goes to the Recycle
 Bin; "do not reorganize files with missing naming tags", ticked by default;
 "also move remaining non-media files", unticked by default.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "File Organization" (3.0.5993;
+2019-12-18); "How to Create a File-Naming Template" (no version given;
+2016-08-09).
+
 ## 1. Which files are music
 
 ### O-MUSIC

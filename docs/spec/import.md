@@ -4,7 +4,7 @@ A way in for someone leaving another program: the things a music file
 does not carry (when it was added, how often it was played, when it was
 last played) and the playlists, read from an iTunes-format library XML
 file. MusicBee can write one (Library preferences, "export the library as
-an iTunes formatted XML file").
+an iTunes formatted XML file", W-L).
 
 This document is the contract for `src/core/import/itunesxml.h`. The
 locked test `tests/locked/tst_import.cpp` checks it against
@@ -29,6 +29,10 @@ of the keys below MusicBee writes is an open question. A forum guide from
 2014 says ratings and play counts are exported, half-stars are dropped,
 and a multi-value tag keeps only its first value. Tags are therefore not
 imported at all: the music files are the truth for tags.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Library Preferences" (3.0.5976;
+2017-10-12).
 
 ## I-PARSE
 

@@ -24,6 +24,10 @@ calculates the adjustment needed to normalise playback and writes Replay
 Gain tags; the sound data is not changed; for an album level, all of the
 album's tracks must be selected; Restore Original Volume removes the tags.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Analyze Volume" (no version given;
+2020-10-19).
+
 ## N-TAGS: reading
 
 `gainFromTags` looks only at `TrackTags::other`, keys in any case, first

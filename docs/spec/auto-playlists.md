@@ -13,7 +13,8 @@ locked test `tests/locked/tst_autoplaylist.cpp` checks it. It builds on
 
 | Tag | Source |
 |---|---|
-| W-AP | MusicBee wiki, "Auto-Playlists": https://musicbee.fandom.com/wiki/Auto-Playlists |
+| W-AP | MusicBee wiki, "Playlists", the part on auto-playlists: https://musicbee.fandom.com/wiki/Playlists#Auto-Playlists |
+| W-API | MusicBee wiki, "API Method Reference" (the parts of an auto-playlist file, by name): https://musicbee.fandom.com/wiki/API_Method_Reference |
 | A-… | A linuxBee decision. |
 
 Read on 2026-11-13. What MusicBee documents (W-AP): rules joined by ANY or
@@ -23,8 +24,13 @@ rating, most or least recently played, most or least often played, most or
 least recently added; an option to filter out duplicates, off by default;
 automatic refreshing, on by default. How ties are broken, how a limit in
 minutes treats the track that does not fit, and how a duplicate is decided
-are not documented; those rules are linuxBee's. MusicBee's own file format
-for auto-playlists is not published and is not read.
+are not documented; those rules are linuxBee's. MusicBee's own file for
+auto-playlists has its parts named in public (W-API) but not the codes
+for fields and comparisons; it is not read.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Playlists" (3.0.5992; 2020-04-28);
+"API Method Reference" (no version given; 2025-05-19).
 
 ## A-EVALUATE
 

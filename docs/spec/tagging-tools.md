@@ -21,6 +21,7 @@ file. That is what lets a dialog show a preview: the preview is the result.
 | W-TT | MusicBee wiki, "Tagging Tools": https://musicbee.fandom.com/wiki/Tagging_Tools |
 | W-AT | MusicBee wiki, "Auto-Tagging": https://musicbee.fandom.com/wiki/Auto-Tagging |
 | W-CAP | MusicBee wiki, "How to Automate Song Title Capitalization" (one user's guide): https://musicbee.fandom.com/wiki/How_to_Automate_Song_Title_Capitalization |
+| W-AS | MusicBee wiki, "Appending Some Text to Tags" (one user's guide; it copies tags with a third-party add-on): https://musicbee.fandom.com/wiki/Appending_Some_Text_to_Tags |
 | G-… | A linuxBee decision. |
 
 Pages were read on 2026-11-13. The wiki pages for the Search and Replace,
@@ -40,6 +41,12 @@ known of MusicBee is this:
   (W-AT).
 
 Everything more exact than that is linuxBee's.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Tools Menu" (3.0.5902; 2024-08-27);
+"Tagging Tools" (no version given; 2020-12-29); "Auto-Tagging" (3.0.5999;
+2016-10-26); "How to Automate Song Title Capitalization" (no version given;
+2014-07-26); "Appending Some Text to Tags" (no version given; 2014-07-26).
 
 ## G-CHANGES: what every tool returns
 
@@ -77,6 +84,9 @@ empty text. `searchReplace` with options that do not validate returns no
 changes.
 
 ## G-CASE: capitalise
+
+(MusicBee's Tools menu has Capitalise; the finer changes of case in
+W-CAP are a third-party add-on's. The rules here are linuxBee's own.)
 
 `changeCase(text, options)` changes one text. A *word* is a run of
 characters between white space. White space is kept exactly.
@@ -176,6 +186,9 @@ all when it is asked or copied; by one for each call of
 pattern that does not validate, and never for validating.
 
 ## G-COPY: copy and swap
+
+(Not a tool of MusicBee itself: its Tools menu has no copy or swap
+(W-TM), and W-AS does it with a third-party add-on. linuxBee's own.)
 
 `copyTag(tags, from, to)` gives `to` the values of `from`; if `from` has
 none, `to` is removed. `swapTags(tags, a, b)` exchanges the two. Unknown
