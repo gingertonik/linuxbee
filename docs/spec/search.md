@@ -55,12 +55,21 @@ The text is cut into tokens at white space, except inside double quotes.
 - A token that is exactly `OR`, in upper case, unquoted, with no field and
   no `-`, is the operator. It joins the term before it and the term after
   it into one group. An `OR` with no term on one side is dropped.
+- A `+` on its own (unquoted, with no field and no `-`) is the same
+  operator. A `+` in a token with other characters (`c++`, `a+b`) is an
+  ordinary character. (W-S gives one example in which `+` joins two
+  artists as OR does; that it is the same operator is read from that one
+  example, the owner's ruling of 2026-11-20.)
+- Only `OR` in upper case and `+` join. `or` in lower case is a word, so
+  a band or a title with "or" in it is still found. (linuxBee's own,
+  2026-11-20. The same example in W-S also has an `or` in lower case
+  joining; read here, it is a word the tracks must hold.)
 - A token with an empty text and no field is dropped. A token with a field
   and an empty text (`genre:`) is kept.
 
 Each remaining token is a term: field name and text, both folded, and the
 negated mark. The query is a list of groups; a group is one term, or
-several joined by OR. `OR` binds tighter than a space:
+several joined by OR. `OR` and `+` bind tighter than a space:
 `x a OR b y` is x, (a or b), y.
 
 Parsing never fails.
@@ -102,7 +111,8 @@ and for timing; nothing decides anything by it.
 
 `canonical()` writes the query out: each term as its text in double
 quotes, with `field:` before it if it has one (the name in double quotes
-too when it contains a space) and `-` before that if it is negated; the terms of a group joined by ` OR `; the groups joined by one
+too when it contains a space) and `-` before that if it is negated; the terms of a group joined by ` OR `
+(a `+` is written so too); the groups joined by one
 space. An empty query is an empty text. Parsing the canonical text gives
 the same query.
 

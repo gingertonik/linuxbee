@@ -84,10 +84,10 @@ SearchQuery SearchQuery::parse(const QString &text)
 
         const Token token = readToken(text, pos);
 
-        // The operator is exactly OR, in upper case, unquoted, with no field and
-        // no dash. It joins the term before it and the term after it.
+        // The operator is exactly OR, in upper case, or a + standing alone, unquoted,
+        // with no field and no dash. It joins the term before it and the term after it.
         if (!token.quoted && !token.negated && !token.hasField
-            && token.text == QStringLiteral("OR")) {
+            && (token.text == QStringLiteral("OR") || token.text == QStringLiteral("+"))) {
             // With no term before it, or a second OR in a row, there is nothing
             // to join, so it is dropped.
             if (!query.m_groups.isEmpty() && !orPending)
