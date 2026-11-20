@@ -64,8 +64,9 @@ A field the track does not have, and a field whose text is blank, both have
 no values.
 
 The text operators are *positive* (`is`, `contains`, `starts-with`,
-`ends-with`, `is-any-of`, `matches`) or *negative* (`is-not`,
-`does-not-contain`, `is-not-any-of`, `does-not-match`). A positive operator
+`ends-with`, `is-any-of`, `matches`, `matches-case`) or *negative*
+(`is-not`, `does-not-contain`, `is-not-any-of`, `does-not-match`,
+`does-not-match-case`). A positive operator
 holds when at least one value passes its test. A negative operator holds
 when no value passes the positive test. So with no values every positive
 operator fails and every negative one holds.
@@ -81,7 +82,15 @@ any of the rule's values.
 
 `matches` searches each value for the regular expression (Perl syntax, as
 `QRegularExpression`), ignoring case. It need not cover the whole value
-unless it is anchored.
+unless it is anchored. `matches-case` does the same and heeds case: `^Beat`
+finds `Beatles` and not `beatles`. A pattern may still ask for itself to
+ignore case (`(?i)`). `does-not-match` and `does-not-match-case` are their
+negative forms.
+
+(The owner, 2026-11-20: MusicBee's rules have a regular expression that
+heeds case and a "/i" form that does not (W-R, "Filters"). `matches` keeps
+the meaning it has had, so that a stored set means what it meant; the form
+that heeds case is the new id.)
 
 ### U-NUMBER
 
@@ -123,8 +132,16 @@ does).
 In enum order: `is`, `is-not`, `contains`, `does-not-contain`,
 `starts-with`, `ends-with`, `is-any-of`, `is-not-any-of`, `matches`,
 `does-not-match`, `has-value`, `has-no-value`, `greater-than`, `less-than`,
-`in-range`, `before`, `after`, `in-the-last`, `not-in-the-last`. Ids are
-lower case and matched exactly.
+`in-range`, `before`, `after`, `in-the-last`, `not-in-the-last`,
+`matches-case`, `does-not-match-case`. Ids are lower case and matched
+exactly. A new operator is added at the end, so that no stored id moves.
+
+`ruleOperatorLabel(op)` is what a person reads for an operator: in a rule
+editor, and in any rule text of `linuxbeectl` or the manual. For the
+regular expressions it follows MusicBee's names: `matches-case` is `match
+RegEx`, `matches` is `match RegEx/i`, `does-not-match-case` is `does not
+match RegEx` and `does-not-match` is `does not match RegEx/i`. For every
+other operator it is the id with a space for each `-` (`is not`).
 
 `has-value` holds when the field has at least one value; `has-no-value`
 when it has none.
@@ -139,7 +156,7 @@ when it has none.
 | `in-range` | two numbers, the lower first (equal is allowed) |
 | `before`, `after` | one, a date |
 | `in-the-last`, `not-in-the-last` | a whole number of 1 or more, then a unit |
-| `matches`, `does-not-match` | one, a valid regular expression |
+| `matches`, `does-not-match`, `matches-case`, `does-not-match-case` | one, a valid regular expression |
 | the rest | exactly one (an empty text counts) |
 
 ### U-VALID

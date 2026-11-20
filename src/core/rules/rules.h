@@ -31,6 +31,8 @@ enum class RuleOperator {
     After,
     InTheLast,
     NotInTheLast,
+    MatchesCase, // regular expression, heeding case
+    DoesNotMatchCase,
 };
 
 struct Rule {
@@ -55,6 +57,8 @@ struct RuleContext {
 // U-NAMES: "is", "is-not", "contains", ... and back. An unknown id gives false.
 QString ruleOperatorId(RuleOperator op);
 bool ruleOperatorFromId(const QString &id, RuleOperator *op);
+// U-NAMES: what a person reads for an operator.
+QString ruleOperatorLabel(RuleOperator op);
 
 // U-VALID: one line per problem; empty when the set can be used.
 QStringList validateRules(const RuleSet &rules);

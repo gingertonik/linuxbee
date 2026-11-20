@@ -185,6 +185,9 @@ bool conditionHolds(const Rule &rule, const QStringList &values, const RuleConte
     case RuleOperator::NotInTheLast:
         // U-LAST: a field with no date matches neither operator.
         return firstDate(values).has_value() && !inTheLast(rule, values, context);
+    case RuleOperator::MatchesCase: // stub: the builder makes these real
+    case RuleOperator::DoesNotMatchCase:
+        return false;
     }
     return false;
 }

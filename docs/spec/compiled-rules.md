@@ -37,10 +37,12 @@ remembers nothing between calls.
 ## RC-PATTERNS
 
 Every regular expression of the set (the first value of each rule whose
-operator is `matches` or `does-not-match`, sub-rules included) is built
-once, when the object is made, and used for every track after that.
-`patternCount()` is how many are held: one for each different expression
-text; none when the set is not valid.
+operator is `matches`, `does-not-match`, `matches-case` or
+`does-not-match-case`, sub-rules included) is built once, when the object
+is made, and used for every track after that. `patternCount()` is how many
+are held: one for each different expression text and in each form (one
+text under `matches` and under `matches-case` is two, each with its own
+case); none when the set is not valid.
 
 Making the object is the expensive step and matching is the cheap one:
 asking one object about many tracks must take under a fifth of the time
