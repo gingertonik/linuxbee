@@ -201,6 +201,13 @@ public:
 
     // L-EDIT. Each returns how many tracks were changed.
     int remove(const QList<qint64> &ids);
+    // L-DELETED: the files of these tracks went to the trash at `when`. The rows are kept and
+    // are no tracks until a scan finds the file again. Returns how many were tracks.
+    int markDeleted(const QList<qint64> &ids, const QDateTime &when);
+    // L-DELETED: removes the rows deleted thirty days before `now` or longer ago, at whose path
+    // nothing is. Returns how many.
+    int expireDeleted(const QDateTime &now);
+    static int deletedKeptDays() { return 30; }
     int setCategory(const QList<qint64> &ids, const QString &category);
     bool refresh(qint64 id); // read the file's tags again
     bool setPath(qint64 id, const QString &newPath); // the file was moved
