@@ -41,6 +41,7 @@ settings and the library file may still change.
 - **A deleted track's row is kept for thirty days** (the library's half; the window's Delete Files calls it in a later change). A track marked deleted leaves every list and count at once, and keeps its plays, skips, date added and id; a scan or Add of a file at its path brings it back. After thirty days the row is removed, unless a file is at its path. **A library opened by this version is refused by 0.8.0** (schema 3; the copy made before the step is `library.db.schema-2`).
 - **Delete Files keeps the track's row for thirty days.** A file taken back out of the trash to where it was comes back at the next scan as the same track, with its plays and date added. Before, Delete Files removed the row, and the plays went with the file.
 - **A `+` on its own joins two terms as OR does.** A search for `philter + sadistik` now finds tracks by either artist, as MusicBee's searching page says its `+` does. Before, the `+` was an ordinary word and the search wanted both. A `+` inside a word (`c++`, `a+b`), in quotes, or after a `-` is still a character.
+- `linuxbeectl rules operators` lists every rule operator: its id, a tab, and the name a person reads (`matches-case` is MusicBee's "match RegEx", `matches` its "match RegEx/i"), so a rule set written by hand can use the right id.
 
 ## 0.8.0 (2026-11-18)
 

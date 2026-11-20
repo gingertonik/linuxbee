@@ -14,7 +14,8 @@ using linuxbee::cli::usageError;
 
 const char *const kUsage
     = "usage: linuxbeectl rules check JSON\n"
-      "       linuxbeectl rules match [--field NAME=VALUE]... [--now WHEN] JSON";
+      "       linuxbeectl rules match [--field NAME=VALUE]... [--now WHEN] JSON\n"
+      "       linuxbeectl rules operators";
 
 // U-VALID: each problem on its own line on standard error, nothing on
 // standard output, exit 2.
@@ -45,12 +46,27 @@ int runRules(const QStringList &arguments)
 
     const QStringList positional = parser.positionalArguments();
     if (positional.isEmpty())
-        return usageError(QStringLiteral("linuxbeectl: rules needs check or match.\n%1")
+        return usageError(QStringLiteral("linuxbeectl: rules needs check, match or operators.\n%1")
                 .arg(QLatin1String(kUsage)));
     const QString subcommand = positional.at(0);
-    if (subcommand != QLatin1String("check") && subcommand != QLatin1String("match"))
+    if (subcommand != QLatin1String("check") && subcommand != QLatin1String("match")
+        && subcommand != QLatin1String("operators"))
         return usageError(QStringLiteral("linuxbeectl: rules has no subcommand \"%1\".\n%2")
                 .arg(subcommand, QLatin1String(kUsage)));
+    if (subcommand == QLatin1String("operators")) {
+        // U-CLI: every operator in the order of U-NAMES, its id, a tab, what a person reads.
+        if (positional.size() != 1)
+            return usageError(QStringLiteral("linuxbeectl: rules operators takes no argument.\n%1")
+                    .arg(QLatin1String(kUsage)));
+        QTextStream list(stdout);
+        for (int n = static_cast<int>(linuxbee::RuleOperator::Is);
+            n <= static_cast<int>(linuxbee::RuleOperator::DoesNotMatchCase); ++n) {
+            const auto op = static_cast<linuxbee::RuleOperator>(n);
+            list << linuxbee::ruleOperatorId(op) << '\t' << linuxbee::ruleOperatorLabel(op) << '\n';
+        }
+        list.flush();
+        return 0;
+    }
     if (positional.size() != 2)
         return usageError(QStringLiteral("linuxbeectl: rules %1 takes exactly one rule set.\n%2")
                 .arg(subcommand, QLatin1String(kUsage)));
