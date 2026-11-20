@@ -19,8 +19,7 @@ plan; nothing here needs a device.
 | FF | ffmpeg documentation, "Main options" (`-ss` before `-i`, `-map`, `-vn`) and the `f32le` raw format: https://ffmpeg.org/ffmpeg.html |
 | AE-… | A linuxBee decision. |
 
-MusicBee plays through the BASS library, which is not free software and
-is not used. Nothing in this document copies MusicBee's player; it only
+Nothing in this document copies MusicBee's player; it only
 has to play every format linuxBee reads.
 
 Why not Qt Multimedia's player: tried on 2026-11-13 with Qt 6.12, it never

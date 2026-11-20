@@ -48,7 +48,9 @@ it sits in, its default hotkey, whether it is a tick-box, and whether a
 separator comes before it. The list is data, written by the reviewer and
 locked. It follows W-MENU for names and order and W-HOT for keys, minus
 what linuxBee does not have (CD ripping, devices, Last.fm, the visualiser,
-tabs) and plus `Exit` on `Ctrl+Q`.
+tabs) and plus `Exit` on `Ctrl+Q`. Two keys differ from W-HOT on purpose
+(the owner, 2026-11-20): `Ctrl+Z` is Undo, which has no default key there,
+and `F11` is Full Screen, where MusicBee shows the visualiser full screen.
 
 For any catalogue: ids are unique and look like `group.name`; a menu is
 empty (a hotkey-only command) or starts with File, Edit, View, Controls,

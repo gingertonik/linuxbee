@@ -184,8 +184,7 @@ The frame behind each key in each format is TagLib's mapping (TL): TITLE is
 The Vorbis names ORGANIZATION, CONTENTGROUP, TOTALTRACKS, TRACKTOTAL and
 TOTALDISCS are the ones the MusicBee wiki gives for Publisher, Grouping and
 the totals (W-TG). UNSYNCEDLYRICS, ORIGYEAR, ORIGARTIST and ORIGALBUM are
-from a forum member's list of the names found in files MusicBee had written
-(F-V).
+from a forum member's list of Vorbis comment names (F-V).
 
 ### R-FIELDS
 
@@ -263,8 +262,8 @@ tagged by two programs may hold a word under one name and a Love value
 under the other, and the value counts. With no Love value under either
 name the field has no entry.
 
-The ID3v2 and MPEG-4 forms are as found in files MusicBee had written
-(a `TXXX` frame described `LOVE RATING`; the atom
+The ID3v2 and MPEG-4 forms are linuxBee's choice; no public page gives
+them (a `TXXX` frame described `LOVE RATING`; the atom
 `----:com.apple.iTunes:LOVERATING`; both with the value `L`). The
 Vorbis name and the value `B` are as MusicBee's forum gives them; no
 file was seen with either.
@@ -370,7 +369,7 @@ Nothing else is written to standard error.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| R-RATING | Which `POPM` byte does each star rating, including the halves, produce? The anchor table is the reviewer's recollection of a widely used convention and is not from a MusicBee document. |
+| R-RATING | Which `POPM` byte does each star rating, including the halves, produce? The anchor table follows a convention other players use, and is a linuxBee decision: no MusicBee document gives the bytes ("Tagging" names the frames only). |
 | R-RATING | What number does MusicBee write in a Vorbis `RATING` comment for 4 stars? linuxBee reads 80 and 4 both as 4 stars. |
 | R-RATING | Is there a zero rating that differs from no rating, and how is it stored? linuxBee: not read. |
 | R-NUMBERS | Is a track number with a leading zero shown as `03` or `3`? linuxBee: as written. |

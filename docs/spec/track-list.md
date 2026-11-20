@@ -20,6 +20,7 @@ plans' business.
 | W-MP | MusicBee wiki, "Tracks View" and "Main Panel Views" (track views, the header, the search box): https://musicbee.fandom.com/wiki/Tracks_View , https://musicbee.fandom.com/wiki/Main_Panel_Views |
 | W-SORT | MusicBee wiki, "Sorting & Grouping" ("ignore words"): https://musicbee.fandom.com/wiki/Sorting_%26_Grouping |
 | T-… | A linuxBee decision. |
+| W-SB | MusicBee wiki, "Status Bar": https://musicbee.fandom.com/wiki/Status_Bar |
 
 Read on 2026-11-13. What MusicBee documents: a track view with columns
 the user chooses, sorting by clicking a header, a search box that narrows
@@ -121,6 +122,11 @@ whole process since it started: `fieldValuesPrepared()`, the calls of
 - the size in MB to one decimal below 1 GB (1,073,741,824 bytes), in GB
   to one decimal from there;
 - the time as `h:mm:ss`, and as `Nd hh:mm:ss` from one day up.
+
+MusicBee's status bar gives the size in KB, MB or GB, and a click on it
+switches the time between hours, minutes and seconds and a decimal
+(W-SB). Here there is no KB step and no switch: a difference, recorded
+(2026-11-20).
 
 Negative input counts as 0: `0 tracks, 0.0 MB, 0:00:00`.
 

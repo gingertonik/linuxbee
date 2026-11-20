@@ -134,13 +134,18 @@ Rate and Channels are also blank when their number is 0.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| F-DISCTRACK | The default format of Disc-Track#. Two pages disagree (answered table below). linuxBee: 2 digits each. |
 | F-DECADE | How is Decade written: `2010s`, `10s`, `2010`? linuxBee: `2010s`. |
-| F-FILE | Does `<Path>` end with a separator? linuxBee: no. |
 | F-KIND | The Kind text for each format other than MP3. |
 | Table | How Time, Bitrate, Sample Rate and Channels are written in a template. |
 | F-DISPLAY | What Display Artist shows for two artists. |
 | Year (yyyy) | Is the four-digit year written `<Year(yyyy)>` in a template? "Special Fields" lists the field as "Year (yyyy)"; a guide on "How to Create a File-Naming Template" writes `<Year(YYYY)>`. linuxBee: the name as in the table. |
+
+### Decided by the owner (2026-11-20)
+
+| Rule | Question | Decision |
+|---|---|---|
+| F-FILE | Does `<Path>` end with a separator? | No: a difference, and meant. MusicBee's seems to: "Special Fields" calls Path the folder without the file name, and "Useful Virtual Tag Formulas" shows how to take its last backslash away. |
+| F-DISCTRACK | The default format of Disc-Track#. | `01-11`: `discDigits` stays 2, as the owner's own files are named. "Tracks View" gives `0-00` (`1-11`) as MusicBee's default; this is a difference, and it is meant. |
 
 ### Answered from the MusicBee wiki (checked 2026-11-20)
 

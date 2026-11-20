@@ -259,6 +259,9 @@ below that matches is replaced; any other character is copied.
 | `ss` | second, two digits | 00 |
 | `s` | second | 0 |
 
+`MMMM`, `MMM`, `dddd`, `ddd`, `HH` and `H` are linuxBee's own: W-F lists
+only `yy`, `yyyy`, `M`, `MM`, `d`, `dd`, `h`, `hh`, `m`, `mm`, `s` and `ss`.
+
 Names come from `QLocale::c()`, so they do not change with the system
 language.
 

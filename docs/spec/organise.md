@@ -463,8 +463,8 @@ planned entries. Files in folders below it are not touched.
 ### O-EMPTY
 
 Only for `Mode::Move` with `removeEmptyFolders` true. It is false unless
-asked for: MusicBee leaves emptied folders (the owner, from memory,
-2026-11-14), and so does linuxBee by default. After the moves, each
+asked for: linuxBee leaves emptied folders by default (the owner's
+ruling, 2026-11-14; the wiki does not say what MusicBee does). After the moves, each
 folder a track was moved out of is removed if it is now completely empty,
 then its parent if that is now empty, and so on upward. It stops at the
 first folder that still holds anything, and it stops at a floor.
@@ -554,7 +554,7 @@ linuxbeectl organise [--to DIR] [--template T | --keep-names] [--copy]
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| O-EMPTY | Settled 2026-11-14 (the owner, from memory): MusicBee does not remove a folder that organising left empty. linuxBee: the same by default; `removeEmptyFolders` and `--remove-empty-folders` ask for it, and never the folder it was pointed at or anything above it. |
+| O-EMPTY | Decided 2026-11-14 by the owner (the wiki does not say what MusicBee does): a folder that organising left empty is not removed by default; `removeEmptyFolders` and `--remove-empty-folders` ask for it, and never the folder it was pointed at or anything above it. |
 | O-OTHER | When a folder's tracks go to two different folders, where do its cover and cue files go? linuxBee: they stay. |
 | O-OTHER | Does an other file replace one of the same name at the target? linuxBee: never. |
 | O-CONFLICT | With "allow existing files to be replaced" and two new files of the same name, which wins? linuxBee: the first replaces, the second is numbered. |

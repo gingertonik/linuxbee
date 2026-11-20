@@ -112,4 +112,4 @@ the dialog still open, and a folder that was added is scanned at once.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| LP-ADD | Settled 2026-11-14 (the owner, from memory): it does, once the page is applied (BG-RELOAD). |
+| LP-ADD | Decided 2026-11-14 by the owner (the wiki does not say): it does, once the page is applied (BG-RELOAD). |

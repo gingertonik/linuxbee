@@ -244,7 +244,7 @@ A stored `blankOnly` other than `false` means ticked.
 - Editing the small-word list; choosing several fields in Search and
   Replace; remembering the texts searched for.
 - Unticking single rows of the preview to leave them out.
-- Undo.
+- Undo here: tag-undo.md has one step of it, for the window.
 
 ## Open parity questions
 

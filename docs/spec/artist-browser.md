@@ -19,6 +19,7 @@ check it.
 | W-LNE | MusicBee wiki, "Library Navigation Elements", Thumbnail Browser: a column of one tag's values at the left of the library that filters the main panel by the value chosen, with a menu to select which field it uses: https://musicbee.fandom.com/wiki/Library_Navigation_Elements (matches version 3.0; read 2026-11-13) |
 | SHOT | The user's own MusicBee window, 2026-11-13: the column is headed `Album Artist`, with a menu arrow beside the heading. |
 | AB-… | A linuxBee decision. |
+| W-H | MusicBee wiki, "How to Create a File-Naming Template": https://musicbee.fandom.com/wiki/How_to_Create_a_File-Naming_Template |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Library Navigation Elements"
@@ -200,7 +201,7 @@ The choice is not stored: a new start begins with all artists.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| AB-ARTIST | Settled 2026-11-14 (the owner, from memory): under Album Artist. Open: where a track with two Album Artist values is filed (linuxBee: under the first). |
+| AB-ARTIST | Decided 2026-11-14 by the owner: under Album Artist, and from Artist when it is blank; a guide on the wiki says virtual tags see a blank Album Artist filled from Artist (W-H). Open: where a track with two Album Artist values is filed (linuxBee: under the first). |
 | AB-LIST | What the "all" row is called and what number it shows. |
 | AB-FIELD | Settled 2026-11-14 (the owner, seen): Album, Album Artist, Artist, Composer, Decade, Genre, Genre Category, then submenus of other, custom and virtual tags. linuxBee keeps its own seven; the owner accepted the difference. |
-| AB-FIELD | Settled 2026-11-14 (the owner, from memory): it does. |
+| AB-FIELD | Decided 2026-11-14 by the owner (the wiki does not say): it does. |

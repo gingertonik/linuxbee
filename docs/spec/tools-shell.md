@@ -281,9 +281,8 @@ Every message goes to the window's status bar and is kept as
 
 - Adding converted files to the library, or offering to.
 - Preferences pages other than Hotkeys (other plans add theirs).
-- The other tagging tools (remove tags, renumber, infer from
-  file name), auto-tagging, volume analysis and the library import
-  dialog: their core parts exist as plans; their windows do not.
+- Auto-tagging, volume analysis and the library import dialog: their
+  core parts exist; their windows do not.
 - Opening the dialogs without blocking the window.
 
 ## Open parity questions

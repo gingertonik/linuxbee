@@ -246,8 +246,8 @@ still FILE as it was typed.
 ## Not in this version
 
 - Presets, and chains of several replacements in one preset.
-- Undo. A caller that wants it keeps the old values, which are in the
-  `TrackTags` it passed in.
+- Undo here. A caller that wants it keeps the old values, which are in
+  the `TrackTags` it passed in; tag-undo.md does so for the window.
 - Searching `other` keys.
 - The tools that need the network (auto-tag by album, identify track,
   artwork, lyrics) and volume analysis: separate plans.
