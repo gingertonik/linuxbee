@@ -142,7 +142,8 @@ the folders, each file once, in ascending order of path.
   no scan could bring one, since every file was as stored.) What the
   reader makes of a file changes when the program learns a tag. The
   reader has a number, `kReaderVersion`, raised by one with each such
-  change (it is 2; 1 read no Love), and the library holds for each
+  change (it is 3; 1 read no Love, and 2 read some Ogg files a page
+  short, R-AUDIO), and the library holds for each
   track the number of the reader that read it, stored with every
   reading: a scan, `addFile`, `refresh`. A known file as stored that
   was read by an older reader is read again. If what is read is what
