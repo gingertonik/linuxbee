@@ -11,13 +11,19 @@ in the window and none on the command line.
 
 ## Sources
 
-- MusicBee wiki, "General Preferences", confirmations: "confirm
+- MusicBee wiki, "General Preferences"
+  (https://musicbee.fandom.com/wiki/General_Preferences), confirmations: "confirm
   permanent file deletion (using SHIFT delete)". MusicBee's Shift+Delete
   removes for good; linuxBee's does not (see "Differences").
-- MusicBee wiki, "File Organization": "replaced files will be moved to
+- MusicBee wiki, "File Organization"
+  (https://musicbee.fandom.com/wiki/File_Organization): "replaced files will be moved to
   the Recycle Bin".
 - The freedesktop.org Trash specification, for where a trashed file and
   its record go.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "General Preferences" (3.0.5903;
+2016-10-23); "File Organization" (3.0.5993; 2019-12-18).
 
 ## FD-TRASH: files to the trash
 

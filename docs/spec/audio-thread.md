@@ -108,3 +108,8 @@ holds, so it is not tried.
 | Rule | Question |
 |---|---|
 | AT-OWN | The device sink on a thread that is not the window's: by ear, on the owner's sound card, with the next package. |
+
+## Sources
+
+None outside this project: this document is engineering only, and every
+rule in it is a linuxBee decision. Nothing in it describes MusicBee.

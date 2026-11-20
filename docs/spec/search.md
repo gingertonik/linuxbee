@@ -18,6 +18,10 @@ fields unless a field is chosen; `fieldname:searchtext` restricts a term to
 one field; phrases go in quotes; values can be joined with OR. The rest of
 the syntax is not documented; what follows is linuxBee's.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Searching" (no version given;
+2021-04-28).
+
 ## S-FOLD
 
 Text is compared after folding: Unicode compatibility decomposition (NFKD),

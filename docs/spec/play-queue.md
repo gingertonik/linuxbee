@@ -25,6 +25,11 @@ What Previous does under shuffle, what happens when the playing track is
 removed from the list, and how shuffle treats tracks added mid-way are not
 documented; those rules are linuxBee's.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Now Playing Preferences" (3.3.7491;
+2020-12-30); "Playing Tracks" (no version given; 2016-10-26); "Player
+Controls" (no version given; 2016-03-23).
+
 ## Q-EDIT: changing the list
 
 Each entry has a path and an entry id. Ids are unique for the life of the

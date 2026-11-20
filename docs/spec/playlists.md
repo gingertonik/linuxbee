@@ -23,6 +23,10 @@ exports can be M3U, M3U (#EXT), M3U8, ASX, PLS, WPL or XSPF, with options
 for relative paths; only static playlists can be imported. The MBP format
 is not published and is not read or written here.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Playlists" (3.0.5992; 2020-04-28);
+"Library Preferences" (3.0.5976; 2017-10-12).
+
 ## 1. Playlist files
 
 ### Y-FORMAT

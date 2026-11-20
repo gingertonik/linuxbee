@@ -25,6 +25,10 @@ running program.
 | SEEN | Seen: a `<variables>` block of lines `name = "r,g,b"`, and those names used as colour values; `fg2`; colours of four numbers; the sections `<colours id="Default">`, `<settings>` and `<images id="Default">` around the elements; values between the tags (`true`, a number, a picture as base64). 176 element names are in the files and not on the wiki page. |
 | SK-… | A linuxBee decision. Which element colours which part of linuxBee is always one (inferred from the element's name and W-SE's description). |
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Skinning Elements" (2.3.5139;
+2018-11-07); "Skinning Guide" (no version given; 2019-02-09).
+
 ## SK-READ: reading a skin
 
 `readSkin(bytes)`:

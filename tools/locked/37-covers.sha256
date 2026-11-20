@@ -1,4 +1,4 @@
-fd6dccc1b1f79dfbed9fc1839cda60cdd2a0a88d2d43c6e2d7b7b8b0b3e87508  docs/spec/covers.md
+74de69fa12e3991b80515b6ee142782f62124414a074a1bf37c4d46c44ffc893  docs/spec/covers.md
 3d5854c1fa39269d99b5313f23d3e26795747b54cd52b13c845ce1ce69bfdacc  src/core/covers/cover.h
 c2f2c4d2f00975cbf91b259d9001f74573716b7727fee667a32cf49012d18cf9  tests/locked/cli_cover_limits.sh
 2ad003497acef62f7c32497a9221343563b535f5e950ad353952378938b8670c  tests/locked/cli_cover.sh

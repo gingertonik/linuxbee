@@ -1,4 +1,4 @@
-8da8b4b6f32413deecfc167da89d837c2b31f9c95cf6909327655fe7e81f3d25  docs/spec/scan-runner.md
+8c8cb16fffb41b3736229870caf4364f51c105ce57dc2b012fa249bbe782d8ed  docs/spec/scan-runner.md
 34d8671db3fa9580e89d723593c221c7f0f13583a97f28243b76ae74969d3b3c  src/ui/shell/scanrunner.h
 be261825dff595c10ebbe45f9cc9dffe2e22ed72473e2b76e77cdafab474899b  tests/locked/cli_scan_progress.sh
 83e96be58e2d1dbc1bf052f78c05a438fadc2de467eb307e2bdb60cad18d6e68  tests/locked/tst_ui_scanprogress.cpp

@@ -16,8 +16,12 @@ tag-editor.md, organise-dialog.md, convert-dialog.md and preferences.md.
 
 | Tag | Source |
 |---|---|
-| W-FILE | MusicBee wiki, "File Menu", "Tools Menu", "Edit Menu": see main-window.md |
+| W-FILE | MusicBee wiki, "File Menu", "Tools Menu", "Edit Menu": https://musicbee.fandom.com/wiki/File_Menu , https://musicbee.fandom.com/wiki/Tools_Menu , https://musicbee.fandom.com/wiki/Edit_Menu |
 | TS-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "File Menu" (3.0.5899; 2020-05-01);
+"Tools Menu" (3.0.5902; 2024-08-27); "Edit Menu" (3.0.5899; 2016-03-11).
 
 ## TS-COMMANDS
 

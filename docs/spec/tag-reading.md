@@ -24,6 +24,9 @@ LGPL-2.1 or MPL-1.1). No TagLib type appears in a public header.
 
 Pages were read on 2026-11-13.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Tagging" (3.0.5962; 2020-10-11).
+
 ## 1. Result
 
 ### R-STATUS

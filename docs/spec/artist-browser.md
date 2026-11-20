@@ -15,10 +15,14 @@ check it.
 
 | Tag | Source |
 |---|---|
-| W-MP | MusicBee wiki, "Main Panel" (the artist column beside the tracks in the Artists and Album Artists views): see track-list.md |
+| W-MP | MusicBee wiki, "Main Panel Views" (the artist column beside the tracks in the Artists and Album Artists views): see track-list.md |
 | W-LNE | MusicBee wiki, "Library Navigation Elements", Thumbnail Browser: a column of one tag's values at the left of the library that filters the main panel by the value chosen, with a menu to select which field it uses: https://musicbee.fandom.com/wiki/Library_Navigation_Elements (matches version 3.0; read 2026-11-13) |
 | SHOT | The user's own MusicBee window, 2026-11-13: the column is headed `Album Artist`, with a menu arrow beside the heading. |
 | AB-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Library Navigation Elements"
+(3.0.5972; 2016-06-12).
 
 ## AB-ARTIST: the artist a track is filed under
 

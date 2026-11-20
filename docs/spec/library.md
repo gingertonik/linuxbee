@@ -17,7 +17,7 @@ files from `docs/spec/organise.md` (O-MUSIC).
 
 | Tag | Source |
 |---|---|
-| W-L | MusicBee wiki, "Library Preferences" and "Inbox": https://musicbee.fandom.com/wiki/Library_Preferences , https://musicbee.fandom.com/wiki/Inbox |
+| W-L | MusicBee wiki, "Library Preferences" and "Navigator" (the Inbox): https://musicbee.fandom.com/wiki/Library_Preferences , https://musicbee.fandom.com/wiki/Navigator#Inbox |
 | L-… | A linuxBee decision. |
 
 Pages were read on 2026-11-13.
@@ -29,6 +29,10 @@ folders are scanned for new files; statistics such as play count, skip
 count, last played and date added are kept per file. How MusicBee stores
 its library is not documented and is not copied: the file format here is
 linuxBee's own.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Library Preferences" (3.0.5976;
+2017-10-12); "Navigator" (3.0.5918; 2020-07-30).
 
 ## 1. The file
 

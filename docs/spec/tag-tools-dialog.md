@@ -12,8 +12,12 @@ tags is in tagging-tools.md (G-x); nothing of that is decided here.
 
 | Tag | Source |
 |---|---|
-| W-TM, W-TT | MusicBee wiki, "Tools Menu" and "Tagging Tools" (see tagging-tools.md): the tools exist, Search and Replace has a preview |
+| W-TM, W-TT | MusicBee wiki, "Tools Menu" and "Tagging Tools" (the tools exist, Search and Replace has a preview): https://musicbee.fandom.com/wiki/Tools_Menu , https://musicbee.fandom.com/wiki/Tagging_Tools |
 | TT-… | A linuxBee decision. The layout of MusicBee's own dialogs is not documented in what could be read. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Tools Menu" (3.0.5902; 2024-08-27);
+"Tagging Tools" (no version given; 2020-12-29).
 
 ## TT-PANEL: what a tool supplies
 

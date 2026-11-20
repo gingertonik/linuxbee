@@ -17,8 +17,8 @@ plans' business.
 
 | Tag | Source |
 |---|---|
-| W-MP | MusicBee wiki, "Main Panel" (track views, the header, the search box): https://musicbee.fandom.com/wiki/Main_Panel |
-| W-SORT | MusicBee wiki, "Sorting/Grouping" preferences ("ignore words"): https://musicbee.fandom.com/wiki/Sorting/Grouping_Preferences |
+| W-MP | MusicBee wiki, "Tracks View" and "Main Panel Views" (track views, the header, the search box): https://musicbee.fandom.com/wiki/Tracks_View , https://musicbee.fandom.com/wiki/Main_Panel_Views |
+| W-SORT | MusicBee wiki, "Sorting & Grouping" ("ignore words"): https://musicbee.fandom.com/wiki/Sorting_%26_Grouping |
 | T-… | A linuxBee decision. |
 
 Read on 2026-11-13. What MusicBee documents: a track view with columns
@@ -27,6 +27,11 @@ the list as the user types, a summary of count, size and length in the
 status bar, and a preference listing words (by default "The") that are
 ignored at the start of a name when sorting. How it compares two values
 exactly is not documented.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Tracks View" (3.0.6006;
+2020-06-26); "Main Panel Views" (3.0.5913; 2023-09-02); "Sorting & Grouping"
+(3.0.5976; 2016-05-13).
 
 ## 1. Order (core)
 
@@ -45,6 +50,10 @@ Names are matched without regard to case. Year and the date fields are
 text: `yyyy` and ISO 8601 dates sort correctly as text.
 
 ### T-COMPARE
+
+(The order of two values in a column. templates.md has a rule of the
+same name, for a condition in a template; they are told apart by the
+document.)
 
 `compareFieldValues(field, a, b, options)` is negative when `a` comes
 first, positive when `b` does, and 0 when neither does. It is a proper

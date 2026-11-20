@@ -13,7 +13,8 @@ and "now" is passed in.
 
 | Tag | Source |
 |---|---|
-| W-R | MusicBee wiki, "Rule-Based Features" (category page) and "Auto-Playlists": https://musicbee.fandom.com/wiki/Category:Rule-Based_Features , https://musicbee.fandom.com/wiki/Auto-Playlists |
+| W-R | MusicBee wiki, "Filters" (rules, ANY or ALL, sub-rules, lists separated by semicolons) and "Playlists", the part on auto-playlists: https://musicbee.fandom.com/wiki/Filters , https://musicbee.fandom.com/wiki/Playlists#Auto-Playlists |
+| W-API | MusicBee wiki, "API Method Reference": https://musicbee.fandom.com/wiki/API_Method_Reference |
 | U-… | A linuxBee decision. |
 
 Pages were read on 2026-11-13.
@@ -23,6 +24,11 @@ rules; a rule can carry sub-rules, which are AND conditions on that rule;
 operators named "is not", "contains", "is any of", "is not any of", and
 regular-expression operators exist. The full list of operators, and which
 apply to which field, is not documented. The list below is linuxBee's.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Filters" (no version given;
+2016-03-23); "Playlists" (3.0.5992; 2020-04-28); "API Method Reference" (no
+version given; 2025-05-19).
 
 ## 1. The model
 
@@ -183,8 +189,8 @@ linuxbeectl rules match [--field NAME=VALUE]... [--now WHEN] JSON
 
 ## Not in this version
 
-- Reading MusicBee's auto-playlist files. Their field and operator codes
-  are not published.
+- Reading MusicBee's auto-playlist files. The parts of the file are
+  named in public (W-API); the codes for fields and comparisons are not.
 - The auto-playlist options around the rules (limit, selection order,
   source): they belong to playlists.
 - Which operators a rule editor offers for which field.

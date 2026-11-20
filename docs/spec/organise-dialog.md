@@ -21,6 +21,10 @@ of the resulting paths, an option to copy instead of move, and what to do
 with files that have missing naming tags. Its exact layout and wording
 are not documented.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "File Organization" (3.0.5993;
+2019-12-18).
+
 ## OD-FRAME
 
 `OrganiseDialog` (`organiseDialog`) is given the files to organise and a
@@ -47,8 +51,8 @@ The options are above the preview and the buttons below it.
 ## OD-OPTIONS
 
 With nothing stored the controls show the organiser's defaults: no
-folder, the template `<Album Artist>\<Album>\<Disc-Track#> <Title>`,
-move, do not replace, leave other files, leave emptied folders, leave
+folder, the template `<Album Artist>\<Album>\<Disc-Track#> <Title>`
+(W-O), move, do not replace, leave other files, leave emptied folders, leave
 files with missing tags.
 
 `options()` is what the controls say: the folder trimmed and cleaned

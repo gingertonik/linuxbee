@@ -22,6 +22,10 @@ new files found in them are added to the library or sent to the Inbox,
 and the check can run at start-up or continuously. How it waits for a
 copy to finish is not documented.
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Library Preferences" (3.0.5976;
+2017-10-12).
+
 ## FM-DIRS
 
 `directoriesToWatch(roots, limit, &limited)` lists the folders to watch:

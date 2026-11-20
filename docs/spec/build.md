@@ -48,3 +48,8 @@ with them. Both come back with that feature.
 - A sanitizer preset (it comes with the CI package).
 - Installing anywhere but through `cmake --install` (the installer
   script is its own package).
+
+## Sources
+
+None outside this project: this document is engineering only, and every
+rule in it is a linuxBee decision. Nothing in it describes MusicBee.

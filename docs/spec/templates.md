@@ -15,10 +15,16 @@ This document is the contract for `linuxbee::Template` in
 | W-F | MusicBee wiki, "Functions": https://musicbee.fandom.com/wiki/Functions |
 | W-T | MusicBee wiki, "Templates": https://musicbee.fandom.com/wiki/Templates |
 | W-O | MusicBee wiki, "File Organization": https://musicbee.fandom.com/wiki/File_Organization |
+| W-UV | MusicBee wiki, "Useful Virtual Tag Formulas" (users' examples): https://musicbee.fandom.com/wiki/Useful_Virtual_Tag_Formulas |
 | F-C | MusicBee forum, functions cheatsheet, post 2: https://getmusicbee.com/forum/index.php?topic=35868.0 |
 | T-… | A linuxBee decision. The public sources do not say. Listed again under "Open parity questions". |
 
 Pages were read on 2026-11-12.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Functions" (3.1.6305; 2022-09-28);
+"Templates" (3.0.5994; 2018-02-22); "File Organization" (3.0.5993;
+2019-12-18); "Useful Virtual Tag Formulas" (no version given; 2017-07-26).
 
 ## 1. The three kinds of text
 
@@ -97,6 +103,10 @@ argument of `$And`, `$Or` and `$Not`.
 
 ### T-COMPARE
 
+(How a condition in a template compares. track-list.md has a rule of
+the same name, for the order of two values in a column; they are told
+apart by the document.)
+
 - A condition is split at its first unquoted `=`, `<` or `>` that is not
   inside a nested call and is not the start of a field (T-LEX decides that).
   The text before it is the left side, the text after it is the right side.
@@ -145,9 +155,9 @@ texts `T` and `F` (W-F, F-C).
 | `$RxSplit(x,re,i)` | 3 | like `$Split`, split wherever re matches | W-F |
 | `$Add(a,b)` `$Sub(a,b)` `$Mul(a,b)` `$Div(a,b)` `$Mod(a,b)` | 2 | arithmetic on two numbers | F-C |
 | `$Abs(a)` | 1 | a without its sign | F-C |
-| `$Sort(x)` | 1 | x with a leading ignore word moved to the end: `The Beatles` gives `Beatles, The` | F-C |
+| `$Sort(x)` | 1 | x with a leading ignore word moved to the end: `The Beatles` gives `Beatles, The` | F-C, W-F |
 | `$RemoveSortWords(x)` | 1 | x with a leading ignore word removed: `Beatles` | F-C |
-| `$Group(x,n)` | 2 | the alphabet bucket of x's first letter (T-GROUP) | F-C |
+| `$Group(x,n)` | 2 | the alphabet bucket of x's first letter (T-GROUP) | F-C, W-F |
 | `$Date(x,format)` | 2 | the date in x written in the given format (section 7) | W-F, F-C |
 
 A call with the wrong number of arguments is a parse error.

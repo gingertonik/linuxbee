@@ -16,6 +16,7 @@ Nothing in this subsystem reads or writes the disk.
 | W-O | MusicBee wiki, "File Organization": https://musicbee.fandom.com/wiki/File_Organization |
 | W-H | MusicBee wiki, "How to Create a File-Naming Template": https://musicbee.fandom.com/wiki/How_to_Create_a_File-Naming_Template |
 | W-T | MusicBee wiki, "Templates": https://musicbee.fandom.com/wiki/Templates |
+| W-UV | MusicBee wiki, "Useful Virtual Tag Formulas" (users' examples): https://musicbee.fandom.com/wiki/Useful_Virtual_Tag_Formulas |
 | P-… | A linuxBee decision. The public sources do not say. Listed again under "Open parity questions". |
 
 Pages were read on 2026-11-13.
@@ -28,6 +29,12 @@ file names are each replaced by a space unless the user sets another
 replacement or none (W-O); a duplicate target gets `_#` appended (W-O); a file
 missing a naming tag is skipped by default, or has `Unknown X` written when
 the option is off (W-O). Everything more exact than that is a P- rule below.
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "File Organization" (3.0.5993;
+2019-12-18); "How to Create a File-Naming Template" (no version given;
+2016-08-09); "Templates" (3.0.5994; 2018-02-22); "Useful Virtual Tag
+Formulas" (no version given; 2017-07-26).
 
 ## 1. The steps, in order
 

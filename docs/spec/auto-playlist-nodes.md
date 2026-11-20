@@ -16,7 +16,7 @@ navigator's rows are navigator.md (V-AUTO, V-MENU).
 
 | Tag | Source |
 |---|---|
-| W-AP | MusicBee wiki, "Auto-Playlists": see auto-playlists.md |
+| W-AP | MusicBee wiki, "Playlists", the part on auto-playlists: see auto-playlists.md |
 | AN-… | A linuxBee decision. MusicBee's own files (`.xautopf`) are not read here; importing them is plan 21's and 22's business. |
 
 ## AN-STORE

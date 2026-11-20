@@ -14,6 +14,10 @@ Code: `src/core/covers/cover.h`. Command: `linuxbeectl cover`.
 | W-ART | MusicBee wiki, "Album Art and Artist Pictures": a picture is embedded in the music file, or saved beside it as `folder.jpg`, or linked as an organised copy named `Cover.jpg` by default: https://musicbee.fandom.com/wiki/Album_Art_and_Artist_Pictures |
 | W-FAQ | MusicBee wiki, "FAQ": under "set which pictures are displayed" the sources are a list in an order, each of which can be unticked ("move 'embedded' to the top and untick all other options"): https://musicbee.fandom.com/wiki/FAQ |
 
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Album Art and Artist Pictures" (no
+version given; 2019-03-03); "FAQ" (no version given; 2023-05-07).
+
 ## CV-EMBEDDED
 
 `chooseEmbedded(pictures)` answers which of a file's pictures is its

@@ -16,8 +16,13 @@ bar shows are decided in play-queue.md, player.md and player-bar.md.
 
 | Tag | Source |
 |---|---|
-| W-PC | MusicBee wiki, "Player Controls", "Playing Tracks" and "Now Playing": see player.md and play-queue.md |
+| W-PC | MusicBee wiki, "Player Controls", "Playing Tracks" and "Now Playing Preferences": https://musicbee.fandom.com/wiki/Player_Controls , https://musicbee.fandom.com/wiki/Playing_Tracks , https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 | PS-… | A linuxBee decision. |
+
+Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
+describes, and when it was last edited: "Player Controls" (no version given;
+2016-03-23); "Playing Tracks" (no version given; 2016-10-26); "Now Playing
+Preferences" (3.3.7491; 2020-12-30).
 
 ## PS-BUILD
 
