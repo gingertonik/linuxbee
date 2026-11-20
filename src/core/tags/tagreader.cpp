@@ -5,6 +5,10 @@
 #include <QFile>
 #include <QFileInfo>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #include <fileref.h>
 #include <flacfile.h>
 #include <flacproperties.h>
@@ -14,7 +18,10 @@
 #include <mp4properties.h>
 #include <popularimeterframe.h>
 #include <mpegfile.h>
+#include <oggfile.h>
+#include <oggpageheader.h>
 #include <opusfile.h>
+#include <speexfile.h>
 #include <tdebuglistener.h>
 #include <tpropertymap.h>
 #include <vorbisfile.h>
@@ -221,6 +228,71 @@ int bitsPerSampleOf(const TagLib::AudioProperties *properties)
     return 0;
 }
 
+// R-AUDIO: the stream position of the last Ogg page that ends where the file ends, or -1.
+// TagLib looks for the last page in reads that do not overlap and can miss it.
+qint64 lastOggPagePosition(const QString &filePath)
+{
+    constexpr qint64 kMaxPage = 27 + 255 + 255 * 255;
+    QFile in(filePath);
+    if (!in.open(QIODevice::ReadOnly))
+        return -1;
+    const qint64 size = in.size();
+    const qint64 start = std::max<qint64>(0, size - kMaxPage);
+    if (!in.seek(start))
+        return -1;
+    const QByteArray tail = in.read(size - start);
+    if (tail.size() != size - start)
+        return -1;
+    const auto *bytes = reinterpret_cast<const unsigned char *>(tail.constData());
+    for (qsizetype at = tail.lastIndexOf("OggS"); at >= 0;
+        at = at > 0 ? tail.lastIndexOf("OggS", at - 1) : -1) {
+        if (at + 27 > tail.size() || bytes[at + 4] != 0)
+            continue;
+        const qsizetype segments = bytes[at + 26];
+        if (at + 27 + segments > tail.size())
+            continue;
+        qsizetype length = 27 + segments;
+        for (qsizetype i = 0; i < segments; ++i)
+            length += bytes[at + 27 + i];
+        if (at + length != tail.size())
+            continue;
+        quint64 position = 0;
+        for (int i = 7; i >= 0; --i)
+            position = (position << 8) | bytes[at + 6 + i];
+        return static_cast<qint64>(position);
+    }
+    return -1;
+}
+
+// R-AUDIO: the length when TagLib took a page before the last one. Only for the kinds whose
+// length TagLib takes from the last page; the addition is guarded and rounded to the nearest.
+int oggLengthMilliseconds(TagLib::File *file, const QString &filePath, int sampleRate, int taglibMs)
+{
+    constexpr qint64 kMaxAdded = 255 * 8192; // one page: 255 packets of 8192 samples
+    auto *ogg = dynamic_cast<TagLib::Ogg::File *>(file);
+    if (!ogg || sampleRate <= 0)
+        return taglibMs;
+    if (!dynamic_cast<TagLib::Ogg::Vorbis::File *>(file)
+        && !dynamic_cast<TagLib::Ogg::Opus::File *>(file)
+        && !dynamic_cast<TagLib::Ogg::Speex::File *>(file))
+        return taglibMs;
+    const TagLib::Ogg::PageHeader *taken = ogg->lastPageHeader();
+    if (!taken)
+        return taglibMs;
+    const qint64 was = static_cast<qint64>(taken->absoluteGranularPosition());
+    const qint64 last = lastOggPagePosition(filePath);
+    if (was < 0 || last < 0 || last <= was)
+        return taglibMs;
+    const qint64 difference = last - was;
+    if (difference > kMaxAdded)
+        return taglibMs;
+    const qint64 sum
+        = static_cast<qint64>(taglibMs) + std::llround(double(difference) * 1000.0 / sampleRate);
+    if (sum > std::numeric_limits<int>::max())
+        return taglibMs;
+    return static_cast<int>(sum);
+}
+
 }
 
 ReadResult readTags(const QString &filePath, const ReadOptions &options)
@@ -250,7 +322,8 @@ ReadResult readTags(const QString &filePath, const ReadOptions &options)
         TrackTags &tags = result.tags;
         tags.format = formatName(file, filePath);
         tags.tagTypes = tagTypesOf(file);
-        tags.audio.durationMs = properties->lengthInMilliseconds();
+        tags.audio.durationMs = oggLengthMilliseconds(
+            file, filePath, properties->sampleRate(), properties->lengthInMilliseconds());
         tags.audio.bitrateKbps = properties->bitrate();
         tags.audio.sampleRateHz = properties->sampleRate();
         tags.audio.channels = properties->channels();

@@ -73,8 +73,9 @@ struct ScanReport {
 };
 
 // L-SCAN: the reader's number. Raised by one whenever what the reader makes of a file changes
-// (2: Love is read), so that a library read by an older one is read again.
-inline constexpr int kReaderVersion = 2;
+// (2: Love is read; 3: the length of an Ogg file is that of its last page), so that a library
+// read by an older one is read again.
+inline constexpr int kReaderVersion = 3;
 
 // L-PARTS: what a scan needs to know of the library.
 struct ScanKnown {

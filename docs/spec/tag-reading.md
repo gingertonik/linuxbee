@@ -67,6 +67,61 @@ reports with its accurate read style. `bitsPerSample` is reported for FLAC,
 WAV, WavPack and MPEG-4 and is 0 for the other formats. Opus reports
 48000 Hz, the rate it always decodes at.
 
+**The length of an Ogg file** of Vorbis, Opus or Speex is the length
+up to its last page: the last page that ends where the file ends,
+wherever in the file it begins. (An Ogg FLAC file has its length
+written at its head, and TagLib reads it there: it is read as before,
+and no page changes it.)
+
+(Found by a red gate on the project's build machine, 2026-11-19.
+TagLib looks for the last page from the end of the file, for the four
+bytes `OggS`, in reads of 1024 bytes that do not overlap. When the
+four bytes lie across the border of two reads, it does not see the
+page and takes the one before. That is so when the page begins 1021,
+1022 or 1023 bytes before the end, or those and a multiple of 1024:
+about three files in a thousand. They read short by one page, which
+is about a second as ffmpeg writes them. In 1,200 files made for the
+count, 6 did.)
+
+- `readTags` looks for the last page itself. Where its position in
+  the stream is later than that of the page TagLib took, the
+  difference is added to `durationMs`, in the stream's own unit (the
+  sample rate; 48000 for Opus).
+- A file that TagLib reads right is read as before: nothing is added.
+- **What the last page may add.** A file is not to be trusted. (Found
+  by the review of the first building of this rule: lengths below
+  zero and lengths of weeks, from pages whose numbers made no sense.)
+  Nothing is added, and the length is what TagLib says, when
+  - either position is below zero as a signed number of 64 bits (-1
+    is how a page says that no packet ends on it), or
+  - the last page is not later than the page TagLib took, or
+  - it is later by more than 2,088,960 units, which is more than one
+    page can hold (255 packets of 8192 samples, the largest of
+    Vorbis; a page of Opus holds less), or
+  - the sum would not fit `durationMs`.
+  Nothing in the working out can overflow, whatever the file says.
+- The sum is to the nearest millisecond: TagLib's length, which is
+  itself to the nearest, and the difference as a real number, rounded
+  together. It is not cut off.
+
+Known and left:
+
+- A file with bytes after its last page, whose last page TagLib does
+  not see, has no page that ends where the file ends. Its length is
+  what TagLib says.
+- The checksum of the page is not looked at, as TagLib does not look
+  at it.
+- `bitrateKbps` is TagLib's, worked out from its own length; it is
+  not corrected.
+- The stream a page belongs to is not looked at. In a file of several
+  streams the last page may be another stream's, and what it adds is
+  then wrong by at most what one page holds.
+- Where the page before the last is not seen either (both lie across
+  a border), TagLib is short by two pages and one is added.
+- A page of Speex with more than twelve frames to a packet can hold
+  more than the limit; nothing is added for it.
+- No test holds Speex: there is no fixture of it.
+
 ## 2. Fields
 
 ### R-CATALOGUE

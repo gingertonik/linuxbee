@@ -109,8 +109,9 @@ void ConvertReplaceTest::initTestCase()
     m_path = qgetenv("PATH");
 
     // Twelve seconds of noise (a tone packs to nothing, and a hole in nothing is no hole).
-    QVERIFY2(ffmpeg({ s(u"-f"), s(u"lavfi"), s(u"-i"), s(u"anoisesrc=d=12:c=pink:r=44100:a=0.3"),
-                 s(u"-ac"), s(u"2"), f(u"noise.flac") }),
+    QVERIFY2(
+        ffmpeg({ s(u"-f"), s(u"lavfi"), s(u"-i"), s(u"anoisesrc=d=12:c=pink:r=44100:a=0.3:seed=1"),
+            s(u"-ac"), s(u"2"), f(u"noise.flac") }),
         "ffmpeg is needed, with its lavfi input");
     // The same with a quarter of its bytes zeroed, from a third in: a file with a bad stretch.
     QByteArray bytes = bytesOf(f(u"noise.flac"));
