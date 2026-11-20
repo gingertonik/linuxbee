@@ -193,9 +193,15 @@ Reading does not validate: a set that loads may still fail U-VALID.
 
 ### U-CLI
 
+`operators` prints every operator, one line each in the order of U-NAMES:
+its id, a tab, and what a person reads for it (`ruleOperatorLabel`), so
+`matches-case` is `match RegEx` and `matches` is `match RegEx/i`. Exit 0.
+It takes no argument; one is a usage mistake (exit 2).
+
 ```
 linuxbeectl rules check JSON
 linuxbeectl rules match [--field NAME=VALUE]... [--now WHEN] JSON
+linuxbeectl rules operators
 ```
 
 - JSON that does not load: the message on standard error, exit 2.
