@@ -156,6 +156,9 @@ command-line tool, or both.
 - `linuxbeectl template` evaluates and checks a naming template, and
   `linuxbeectl path build` builds a relative path from one.
 - `linuxbeectl rules` checks a rule set, and tests a track against it.
+  `linuxbeectl rules operators` lists each operator's id beside its name. A
+  regular expression is `matches-case` for MusicBee's "match RegEx", which
+  heeds case, and `matches` for its "match RegEx/i", which does not.
 - Convert Format (Tools menu) and `linuxbeectl convert` convert files with
   presets. `linuxbeectl convert --list-presets` lists them.
   A conversion to a new name on a disk that can neither move a file without

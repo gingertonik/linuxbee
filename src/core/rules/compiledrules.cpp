@@ -10,7 +10,8 @@ namespace linuxbee {
 namespace {
 
 // RC-PATTERNS: every expression of the rules, sub-rules included, built once
-// into the table, keyed by its text. A text already held is not built again.
+// into the table, keyed by its text and its form (heeding case or not). A key
+// already held is not built again.
 void holdPatterns(const QList<Rule> &list, HeldPatterns *held)
 {
     for (const Rule &rule : list) {
