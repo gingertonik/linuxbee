@@ -220,7 +220,13 @@ playlist, go this way:
    beside the file. **Before step 4 they are all there, flushed to
    the disk, in a file that has a name of its own** in the
    playlist's folder: `.lbsave-` and six characters of `a` to `z`
-   and `0` to `9`, made new (never a name that is there). Nothing is
+   and `0` to `9`, made new (never a name that is there). A name
+   that is taken is passed over, whatever has it, and another is
+   drawn; after a hundred names that were taken the call fails as a
+   write that fails. A making that a signal broke off (`EINTR`) is
+   asked again and is no failure. (`PlaylistStore::setSpareNames`
+   hands the six characters out in place of chance, for the test of
+   this; the program sets none.) Nothing is
    written to that file after this step, and it gets no other name
    but the playlist's.
    **No step needs a second name for a file.** The file is made
@@ -294,7 +300,8 @@ Known and left:
   disk (tmpfs), with a hundred processes each adding to one
   playlist, the replacing waits for another's, and 10 to 37 calls a
   process that answered 1 were not in the file (the second review's
-  stress). On btrfs, in the same run, none. An exchange of the two
+  stress). On btrfs, in the same run, none, or one call in a run
+  (the third review, with other work on the machine). An exchange of the two
   names with a look at what came out, and an exchange back, lost
   none there in the review's hands. It is not built: for a moment a
   list that is then refused would be the playlist, the way back is a
