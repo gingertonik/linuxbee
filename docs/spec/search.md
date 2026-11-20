@@ -12,6 +12,7 @@ anything a template can read can be searched.
 |---|---|
 | W-S | MusicBee wiki, "Searching" (marked under construction): https://musicbee.fandom.com/wiki/Searching |
 | S-… | A linuxBee decision. |
+| W-DIA | MusicBee wiki, "Searching for Artists Like Beyoncé and Tiësto" (one user's guide): https://musicbee.fandom.com/wiki/Searching_for_Artists_Like_Beyonc%C3%A9_and_Ti%C3%ABsto |
 
 Read on 2026-11-13. What the page establishes (W-S): the search covers all
 fields unless a field is chosen; `fieldname:searchtext` restricts a term to
@@ -120,5 +121,10 @@ and is not expected to survive the round trip.)
 | Rule | Question for someone with MusicBee |
 |---|---|
 | S-PARSE | Is a space between words AND? Does `-word` exclude? What does `+` do? |
-| S-FOLD | Does searching "beyonce" find "Beyoncé"? |
 | S-FIELDS | Which fields does a plain search cover by default? |
+
+### Decided by the owner (2026-11-20)
+
+| Rule | Question | Decision |
+|---|---|---|
+| S-FOLD | Does searching "beyonce" find "Beyoncé"? | Yes here, always: a search ignores accents (the owner, 2026-11-20). In MusicBee it does so only when "ignore diacritic marks when searching" is ticked, and it is not by default (W-DIA). A difference, and meant. |

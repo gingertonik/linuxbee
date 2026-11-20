@@ -227,6 +227,14 @@ With `copyTags` false no tag and no picture is written; the file holds only
 what the encoder put there itself (ffmpeg's Ogg writer adds an `ENCODER`
 comment).
 
+### C-TAGS and a file that is not saved
+
+When the file the tags go to is refused as `HardLinked` or
+`ChangedOnDisk` (tag-safe-save.md), C-TAGS answers
+`the tags could not be written: <the line>`, and the file is as it
+was. This is reached by "update tags" on an output file that has
+another name.
+
 ### C-PROGRESS
 
 The progress function is called first with exactly 0, before ffmpeg
@@ -277,9 +285,9 @@ Either way the part file is removed and the destination is as it was
 (C-CLEAN).
 
 Why a second, and not a share of the length: an hour-long file may
-not lose half a minute unseen. Lengths are read from headers; over
-251 real files (MP3, FLAC, M4A, Opus) the length read was never more
-than 71 ms above what ffmpeg decodes.
+not lose half a minute unseen. Lengths are read from headers; on the
+251 files of a review of this project (MP3, FLAC, M4A, Opus) the length
+read was never more than 71 ms above what ffmpeg decodes.
 
 Known and left:
 
@@ -544,11 +552,3 @@ linuxbeectl convert [--preset ID | --format F] [--bitrate K] [--quality Q]
 | C-EXISTS | When the output exists and "skip and sync tags" is off, does MusicBee overwrite, rename or skip? linuxBee: skip. |
 | C-TAGS | Does a converted file keep the source's ReplayGain tags? linuxBee: yes. |
 | C-DEPTH | Does MusicBee keep 24-bit when converting FLAC to FLAC or ALAC? linuxBee: yes. |
-
-### C-TAGS and a file that is not saved
-
-When the file the tags go to is refused as `HardLinked` or
-`ChangedOnDisk` (tag-safe-save.md), C-TAGS answers
-`the tags could not be written: <the line>`, and the file is as it
-was. This is reached by "update tags" on an output file that has
-another name.

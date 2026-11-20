@@ -154,4 +154,4 @@ the service announces nothing.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| MP-ROOT | Nothing to compare: MusicBee has no MPRIS. Which of its global hotkeys do you use that media keys do not cover? |
+| MP-ROOT | Nothing to compare: MusicBee is a Windows program, and its wiki documents no MPRIS. Which of its global hotkeys do you use that media keys do not cover? |

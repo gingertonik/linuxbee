@@ -19,6 +19,7 @@ bar shows are decided in play-queue.md, player.md and player-bar.md.
 | W-PC | MusicBee wiki, "Player Controls", "Playing Tracks" and "Now Playing Preferences": https://musicbee.fandom.com/wiki/Player_Controls , https://musicbee.fandom.com/wiki/Playing_Tracks , https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 | PS-… | A linuxBee decision. |
 | W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Now Playing Preferences": https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
+| W-CM | MusicBee wiki, "Controls Menu" (the Replay Gain modes): https://musicbee.fandom.com/wiki/Controls_Menu |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Player Controls" (no version given;
@@ -106,8 +107,8 @@ leaves the queue alone.
 Every other node (a library section, Playing Tracks) plays nothing when
 activated.
 
-MusicBee plays a playlist on a double-click (the owner, from memory,
-2026-11-14).
+A playlist plays on a double-click: the owner's ruling, 2026-11-14. The
+wiki does not say what MusicBee does.
 
 ## PS-COMMANDS
 
@@ -197,6 +198,10 @@ player's rule (player.md, X-ERROR).
 
 (The owner's ruling, 2026-11-16: ReplayGain applied on playback is in
 1.0.)
+
+MusicBee's default mode is "Smart Gain", which its wiki does not
+describe (W-CM); it is not copied. The default here is off until the
+package on ReplayGain of 0.8.2 decides it (the owner, 2026-11-20).
 
 The shell implements `controls.gain.off`, `controls.gain.track` and
 `controls.gain.album` (Controls > Replay Gain). They are checkable

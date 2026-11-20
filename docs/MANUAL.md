@@ -202,7 +202,7 @@ The gaps a MusicBee user will notice first:
 - **Undo for Organise.** Organise cannot be undone. Undo covers tag changes
   only, and only one step.
 - **Auto-tagging, and Copy and Swap in the window.** Auto-tagging from online
-  services is not built. Copy and Swap are on the command line only.
+  services exists in the program's core and is not in the window yet. Copy and Swap are on the command line only.
 - **Compiled skins, and plugins.** Compiled skins (`.xmlc`), and a skin's
   pictures and layout, are not used. Plugins are not built.
 

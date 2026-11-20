@@ -25,11 +25,12 @@ then decorates the tracks the library already has.
 | I-… | A linuxBee decision. |
 | W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "How to export MB library to iTunes": https://musicbee.fandom.com/wiki/How_to_export_MB_library_to_iTunes |
 
-Read on 2026-11-13. No real export from MusicBee has been examined; which
-of the keys below MusicBee writes is an open question. A forum guide from
-2014 says ratings and play counts are exported, half-stars are dropped,
-and a multi-value tag keeps only its first value. Tags are therefore not
-imported at all: the music files are the truth for tags.
+Read on 2026-11-13. Which of the keys below MusicBee writes is an open
+question. A guide on the wiki ("How to export MB library to iTunes",
+W-ANS) says ratings and play counts are carried over, and that iTunes
+drops half-stars as it takes them in: a limit of iTunes, not of the
+export. Tags are not imported at all: the music files are the truth for
+tags.
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Library Preferences" (3.0.5976;
@@ -46,8 +47,8 @@ Not ok: bytes that are not well-formed XML; a document whose root is not
 A value that is not what its element says (an `integer` that is not a
 whole number, a `real` that is no number, a `date` that is no date) is
 no value of that kind, as if its key were absent; the file is still
-read. (Found on a real export: MusicBee writes a tempo with a fraction
-as `<integer>94.034</integer>`, and the whole file was refused for it.)
+read. (So a file that writes a tempo with a fraction, as
+`<integer>94.034</integer>`, is read and only that value is passed over.)
 
 A track is read from each `dict` in `Tracks`, in file order. Keys may come
 in any order; keys not listed here are ignored.
@@ -137,11 +138,9 @@ Every playlist is reported, even when empty.
 
 ## I-CHECK: ratings and Love are checked, not brought
 
-(Seen in a real export of 16,797 tracks, 2026-11-17: every one of its
-77 loves and every one of its ratings above none was already in the
-music file's own tag, where MusicBee had written it and where
-linuxBee reads it. A rating of `0` in the export was a file with no
-rating.)
+(A linuxBee decision: a rating and a Love live in the music file's own
+tag, where linuxBee reads them, so the export's are compared with the
+file's and not brought. A rating of `0` in the export is no rating.)
 
 The library holds no rating and no Love of its own: it shows what it
 read from the file, and reads it again when the file changes. So the

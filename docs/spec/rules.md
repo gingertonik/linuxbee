@@ -113,7 +113,8 @@ compared, not days.
 `not-in-the-last` holds when the field's first value is a date and
 `in-the-last` does not hold. A field with no date matches neither: a
 track that was never played is not in "not played in the last month"
-(as MusicBee does; the owner, from memory, 2026-11-14).
+(the owner's ruling, 2026-11-14; the wiki does not say what MusicBee
+does).
 
 ## 3. Operators
 
@@ -204,7 +205,7 @@ linuxbeectl rules match [--field NAME=VALUE]... [--now WHEN] JSON
 |---|---|
 | U-NAMES | The operators MusicBee offers for a text, a number, a rating and a date field, as named in its rule editor (in part answered below). |
 | U-VALUES | Does "Genre is Rock" match a track tagged Rock and Blues? linuxBee: yes. |
-| U-LAST | Settled 2026-11-14 (the owner, from memory): "not in the last 30 days" does not match a track that was never played. |
+| U-LAST | Decided 2026-11-14 by the owner (the wiki does not say): "not in the last 30 days" does not match a track that was never played. |
 | U-SUB | Can sub-rules have sub-rules? linuxBee: yes, to depth 8. |
 | U-TEXT | Is "is" case-sensitive? linuxBee: no. |
 

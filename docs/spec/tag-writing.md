@@ -464,8 +464,9 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 - Choosing the text encoding of ID3 frames (MusicBee's "ID3v2.3, ASCII
   only", W-TP).
 - Writing APEv2 tags into MP3 files; synchronised lyrics; custom tags;
-  the artist roles; album rating, Love and the other MusicBee-only tags.
-- Undo.
+  the artist roles; album rating and the other MusicBee-only tags. (Love
+  is written: see W-TABLE.)
+- Undo here: tag-undo.md has one step of it, for the window.
 - Keeping an MPEG-4 freeform item the tag library cannot hold. An item
   marked as text is read as text, and text ends at a zero byte: the
   item `Encoding Params`, which iTunes fills with bytes that are not

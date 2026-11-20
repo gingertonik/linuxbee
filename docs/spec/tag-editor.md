@@ -152,7 +152,7 @@ not move anything; the caller acts on `saved`.
   now, and the Love command, with the rating commands, is the way to
   love a track without opening this dialog).
 - Stepping to the previous and next track without closing.
-- Auto-completion, "copy from the first file", undo.
+- Auto-completion, "copy from the first file". (Undo: tag-undo.md.)
 - Editing in place in the track list.
 
 ## Open parity questions

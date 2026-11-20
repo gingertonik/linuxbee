@@ -20,6 +20,7 @@ navigator.md and playlists.md. The shell only passes things between them.
 | W-MP | MusicBee wiki, "Main Panel Views" and "Navigator": https://musicbee.fandom.com/wiki/Main_Panel_Views , https://musicbee.fandom.com/wiki/Navigator |
 | W-FILE | MusicBee wiki, "File Menu" (Add Files, Scan Folders, Send To): https://musicbee.fandom.com/wiki/File_Menu |
 | SH-… | A linuxBee decision. |
+| W-GP | MusicBee wiki, "General Preferences" (the confirmations): https://musicbee.fandom.com/wiki/General_Preferences |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Main Panel Views" (3.0.5913;
@@ -118,6 +119,10 @@ do nothing, without a message, when nothing is selected.
 the track out of the playlist and asks nothing; anywhere else it
 removes the track from the library after a question; Shift+Del stays
 "to the trash, after a question".)
+
+MusicBee asks, by default, before it takes a file out of a playlist
+("confirm removal of files from playlists", W-GP). Here nothing is
+asked, by that ruling: a difference, and meant.
 
 | View on show | The command | Its name in the menu |
 |---|---|---|

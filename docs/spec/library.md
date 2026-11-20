@@ -498,8 +498,8 @@ track.)
   the new tracks come first, then those brought back; in `found`,
   the missing tracks found, then those brought back.
 - **It is not followed** (L-FOLLOW): a file elsewhere that is alike
-  in size, time and tags is a new track. A default for the owner: a
-  person who deleted a file and kept a copy has two files in mind.
+  in size, time and tags is a new track. The owner's ruling,
+  2026-11-20: a person who deleted a file and kept a copy has two files in mind.
 - **Its path is free.** A track that `setPath`, `recordMoves` or
   `relinkPaths` moves to the path of a deleted track takes it: the
   deleted row is removed in the same change. The file now there is
