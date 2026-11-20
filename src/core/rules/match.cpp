@@ -14,7 +14,8 @@ namespace {
 bool isNegativeText(RuleOperator op)
 {
     return op == RuleOperator::IsNot || op == RuleOperator::DoesNotContain
-        || op == RuleOperator::IsNotAnyOf || op == RuleOperator::DoesNotMatch;
+        || op == RuleOperator::IsNotAnyOf || op == RuleOperator::DoesNotMatch
+        || op == RuleOperator::DoesNotMatchCase;
 }
 
 // The positive operator a negative one stands for: "is-not" is the negation of "is".
@@ -29,6 +30,8 @@ RuleOperator positiveOf(RuleOperator op)
         return RuleOperator::IsAnyOf;
     case RuleOperator::DoesNotMatch:
         return RuleOperator::Matches;
+    case RuleOperator::DoesNotMatchCase:
+        return RuleOperator::MatchesCase;
     default:
         return op;
     }
@@ -45,15 +48,17 @@ bool sameText(const QString &value, const QString &wanted)
 }
 
 // The expression's answer for one value. An expression held ready is used as it
-// is; one that is not held is built now, ignoring case.
-bool regexMatches(const QString &text, const QString &value, const HeldPatterns *held)
+// is; one that is not held is built now, ignoring case unless heedCase.
+bool regexMatches(
+    const QString &text, bool heedCase, const QString &value, const HeldPatterns *held)
 {
     if (held) {
-        const auto found = held->constFind(text);
+        const auto found = held->constFind(rules::patternKey(text, heedCase));
         if (found != held->constEnd())
             return found->match(value).hasMatch();
     }
-    const QRegularExpression pattern(text, QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpression pattern(text,
+        heedCase ? QRegularExpression::NoPatternOption : QRegularExpression::CaseInsensitiveOption);
     return pattern.isValid() && pattern.match(value).hasMatch();
 }
 
@@ -77,7 +82,9 @@ bool valuePasses(RuleOperator positive, const QString &value, const QStringList 
         return std::any_of(
             wanted.cbegin(), wanted.cend(), [&](const QString &w) { return sameText(value, w); });
     case RuleOperator::Matches:
-        return regexMatches(first, value, held);
+        return regexMatches(first, false, value, held);
+    case RuleOperator::MatchesCase:
+        return regexMatches(first, true, value, held);
     default:
         return false;
     }
@@ -145,6 +152,8 @@ bool conditionHolds(const Rule &rule, const QStringList &values, const RuleConte
     case RuleOperator::IsNotAnyOf:
     case RuleOperator::Matches:
     case RuleOperator::DoesNotMatch:
+    case RuleOperator::MatchesCase:
+    case RuleOperator::DoesNotMatchCase:
         return textHolds(rule, values, held);
     case RuleOperator::HasValue:
         return !values.isEmpty();
@@ -185,9 +194,6 @@ bool conditionHolds(const Rule &rule, const QStringList &values, const RuleConte
     case RuleOperator::NotInTheLast:
         // U-LAST: a field with no date matches neither operator.
         return firstDate(values).has_value() && !inTheLast(rule, values, context);
-    case RuleOperator::MatchesCase: // stub: the builder makes these real
-    case RuleOperator::DoesNotMatchCase:
-        return false;
     }
     return false;
 }

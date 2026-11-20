@@ -14,14 +14,19 @@ namespace {
 void holdPatterns(const QList<Rule> &list, HeldPatterns *held)
 {
     for (const Rule &rule : list) {
+        const bool heedCase
+            = rule.op == RuleOperator::MatchesCase || rule.op == RuleOperator::DoesNotMatchCase;
         const bool isExpression
-            = rule.op == RuleOperator::Matches || rule.op == RuleOperator::DoesNotMatch;
+            = heedCase || rule.op == RuleOperator::Matches || rule.op == RuleOperator::DoesNotMatch;
         if (isExpression && !rule.values.isEmpty()) {
             const QString &text = rule.values.first();
-            if (!held->contains(text)) {
-                QRegularExpression pattern(text, QRegularExpression::CaseInsensitiveOption);
+            const QString key = rules::patternKey(text, heedCase);
+            if (!held->contains(key)) {
+                QRegularExpression pattern(text,
+                    heedCase ? QRegularExpression::NoPatternOption
+                             : QRegularExpression::CaseInsensitiveOption);
                 pattern.optimize(); // compile now, not on the first track
-                held->insert(text, pattern);
+                held->insert(key, pattern);
             }
         }
         holdPatterns(rule.subRules, held);
