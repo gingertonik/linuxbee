@@ -14,9 +14,12 @@
 #include <QTimeZone>
 #include <QVariant>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstring>
+
+#include <optional>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -27,7 +30,7 @@ namespace {
 
 // L-SCHEMA: this version of the schema. A file with a lower number is brought
 // up to date when opened; a higher one is refused.
-constexpr int kSchemaVersionValue = 2;
+constexpr int kSchemaVersionValue = 3;
 
 // L-STORE: "all times are stored and returned in UTC, to the second", so a
 // time is one integer: whole seconds since the epoch. kNoTime is a time that
@@ -416,12 +419,13 @@ bool copyBeforeStep(QSqlDatabase &database, const QString &databasePath, int fou
     return false;
 }
 
-// L-SCHEMA: create what a version-0 file has no rows for, and take a version-1 file up to version
-// 2. All of it is this program's own text: nothing here carries a path, a tag or any other data.
-// L-WAIT, L-OPEN: the write lock is taken first and waited for. Another start may have made the
-// tables or run the step while this one waited, so the version is looked at again once the lock is
-// held, and the steps run from what is found then; a file already at this version needs none and
-// this succeeds. The steps and the new `user_version` are one transaction.
+// L-SCHEMA: create what a version-0 file has no rows for, and take a file of version 1 or 2 up to
+// version 3 (one step after the other, in the one transaction). All of it is this program's own
+// text: nothing here carries a path, a tag or any other data. L-WAIT, L-OPEN: the write lock is
+// taken first and waited for. Another start may have made the tables or run the step while this one
+// waited, so the version is looked at again once the lock is held, and the steps run from what is
+// found then; a file already at this version needs none and this succeeds. The steps and the new
+// `user_version` are one transaction.
 bool createSchema(
     QSqlDatabase &database, const QString &databasePath, QString *error, SchemaStep *step)
 {
@@ -484,12 +488,18 @@ bool createSchema(
                                      "missing INTEGER NOT NULL DEFAULT 0, "
                                      "picture_count INTEGER NOT NULL DEFAULT 0, "
                                      "tags_json TEXT NOT NULL, "
-                                     "reader INTEGER NOT NULL DEFAULT 0)");
+                                     "reader INTEGER NOT NULL DEFAULT 0, "
+                                     "deleted_secs INTEGER NOT NULL DEFAULT (-1))");
         statements += QStringLiteral("CREATE INDEX tracks_by_category ON tracks (category)");
     } else {
         // L-SCHEMA, version 2: every track already held is given 0, lower than any reader's.
-        statements
-            += QStringLiteral("ALTER TABLE tracks ADD COLUMN reader INTEGER NOT NULL DEFAULT 0");
+        if (found < 2)
+            statements += QStringLiteral(
+                "ALTER TABLE tracks ADD COLUMN reader INTEGER NOT NULL DEFAULT 0");
+        // L-SCHEMA, version 3: every track already held is given -1, not deleted.
+        if (found < 3)
+            statements += QStringLiteral(
+                "ALTER TABLE tracks ADD COLUMN deleted_secs INTEGER NOT NULL DEFAULT (-1)");
     }
     // The schema number lives in SQLite's user_version. It is this program's own number, so it is
     // written out and not bound.
@@ -646,7 +656,9 @@ int Store::count() const
     if (!d->opened)
         return 0;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    if (!query.exec(QStringLiteral("SELECT count(*) FROM tracks")) || !query.next())
+    // L-DELETED: a deleted track is no track.
+    if (!query.exec(QStringLiteral("SELECT count(*) FROM tracks WHERE deleted_secs < 0"))
+        || !query.next())
         return 0;
     return query.value(0).toInt();
 }
@@ -657,7 +669,8 @@ QMap<QString, int> Store::categoryCounts() const
     if (!d->opened)
         return counts;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    if (!query.exec(QStringLiteral("SELECT category, count(*) FROM tracks GROUP BY category")))
+    if (!query.exec(QStringLiteral(
+            "SELECT category, count(*) FROM tracks WHERE deleted_secs < 0 GROUP BY category")))
         return counts;
     while (query.next())
         counts.insert(query.value(0).toString(), query.value(1).toInt());
@@ -670,7 +683,8 @@ std::optional<LibraryTrack> Store::byId(qint64 id) const
     if (!d->opened)
         return std::nullopt;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(QStringLiteral("%1 WHERE id = :id").arg(QLatin1String(kSelectTrack)));
+    query.prepare(
+        QStringLiteral("%1 WHERE id = :id AND deleted_secs < 0").arg(QLatin1String(kSelectTrack)));
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
         d->lastReadError = readWords(query);
@@ -688,7 +702,8 @@ ScanKnown Store::scanKnown() const
         return known;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     if (!query.exec(QStringLiteral(
-            "SELECT id, path, size_bytes, modified_secs, missing, reader FROM tracks")))
+            "SELECT id, path, size_bytes, modified_secs, missing, reader FROM tracks "
+            "WHERE deleted_secs < 0")))
         return known;
     while (query.next()) {
         ScanKnown::Entry entry;
@@ -715,7 +730,7 @@ QHash<qint64, ScanFindings::Judged> Store::heldById(const QList<qint64> &ids) co
         const IdPlaceholders placeholders = idPlaceholders(piece);
         QSqlQuery query(QSqlDatabase::database(d->connection));
         query.prepare(QStringLiteral("SELECT id, path, size_bytes, modified_secs, missing "
-                                     "FROM tracks WHERE (%1)")
+                                     "FROM tracks WHERE (%1) AND deleted_secs < 0")
                 .arg(placeholders.condition));
         bindIds(&query, placeholders.names, piece);
         if (!query.exec())
@@ -738,7 +753,8 @@ std::optional<LibraryTrack> Store::byPath(const QString &path) const
     if (!d->opened)
         return std::nullopt;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(QStringLiteral("%1 WHERE path = :path").arg(QLatin1String(kSelectTrack)));
+    query.prepare(QStringLiteral("%1 WHERE path = :path AND deleted_secs < 0")
+            .arg(QLatin1String(kSelectTrack)));
     query.bindValue(QStringLiteral(":path"), path);
     if (!query.exec()) {
         d->lastReadError = readWords(query);
@@ -756,9 +772,11 @@ QList<LibraryTrack> Store::all(const QString &category) const
         return list;
     QSqlQuery query(QSqlDatabase::database(d->connection));
     if (category.isEmpty()) {
-        query.prepare(QStringLiteral("%1 ORDER BY path").arg(QLatin1String(kSelectTrack)));
+        query.prepare(QStringLiteral("%1 WHERE deleted_secs < 0 ORDER BY path")
+                .arg(QLatin1String(kSelectTrack)));
     } else {
-        query.prepare(QStringLiteral("%1 WHERE category = :category ORDER BY path")
+        query.prepare(
+            QStringLiteral("%1 WHERE category = :category AND deleted_secs < 0 ORDER BY path")
                 .arg(QLatin1String(kSelectTrack)));
         query.bindValue(QStringLiteral(":category"), category);
     }
@@ -960,7 +978,8 @@ QList<qint64> Store::setCategory(const QList<qint64> &ids, const QString &catego
         const QList<qint64> piece = ids.mid(from, kEditPiece);
         const IdPlaceholders placeholders = idPlaceholders(piece);
         QSqlQuery select(database);
-        select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND category <> :category")
+        select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND category <> :category "
+                                      "AND deleted_secs < 0")
                 .arg(placeholders.condition));
         select.bindValue(QStringLiteral(":category"), category);
         bindIds(&select, placeholders.names, piece);
@@ -975,7 +994,8 @@ QList<qint64> Store::setCategory(const QList<qint64> &ids, const QString &catego
             continue;
 
         QSqlQuery update(database);
-        update.prepare(QStringLiteral("UPDATE tracks SET category = :category WHERE (%1)")
+        update.prepare(
+            QStringLiteral("UPDATE tracks SET category = :category WHERE (%1) AND deleted_secs < 0")
                 .arg(placeholders.condition));
         update.bindValue(QStringLiteral(":category"), category);
         bindIds(&update, placeholders.names, piece);
@@ -1011,8 +1031,8 @@ QList<qint64> Store::removeIds(const QList<qint64> &ids)
         const QList<qint64> piece = ids.mid(from, kEditPiece);
         const IdPlaceholders placeholders = idPlaceholders(piece);
         QSqlQuery select(database);
-        select.prepare(
-            QStringLiteral("SELECT id FROM tracks WHERE (%1)").arg(placeholders.condition));
+        select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND deleted_secs < 0")
+                .arg(placeholders.condition));
         bindIds(&select, placeholders.names, piece);
         if (!select.exec()) {
             d->refused(select.lastError().text());
@@ -1025,7 +1045,8 @@ QList<qint64> Store::removeIds(const QList<qint64> &ids)
             continue;
 
         QSqlQuery drop(database);
-        drop.prepare(QStringLiteral("DELETE FROM tracks WHERE (%1)").arg(placeholders.condition));
+        drop.prepare(QStringLiteral("DELETE FROM tracks WHERE (%1) AND deleted_secs < 0")
+                .arg(placeholders.condition));
         bindIds(&drop, placeholders.names, piece);
         if (!drop.exec()) {
             d->refused(drop.lastError().text());
@@ -1050,16 +1071,146 @@ QString Store::lastReadError() const
     return d->lastReadError;
 }
 
-// L-FAILED: false with lastError() empty means no such track; with words, the database refused.
-bool Store::updateReading(qint64 id, const LibraryTrack &track)
+// L-DELETED: the live tracks among `ids` are marked deleted at `whenSecs` and missing. As
+// setCategory: pieces of one transaction, a refusal changes nothing and leaves its words.
+QList<qint64> Store::markDeleted(const QList<qint64> &ids, qint64 whenSecs)
+{
+    d->lastError.clear();
+    if (!d->opened || ids.isEmpty() || whenSecs < 0)
+        return { };
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+    EditScope scope(database, d->inBatch);
+    if (!scope.isOpen()) {
+        d->refused(scope.error());
+        return { };
+    }
+
+    QList<qint64> marked;
+    for (qsizetype from = 0; from < ids.size(); from += kEditPiece) {
+        const QList<qint64> piece = ids.mid(from, kEditPiece);
+        const IdPlaceholders placeholders = idPlaceholders(piece);
+        QSqlQuery select(database);
+        select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND deleted_secs < 0")
+                .arg(placeholders.condition));
+        bindIds(&select, placeholders.names, piece);
+        if (!select.exec()) {
+            d->refused(select.lastError().text());
+            return { };
+        }
+        QList<qint64> found;
+        while (select.next())
+            found.append(select.value(0).toLongLong());
+        if (found.isEmpty())
+            continue;
+
+        QSqlQuery update(database);
+        update.prepare(QStringLiteral("UPDATE tracks SET deleted_secs = :when, missing = 1 "
+                                      "WHERE (%1) AND deleted_secs < 0")
+                .arg(placeholders.condition));
+        update.bindValue(QStringLiteral(":when"), whenSecs);
+        bindIds(&update, placeholders.names, piece);
+        if (!update.exec()) {
+            d->refused(update.lastError().text());
+            return { };
+        }
+        marked += found;
+    }
+    if (!scope.commit()) {
+        d->refused(scope.error());
+        return { };
+    }
+    return marked;
+}
+
+// L-DELETED: the deleted rows old enough to be looked at for removal.
+QList<std::pair<qint64, QString>> Store::deletedUntil(qint64 cutoffSecs) const
+{
+    QList<std::pair<qint64, QString>> rows;
+    if (!d->opened)
+        return rows;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("SELECT id, path FROM tracks WHERE deleted_secs >= 0 "
+                                 "AND deleted_secs <= :cutoff ORDER BY id"));
+    query.bindValue(QStringLiteral(":cutoff"), cutoffSecs);
+    if (!query.exec())
+        return rows;
+    while (query.next())
+        rows.append({ query.value(0).toLongLong(), query.value(1).toString() });
+    return rows;
+}
+
+// L-DELETED: as removeIds, for deleted rows only.
+QList<qint64> Store::removeDeleted(const QList<qint64> &ids)
+{
+    d->lastError.clear();
+    if (!d->opened || ids.isEmpty())
+        return { };
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+    EditScope scope(database, d->inBatch);
+    if (!scope.isOpen()) {
+        d->refused(scope.error());
+        return { };
+    }
+
+    QList<qint64> gone;
+    for (qsizetype from = 0; from < ids.size(); from += kEditPiece) {
+        const QList<qint64> piece = ids.mid(from, kEditPiece);
+        const IdPlaceholders placeholders = idPlaceholders(piece);
+        QSqlQuery select(database);
+        select.prepare(QStringLiteral("SELECT id FROM tracks WHERE (%1) AND deleted_secs >= 0")
+                .arg(placeholders.condition));
+        bindIds(&select, placeholders.names, piece);
+        if (!select.exec()) {
+            d->refused(select.lastError().text());
+            return { };
+        }
+        QList<qint64> found;
+        while (select.next())
+            found.append(select.value(0).toLongLong());
+        if (found.isEmpty())
+            continue;
+
+        QSqlQuery drop(database);
+        drop.prepare(QStringLiteral("DELETE FROM tracks WHERE (%1) AND deleted_secs >= 0")
+                .arg(placeholders.condition));
+        bindIds(&drop, placeholders.names, piece);
+        if (!drop.exec()) {
+            d->refused(drop.lastError().text());
+            return { };
+        }
+        gone += found;
+    }
+    if (!scope.commit()) {
+        d->refused(scope.error());
+        return { };
+    }
+    return gone;
+}
+
+qint64 Store::deletedIdAt(const QString &path) const
+{
+    if (!d->opened)
+        return 0;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("SELECT id FROM tracks WHERE path = :path AND deleted_secs >= 0"));
+    query.bindValue(QStringLiteral(":path"), path);
+    if (!query.exec() || !query.next())
+        return 0;
+    return query.value(0).toLongLong();
+}
+
+// L-DELETED: the file is back at the deleted track's path, and is read as updateReading reads it.
+// Everything only the library knows (id, section, date added, statistics) stays.
+bool Store::restoreDeleted(qint64 id, const LibraryTrack &track)
 {
     d->lastError.clear();
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(QStringLiteral("UPDATE tracks SET size_bytes = :size, modified_secs = :modified, "
+    query.prepare(QStringLiteral("UPDATE tracks SET deleted_secs = -1, missing = 0, "
+                                 "size_bytes = :size, modified_secs = :modified, "
                                  "picture_count = :pictures, tags_json = :tags, reader = :reader "
-                                 "WHERE id = :id"));
+                                 "WHERE id = :id AND deleted_secs >= 0"));
     query.bindValue(QStringLiteral(":size"), track.sizeBytes);
     query.bindValue(QStringLiteral(":modified"), toSecs(track.modified));
     query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
@@ -1073,6 +1224,32 @@ bool Store::updateReading(qint64 id, const LibraryTrack &track)
     return query.numRowsAffected() == 1;
 }
 
+// L-FAILED: false with lastError() empty means no such track; with words, the database refused.
+bool Store::updateReading(qint64 id, const LibraryTrack &track)
+{
+    d->lastError.clear();
+    if (!d->opened)
+        return false;
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("UPDATE tracks SET size_bytes = :size, modified_secs = :modified, "
+                                 "picture_count = :pictures, tags_json = :tags, reader = :reader "
+                                 "WHERE id = :id AND deleted_secs < 0"));
+    query.bindValue(QStringLiteral(":size"), track.sizeBytes);
+    query.bindValue(QStringLiteral(":modified"), toSecs(track.modified));
+    query.bindValue(QStringLiteral(":pictures"), track.pictureCount);
+    query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
+    query.bindValue(QStringLiteral(":reader"), kReaderVersion);
+    query.bindValue(QStringLiteral(":id"), id);
+    if (!query.exec()) {
+        d->refused(query.lastError().text());
+        return false;
+    }
+    return query.numRowsAffected() == 1;
+}
+
+// L-DELETED: the path of a deleted track is free. When a deleted row holds the new path it is
+// removed in the same change (one transaction, or a savepoint inside a batch), and only for a track
+// that is live: a call that changes nothing removes nothing.
 bool Store::setPath(qint64 id, const QString &newPath, bool missing)
 {
     d->lastError.clear();
@@ -1080,14 +1257,46 @@ bool Store::setPath(qint64 id, const QString &newPath, bool missing)
         d->refused(QString());
         return false;
     }
-    QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(
-        QStringLiteral("UPDATE tracks SET path = :path, missing = :missing WHERE id = :id"));
+    QSqlDatabase database = QSqlDatabase::database(d->connection);
+    bool freeing = false;
+    {
+        QSqlQuery look(database);
+        look.prepare(
+            QStringLiteral("SELECT 1 FROM tracks WHERE path = :path AND deleted_secs >= 0"));
+        look.bindValue(QStringLiteral(":path"), newPath);
+        freeing = look.exec() && look.next();
+    }
+    std::optional<EditScope> scope;
+    if (freeing) {
+        scope.emplace(database, d->inBatch);
+        if (!scope->isOpen()) {
+            d->refused(scope->error());
+            return false;
+        }
+        QSqlQuery drop(database);
+        drop.prepare(QStringLiteral("DELETE FROM tracks WHERE path = :path AND deleted_secs >= 0 "
+                                    "AND EXISTS (SELECT 1 FROM tracks WHERE id = :id "
+                                    "AND deleted_secs < 0)"));
+        drop.bindValue(QStringLiteral(":path"), newPath);
+        drop.bindValue(QStringLiteral(":id"), id);
+        if (!drop.exec()) {
+            d->refused(drop.lastError().text());
+            return false;
+        }
+    }
+    QSqlQuery query(database);
+    query.prepare(QStringLiteral(
+        "UPDATE tracks SET path = :path, missing = :missing WHERE id = :id AND deleted_secs < 0"));
     query.bindValue(QStringLiteral(":path"), newPath);
     query.bindValue(QStringLiteral(":missing"), missing);
     query.bindValue(QStringLiteral(":id"), id);
-    if (query.exec() && query.numRowsAffected() == 1)
+    if (query.exec() && query.numRowsAffected() == 1) {
+        if (scope && !scope->commit()) {
+            d->refused(scope->error());
+            return false;
+        }
         return true;
+    }
     d->refused(query.lastError().text());
     return false;
 }
@@ -1109,7 +1318,7 @@ bool Store::recordPlay(qint64 id, const QDateTime &when)
     query.prepare(QStringLiteral("UPDATE tracks SET play_count = play_count + 1, "
                                  "last_played_secs = CASE WHEN last_played_secs = -1 "
                                  "OR last_played_secs < :whenFrom THEN :whenTo "
-                                 "ELSE last_played_secs END WHERE id = :id"));
+                                 "ELSE last_played_secs END WHERE id = :id AND deleted_secs < 0"));
     query.bindValue(QStringLiteral(":whenFrom"), when.toSecsSinceEpoch());
     query.bindValue(QStringLiteral(":whenTo"), when.toSecsSinceEpoch());
     query.bindValue(QStringLiteral(":id"), id);
@@ -1127,7 +1336,8 @@ bool Store::recordSkip(qint64 id)
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(QStringLiteral("UPDATE tracks SET skip_count = skip_count + 1 WHERE id = :id"));
+    query.prepare(QStringLiteral("UPDATE tracks SET skip_count = skip_count + 1 "
+                                 "WHERE id = :id AND deleted_secs < 0"));
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
         d->refused(query.lastError().text());
@@ -1145,7 +1355,7 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("UPDATE tracks SET date_added_secs = :added, "
                                  "play_count = :plays, skip_count = :skips, "
-                                 "last_played_secs = :last WHERE id = :id"));
+                                 "last_played_secs = :last WHERE id = :id AND deleted_secs < 0"));
     query.bindValue(QStringLiteral(":added"), toSecs(statistics.dateAdded));
     query.bindValue(QStringLiteral(":plays"), statistics.playCount);
     query.bindValue(QStringLiteral(":skips"), statistics.skipCount);
@@ -1176,7 +1386,7 @@ bool Store::mergeStatistics(qint64 id, const TrackStatistics &statistics)
         "skip_count = max(skip_count, :skips1), "
         "last_played_secs = CASE WHEN :last1 <> -1 AND :last2 > last_played_secs "
         "THEN :last3 ELSE last_played_secs END "
-        "WHERE id = :id AND ((:added3 <> -1 AND :added4 <> date_added_secs) "
+        "WHERE id = :id AND deleted_secs < 0 AND ((:added3 <> -1 AND :added4 <> date_added_secs) "
         "OR :plays2 > play_count OR :skips2 > skip_count "
         "OR (:last4 <> -1 AND :last5 > last_played_secs))"));
     const qint64 added = toSecs(statistics.dateAdded);
@@ -1206,7 +1416,8 @@ bool Store::setMissing(qint64 id, bool missing)
     if (!d->opened)
         return false;
     QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(QStringLiteral("UPDATE tracks SET missing = :missing WHERE id = :id"));
+    query.prepare(
+        QStringLiteral("UPDATE tracks SET missing = :missing WHERE id = :id AND deleted_secs < 0"));
     query.bindValue(QStringLiteral(":missing"), missing);
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {

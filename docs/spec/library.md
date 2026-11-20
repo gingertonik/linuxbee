@@ -76,7 +76,7 @@ the code, 2026-11-16, and measured before this was written.)
 
 ### L-SCHEMA
 
-The schema version is SQLite's `user_version`. This version is 2. A file
+The schema version is SQLite's `user_version`. This version is 3. A file
 with a lower version is brought up to date when opened; a file with a
 higher version is refused.
 
@@ -175,6 +175,13 @@ says why, and is left at version 1. Several programs that open a
 version 1 file together all open it; one of them ran the step. A
 program of version 1 refuses a file of version 2, as any older
 program refuses a newer file.
+
+**Version 3** holds, for each track, when its file was deleted
+(L-DELETED): whole seconds, and -1 for a track that was not. The step
+from 2 gives every track -1 and changes nothing else; from 1, the
+step to 2 and this one run in the one transaction. The copy made
+before (below) has the name of the version found. A program of
+version 2 refuses the file afterwards.
 
 A step from one version to the next is added with the first version
 that needs one: it runs when the file is opened, under the write lock
@@ -450,6 +457,82 @@ A missing track keeps everything: tags, statistics, id. It comes back by a
 scan that finds the file, or by `setPath` / `relinkPaths` to where the file
 now is. `setPath` and `relinkPaths` set `missing` by whether a file exists
 at the new path.
+
+### L-DELETED: a deleted track's row is kept for thirty days
+
+(The owner, 2026-11-18 and 2026-11-19. Delete Files removed the row
+with the file, and with it the plays, the skips and the date added.
+A file taken back out of the trash came into the library as a new
+track.)
+
+- `markDeleted(ids, when)`: the files of these tracks went to the
+  trash at `when`. Each id that is a track is marked missing and
+  gets `when` as the time of its deleting, to the second. All of
+  them in one change, all or none (L-FAILED, as `remove`), and one
+  `tracksRemoved` with those ids in the order given. It returns how
+  many. An id that is unknown, or deleted already, is not counted
+  and not named, and an earlier time stands. An id given twice is
+  one track, named once at its first place. With no id that is a
+  track, or a `when` that is no time or lies before 1970, nothing
+  happens.
+- **A deleted track is no track.** `count`, `categoryCounts`,
+  `tracks`, `track` and `trackByPath` do not have it, and every call
+  that names its id or its path answers as for one the library does
+  not know: nothing changes, nothing is signalled. So it leaves
+  every list and every count at once, by the signal every view
+  follows already. Its row keeps everything: tags, statistics, id,
+  section, date added.
+- **It comes back at its own path.** A scan that finds a file at the
+  path of a deleted track brings the track back: no longer deleted,
+  no longer missing, read again when the file differs from what is
+  stored (as L-MISSING). It is in the report's `found`, and
+  `tracksAdded` names it (not `tracksUpdated`: every view had let it
+  go). `addFile` of such a path does the same and returns the
+  track's id; the section given is not used. While the file is not
+  there a scan says nothing of the track. In a scan's `tracksAdded`
+  the new tracks come first, then those brought back; in `found`,
+  the missing tracks found, then those brought back.
+- **It is not followed** (L-FOLLOW): a file elsewhere that is alike
+  in size, time and tags is a new track. A default for the owner: a
+  person who deleted a file and kept a copy has two files in mind.
+- **Its path is free.** A track that `setPath`, `recordMoves` or
+  `relinkPaths` moves to the path of a deleted track takes it: the
+  deleted row is removed in the same change. The file now there is
+  the other track's.
+- **After thirty days the row is removed**
+  (`Library::deletedKeptDays()`). `expireDeleted(now)` removes every
+  row whose deleting lies thirty times 86,400 seconds before `now`
+  or more **and at whose path nothing is** (asked of the disk, once
+  for each such row; a link counts as something). It returns how
+  many and signals nothing. A `now` that is no time removes nothing.
+  A row whose file is there is never removed for its age: the file
+  is the track's, taken back out of the trash, and a scan brings
+  the track back however long ago it was deleted. (Found by the
+  proving of this rule: the window scans in parts, each stored by
+  itself, and the first part removed a row whose file was in a
+  later one.)
+- **When.** Every storing of a scan (`applyScan`, so every part,
+  and a scan that was stopped) does it with the scan's `now`, in
+  the scan's own change: a refusal there refuses that storing
+  (L-FAILED). `Library::open` does it with the clock's time, for a
+  file that holds this version's schema: with nothing to remove it
+  asks for no lock; a failure or a refusal there is no failure of
+  the opening and is not said. A refusal of `expireDeleted` called
+  by itself returns 0 and is not said either: nobody asked for it.
+
+Known and left:
+
+- A track brought back is not put back into the playlists or the
+  queue it was taken out of when it was deleted.
+- The thirty days are counted by the clock of the machine. A clock
+  set forward by a month removes the rows at the next opening.
+- A play of a track that is deleted while it plays is not counted.
+- `relinkPaths` does not move a deleted row: it stays at its old
+  path, and a file taken back out of the trash to the folder's new
+  place is a new track.
+- A deleted row whose file is at its path, in a folder that is never
+  scanned, stays for good, and is asked of the disk at every storing
+  of a scan and every opening.
 
 ### L-COUNT
 

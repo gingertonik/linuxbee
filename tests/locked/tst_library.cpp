@@ -121,7 +121,7 @@ void LibraryTest::openAndCategories()
     // L-CATEGORY
     QCOMPARE(Library::categories(),
         QStringList({ s(u"Music"), s(u"Inbox"), s(u"Audiobooks"), s(u"Podcasts"), s(u"Videos") }));
-    QCOMPARE(Library::currentSchemaVersion(), 2);
+    QCOMPARE(Library::currentSchemaVersion(), 3);
     // L-OPEN
     QString error = s(u"stale");
     auto memory = Library::open(s(u":memory:"), &error);
@@ -361,7 +361,7 @@ void LibraryTest::persistence()
         QSqlQuery q(db);
         QVERIFY(q.exec(s(u"PRAGMA user_version")));
         QVERIFY(q.next());
-        QCOMPARE(q.value(0).toInt(), 2);
+        QCOMPARE(q.value(0).toInt(), 3);
         // A library from a newer linuxBee is refused, not altered.
         QVERIFY(q.exec(s(u"PRAGMA user_version = 99")));
         db.close();
