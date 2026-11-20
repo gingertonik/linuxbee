@@ -14,6 +14,7 @@ files.
 |---|---|
 | W-O | MusicBee wiki, "File Organization" (the Organize Files dialog, its naming template, its preview, its options): https://musicbee.fandom.com/wiki/File_Organization |
 | OD-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "File Organization": https://musicbee.fandom.com/wiki/File_Organization |
 
 Read on 2026-11-13. What MusicBee documents: a dialog reached from the
 File menu or Ctrl+R, with a target folder, a naming template, a preview
@@ -147,6 +148,13 @@ replaced with `setPlanner` and `setExecutor`.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| OD-FRAME | The dialog's options and their wording. |
+| OD-FRAME | The wording and layout of the dialog (its options are answered below). |
 | OD-OPTIONS | Whether the last-used folder and template are remembered when the dialog is cancelled. |
-| OD-RUN | Whether the dialog closes by itself after a clean run. |
+| OD-RUN | Whether the dialog closes by itself after a clean run (in part answered below). |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| OD-FRAME | The dialog's options and their wording. | In part: "File Organization" lists "to folder" (ticked), the naming template, "do not reorganize files with missing naming tags" (ticked), "add to library", "also move remaining non-media files", replacing duplicates and minimising when it starts (all unticked). The wording of the dialog itself is still open above. |
+| OD-RUN | Whether the dialog closes by itself after a clean run. | In part: it can be minimised when the run starts, an option that is off ("File Organization"). Whether it closes by itself is still open above. |

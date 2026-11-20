@@ -20,6 +20,7 @@ Category, Playlist) are added by the library, not here.
 | W-H | MusicBee wiki, "How to Create a File-Naming Template": https://musicbee.fandom.com/wiki/How_to_Create_a_File-Naming_Template |
 | W-UV | MusicBee wiki, "Useful Virtual Tag Formulas" (users' examples): https://musicbee.fandom.com/wiki/Useful_Virtual_Tag_Formulas |
 | F-… | A linuxBee decision. Listed under "Open parity questions" where MusicBee's behaviour is unknown. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "How to Create a File-Naming Template", "Tracks View", "Special Fields": https://musicbee.fandom.com/wiki/How_to_Create_a_File-Naming_Template , https://musicbee.fandom.com/wiki/Tracks_View , https://musicbee.fandom.com/wiki/Special_Fields |
 
 Pages were read on 2026-11-13.
 
@@ -133,9 +134,16 @@ Rate and Channels are also blank when their number is 0.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| F-DISCTRACK | With no disc number, is it `11` or `01-11`? With a one-disc album? The format is configurable in MusicBee; what is the default? linuxBee: 2 digits each, disc only when tagged. |
+| F-DISCTRACK | The default format of Disc-Track#. Two pages disagree (answered table below). linuxBee: 2 digits each. |
 | F-DECADE | How is Decade written: `2010s`, `10s`, `2010`? linuxBee: `2010s`. |
 | F-FILE | Does `<Path>` end with a separator? linuxBee: no. |
 | F-KIND | The Kind text for each format other than MP3. |
 | Table | How Time, Bitrate, Sample Rate and Channels are written in a template. |
 | F-DISPLAY | What Display Artist shows for two artists. |
+| Year (yyyy) | Is the four-digit year written `<Year(yyyy)>` in a template? "Special Fields" lists the field as "Year (yyyy)"; a guide on "How to Create a File-Naming Template" writes `<Year(YYYY)>`. linuxBee: the name as in the table. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| F-DISCTRACK | With no disc number, is it `11` or `01-11`? With a one-disc album? The format is configurable in MusicBee; what is the default? linuxBee: 2 digits each, disc only when tagged. | With no disc number the track alone: "How to Create a File-Naming Template" gives `11` for a one-disc album whose disc is not tagged. The default format is still open above; two pages disagree: "Tracks View" gives `0-00` (so `1-11`), "How to Create a File-Naming Template" shows `01-11`. |

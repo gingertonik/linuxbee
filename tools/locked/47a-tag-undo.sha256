@@ -1,4 +1,4 @@
-a1d5d0e8a5c842504329520345c0e6df4432abbb35bc79eb0bebe03544b6cb1c  docs/spec/tag-undo.md
+27a2f0d47ad513cbd2f7dec5c7c37c97d8b1d270fceafcca425c0b45679c5006  docs/spec/tag-undo.md
 49aa4ffcfc0dc7e015bd3d27caa6ac8f344faf76698f1d42c100e4b1be9dd577  src/core/tagundo/tagundo.h
 46f24c85d65bbfb04df3326d195eb8e4fd1a1ccedc89823121b6443ea8ad56bb  tests/locked/tst_tagundo.cpp
 03f8bbbd0b0361bc308e95c7d9c87e4bb8930b16187e7791430093f87a40bfdc  tests/locked/tst_tagundo_nokeep.cpp

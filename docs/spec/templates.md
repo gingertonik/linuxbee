@@ -337,3 +337,4 @@ correct. Each is one line in a template field of the original program.
 | T-GROUP | What does `$Group` give for a title starting with a digit? linuxBee: `#`. |
 | T-RANGE | What does `$Split(<Title>," ",9)` give when there are 3 words? linuxBee: empty. |
 | T-REGEX | Does `$RxReplace` use `$1` for groups? linuxBee: yes (the .NET convention). |
+| T-CASE | Is `$IsMatch` case-sensitive? A formula on "Useful Virtual Tag Formulas" tests an upper-case letter against `[gioqu-z]`, which suggests it is not; the page does not say. linuxBee: as the pattern says. |

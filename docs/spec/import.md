@@ -23,6 +23,7 @@ then decorates the tracks the library already has.
 | PL | The Apple property list XML format (`plist`, `dict`, `key`, `array`, `string`, `integer`, `real`, `date`, `data`, `true`, `false`): https://en.wikipedia.org/wiki/Property_list |
 | IT | The iTunes library XML layout, as widely described: a top-level `dict` with `Tracks` (a `dict` of track `dict`s keyed by track ID) and `Playlists` (an `array` of `dict`s with `Name` and `Playlist Items`). |
 | I-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "How to export MB library to iTunes": https://musicbee.fandom.com/wiki/How_to_export_MB_library_to_iTunes |
 
 Read on 2026-11-13. No real export from MusicBee has been examined; which
 of the keys below MusicBee writes is an open question. A forum guide from
@@ -225,5 +226,10 @@ been printed, the fourth line is not, and nothing was stored.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | I-PARSE | A real export: which keys are there? Is `Date Added` written, is `Skip Count`, are half-star ratings? |
-| I-PARSE | Are auto-playlists exported, and how are they marked? |
 | I-LOCATION | The form of `Location` MusicBee writes (`file://localhost/C:/...`?). |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| I-PARSE | Are auto-playlists exported, and how are they marked? | Yes, as plain playlists: "How to export MB library to iTunes" says every auto-playlist and static playlist comes in as a static playlist, and the Inbox as a playlist named inbox. |

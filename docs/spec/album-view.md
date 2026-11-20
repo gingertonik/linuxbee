@@ -20,6 +20,7 @@ check it.
 | W-NPP | MusicBee wiki, "Now Playing Preferences": what a double click plays, and that a click on an album cover plays the album only: https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 | SHOT | The user's own MusicBee window and preferences, 2026-11-13: the main panel is headed `Album and Tracks`; a bar `# A B C ... Z` runs above it; the panel's Sort By is `Album Artist / Year / Album`; under Now Playing, Play Now is `clear list and play all tracks`, with `except when clicking album covers - play album only` ticked. |
 | AV-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Sorting & Grouping": https://musicbee.fandom.com/wiki/Sorting_%26_Grouping |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Album and Tracks View" (3.0.6006;
@@ -347,6 +348,11 @@ In mode `tracks` the view is given no tracks and nothing above happens.
 |---|---|
 | AV-SHELL | Which view a new install shows first. linuxBee starts with Album and Tracks. |
 | AV-TEXT | What an album's heading shows by default, and in which order. |
-| AV-GROUPS | Whether two albums of the same name by one artist in different years are one group. |
 | AV-JUMP | Where `#` goes, and what a letter with no artist does (nothing, or the nearest). |
 | AV-ACTIVATE | Whether a single click on a track selects it only, and what Return does. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| AV-GROUPS | Whether two albums of the same name by one artist in different years are one group. | One group: "Sorting & Grouping" defines an album by default as album artist and album name; the year is not part of it. AV-GROUPS already does so. |

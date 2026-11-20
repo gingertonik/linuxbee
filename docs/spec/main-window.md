@@ -24,6 +24,7 @@ person, from the screenshot this plan's last task takes.
 | W-MENU | MusicBee wiki, the menu pages: https://musicbee.fandom.com/wiki/File_Menu , `Edit_Menu`, `View_Menu`, `Controls_Menu`, `Tools_Menu`, `Help_Menu` |
 | W-HOT | MusicBee wiki, "Hotkeys": https://musicbee.fandom.com/wiki/Hotkeys |
 | H-…, W-… | A linuxBee decision. (Here `W-` followed by a word in capitals that is not in this table is a rule of this document, not a wiki page.) |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Hotkeys", "Tools Menu": https://musicbee.fandom.com/wiki/Hotkeys , https://musicbee.fandom.com/wiki/Tools_Menu |
 
 Read on 2026-11-13. What MusicBee documents: a left sidebar (the
 navigator), a main panel, a right sidebar (playing tracks, track
@@ -369,6 +370,13 @@ leaves behind is tidied at the next start (tools-shell.md, TS-UNDO).
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| H-CATALOGUE | The full list of commands on the Hotkeys page of Preferences, with their defaults. |
+| H-CATALOGUE | The full list of commands on the Hotkeys page of Preferences (over 150, says the wiki). The default keys are answered below. |
 | W-LAYOUT | Default panel widths, and whether a hidden panel's width is remembered. |
 | H-SET | What MusicBee does when a key is already taken: refuse, or move it? |
+| H-CATALOGUE | Search and Replace: "Tools Menu" gives it Ctrl+G; the table of defaults on "Hotkeys" does not list it. linuxBee: Ctrl+G. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| H-CATALOGUE | The full list of commands on the Hotkeys page of Preferences, with their defaults. | The defaults: "Hotkeys" has a table of the default keys (some 55, and Delete and Shift+Delete, which cannot be changed). The full list of commands is only in the program's preferences: still open above. |

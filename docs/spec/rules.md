@@ -16,6 +16,7 @@ and "now" is passed in.
 | W-R | MusicBee wiki, "Filters" (rules, ANY or ALL, sub-rules, lists separated by semicolons) and "Playlists", the part on auto-playlists: https://musicbee.fandom.com/wiki/Filters , https://musicbee.fandom.com/wiki/Playlists#Auto-Playlists |
 | W-API | MusicBee wiki, "API Method Reference": https://musicbee.fandom.com/wiki/API_Method_Reference |
 | U-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Tracks View": https://musicbee.fandom.com/wiki/Tracks_View |
 
 Pages were read on 2026-11-13.
 
@@ -194,13 +195,21 @@ linuxbeectl rules match [--field NAME=VALUE]... [--now WHEN] JSON
 - The auto-playlist options around the rules (limit, selection order,
   source): they belong to playlists.
 - Which operators a rule editor offers for which field.
+- A rule on "any field", and the value "[playing track]": MusicBee's
+  rules have both (W-R).
 
 ## Open parity questions
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| U-NAMES | The operators MusicBee offers for a text, a number, a rating and a date field, as named in its rule editor. |
+| U-NAMES | The operators MusicBee offers for a text, a number, a rating and a date field, as named in its rule editor (in part answered below). |
 | U-VALUES | Does "Genre is Rock" match a track tagged Rock and Blues? linuxBee: yes. |
 | U-LAST | Settled 2026-11-14 (the owner, from memory): "not in the last 30 days" does not match a track that was never played. |
 | U-SUB | Can sub-rules have sub-rules? linuxBee: yes, to depth 8. |
 | U-TEXT | Is "is" case-sensitive? linuxBee: no. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| U-NAMES | The operators MusicBee offers for a text, a number, a rating and a date field, as named in its rule editor. | In part: "Tracks View" says a field's type (text, date, number, rating) decides which rule operators are offered, and a date or a number field has greater and less than. The names of the rest are still open above. |

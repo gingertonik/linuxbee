@@ -19,6 +19,7 @@ files from `docs/spec/organise.md` (O-MUSIC).
 |---|---|
 | W-L | MusicBee wiki, "Library Preferences" and "Navigator" (the Inbox): https://musicbee.fandom.com/wiki/Library_Preferences , https://musicbee.fandom.com/wiki/Navigator#Inbox |
 | L-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Special Fields": https://musicbee.fandom.com/wiki/Special_Fields |
 
 Pages were read on 2026-11-13.
 
@@ -867,4 +868,10 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
 | L-SCAN | Does a rescan re-read a file whose modification time changed but whose size did not? linuxBee: yes. |
 | L-MISSING | Does MusicBee keep a missing file's statistics when it is relocated? linuxBee: yes. |
 | L-STATS | Does a skip change "last played"? linuxBee: no. |
-| L-FIELDS | How MusicBee writes Date Added and Size in a template. linuxBee: ISO 8601 UTC, and megabytes to one decimal. |
+| L-FIELDS | How MusicBee writes Date Added in a template, and to how many places it gives Size. linuxBee: ISO 8601 UTC, and megabytes to one decimal. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| L-FIELDS | How MusicBee writes Date Added and Size in a template. linuxBee: ISO 8601 UTC, and megabytes to one decimal. | In part: Size is "File size, in MB" ("Special Fields"); to how many places is not said. How Date Added is written is still open above. |

@@ -21,6 +21,7 @@ LGPL-2.1 or MPL-1.1). No TagLib type appears in a public header.
 | F-V | MusicBee forum, topic 18622, a user's list of Vorbis comment names (2016): https://getmusicbee.com/forum/index.php?topic=18622.0 |
 | GEN | `tests/data/tags/make_fixtures.py`, which wrote the fixtures with mutagen |
 | R-… | A linuxBee decision. Listed again under "Open parity questions" where MusicBee's behaviour is unknown. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Tagging": https://musicbee.fandom.com/wiki/Tagging |
 
 Pages were read on 2026-11-13.
 
@@ -373,6 +374,12 @@ Nothing else is written to standard error.
 | R-RATING | What number does MusicBee write in a Vorbis `RATING` comment for 4 stars? linuxBee reads 80 and 4 both as 4 stars. |
 | R-RATING | Is there a zero rating that differs from no rating, and how is it stored? linuxBee: not read. |
 | R-NUMBERS | Is a track number with a leading zero shown as `03` or `3`? linuxBee: as written. |
-| R-GROUPING | Does MusicBee also read the `GRP1` frame as Grouping? linuxBee: yes, after `TIT1`. |
 | R-SOURCE | Are field names in a template matched ignoring case? linuxBee: yes. |
 | R-PRECEDENCE | Does an APEv2 tag in an MP3 win over ID3v2? linuxBee: no. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| R-GROUPING | Does MusicBee also read the `GRP1` frame as Grouping? linuxBee: yes, after `TIT1`. | No word of it: "Tagging" gives Grouping as `TIT1` only. Reading `GRP1` too is linuxBee's own. |
+| R-PRECEDENCE | Does an APEv2 tag in an MP3 win over ID3v2? linuxBee: no. | In part: "Tagging" says MusicBee reads APE tags and does not write them, as linuxBee. Which wins over ID3v2 is still open above. |

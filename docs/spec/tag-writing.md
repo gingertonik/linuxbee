@@ -23,6 +23,7 @@ TagLib does the writing. No TagLib type appears in a public header.
 | TL | TagLib's property mapping and the headers of the installed library |
 | ID3 | ID3v2.3.0 and ID3v2.4.0 documents and the ID3v1 layout: https://id3.org |
 | W-… | A linuxBee decision, except W-TG and W-TP above. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Tags Preferences": https://musicbee.fandom.com/wiki/Tags_Preferences |
 
 Pages were read on 2026-11-13.
 
@@ -481,5 +482,10 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 | W-TABLE | Vorbis totals: TRACKTOTAL and DISCTOTAL, or TOTALTRACKS and TOTALDISCS? The public sources give both. linuxBee writes the first pair and reads both. |
 | W-MULTI | How MusicBee stores two artists in an ID3v2.3 frame. linuxBee: as TagLib does. |
 | W-NUMBERS | Is a disc count with no disc number written at all? linuxBee: as `/4`. |
-| W-ID3V1 | With "also save ID3v1 tags" off, does MusicBee remove an existing ID3v1 tag? linuxBee: yes. |
 | W-ID3VER | Does saving an ID3v2.4 file with the default setting turn it into ID3v2.3? linuxBee: no; a save keeps the file's version (W-ID3VER). |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| W-ID3V1 | With "also save ID3v1 tags" off, does MusicBee remove an existing ID3v1 tag? linuxBee: yes. | Yes: "Tags Preferences" says existing ID3v1 tags "are cleared as soon as tags are edited". W-ID3V1 already does so. |

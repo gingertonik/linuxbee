@@ -23,6 +23,7 @@ file. That is what lets a dialog show a preview: the preview is the result.
 | W-CAP | MusicBee wiki, "How to Automate Song Title Capitalization" (one user's guide): https://musicbee.fandom.com/wiki/How_to_Automate_Song_Title_Capitalization |
 | W-AS | MusicBee wiki, "Appending Some Text to Tags" (one user's guide; it copies tags with a third-party add-on): https://musicbee.fandom.com/wiki/Appending_Some_Text_to_Tags |
 | G-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Auto-Tagging": https://musicbee.fandom.com/wiki/Auto-Tagging |
 
 Pages were read on 2026-11-13. The wiki pages for the Search and Replace,
 Renumber Tracks and Remove Tags dialogs could not be fetched, so what is
@@ -260,4 +261,10 @@ still FILE as it was typed.
 | G-REPLACE | With no field chosen, which fields does Search and Replace cover? Is Rating one? |
 | G-REPLACE | What does the replacement text use for a group: `$1` or `\1`? |
 | G-RENUMBER | What options does Renumber Tracks offer (start, padding, total, per disc)? |
-| G-INFER | The syntax of the infer pattern, and whether a part can be skipped. |
+| G-INFER | Whether a part of the infer pattern can be skipped (the rest is answered below). |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| G-INFER | The syntax of the infer pattern, and whether a part can be skipped. | In part: the pattern is a template, and each piece of plain text in it matches its first occurrence in the path; the preview shows only the tags that would change ("Auto-Tagging"). Whether a part can be skipped is still open above. |

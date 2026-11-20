@@ -14,11 +14,14 @@ batch's (convert-batch.md); this dialog adds no rule about audio.
 |---|---|
 | W-CF | MusicBee wiki, "Convert Format": https://musicbee.fandom.com/wiki/Convert_Format |
 | CD-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Convert Format": https://musicbee.fandom.com/wiki/Convert_Format |
 
 Read on 2026-11-12. What MusicBee documents: a dialog reached from
 Tools, with the format to encode to, a destination (a folder, or the
 same location), what to do if the file already exists, and whether tags
-and artwork are carried over. Its layout and wording are not documented.
+and artwork are carried over. Its options and their defaults are listed
+on a page that describes version 2.1 (answered table below); its layout
+and wording are not documented.
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Convert Format" (2.1.4923;
@@ -122,5 +125,12 @@ dialog stays open.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| CD-FRAME | The dialog's options and their wording, and the choices for a file that already exists. |
-| CD-RUN | Whether the dialog closes by itself after a clean run. |
+| CD-FRAME | The wording of the dialog, and its choices for a file that already exists (its options are answered below). |
+| CD-RUN | Whether the dialog closes by itself after a clean run (in part answered below). |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| CD-FRAME | The dialog's options and their wording, and the choices for a file that already exists. | In part, from a page of version 2.1 ("Convert Format"): to the source folder, replacing the source, or to a new folder (the default); names from the naming template (ticked); artwork as the source has it (the default) or always embedded; a lasting change of volume, adding to the Inbox, and keeping existing files and only bringing their tags in step (all unticked); play and skip counts reset to zero (the default); minimise when it starts (ticked). The wording, and the choices for a file that exists, are still open above. |
+| CD-RUN | Whether the dialog closes by itself after a clean run. | In part: MusicBee minimises the window when the conversion starts, an option that is on ("Convert Format", version 2.1). Whether it closes by itself is still open above. |

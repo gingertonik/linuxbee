@@ -15,6 +15,7 @@ paths and plays nothing; the player asks it where to go.
 | W-NP | MusicBee wiki, "Now Playing Preferences": https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 | W-PT | MusicBee wiki, "Playing Tracks" and "Player Controls": https://musicbee.fandom.com/wiki/Playing_Tracks , https://musicbee.fandom.com/wiki/Player_Controls |
 | Q-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Now Playing Preferences": https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 
 Read on 2026-11-13. What MusicBee documents: Play Now, Queue Next and
 Queue Last as the three ways to add (W-NP); repeat and shuffle toggles
@@ -173,6 +174,12 @@ seeking forward does not make a play.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | Q-SHUFFLE | With shuffle on, does Previous go back to what was played before, and does Next then retrace it? |
-| Q-SHUFFLE | Is Queue Next honoured while shuffle is on? |
 | Q-EDIT | When the playing track is removed from Playing Tracks, what does Next play? |
-| Q-COUNT | The exact skip-count default, and whether a track that is stopped (not skipped) early counts as a skip. |
+| Q-COUNT | Whether a track that is stopped (not skipped) early counts as a skip. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| Q-SHUFFLE | Is Queue Next honoured while shuffle is on? | Yes: "Now Playing Preferences" says Queue Next "overrides shuffle setting"; Queue Last with shuffle on goes to a random place. Q-SHUFFLE already does both. |
+| Q-COUNT | The exact skip-count default, and whether a track that is stopped (not skipped) early counts as a skip. | The default: a skip is counted when less than 20 seconds were played ("Now Playing Preferences"; the line that gives the default is garbled, its text says 20 seconds). Whether a stop counts is not said: still open above. |

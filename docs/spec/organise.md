@@ -24,6 +24,7 @@ It builds on `docs/spec/paths.md` (names from templates),
 | W-O | MusicBee wiki, "File Organization": https://musicbee.fandom.com/wiki/File_Organization |
 | W-H | MusicBee wiki, "How to Create a File-Naming Template": https://musicbee.fandom.com/wiki/How_to_Create_a_File-Naming_Template |
 | O-… | A linuxBee decision. Listed under "Open parity questions" where MusicBee's behaviour is unknown. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "File Organization": https://musicbee.fandom.com/wiki/File_Organization |
 
 Pages were read on 2026-11-13.
 
@@ -557,4 +558,9 @@ linuxbeectl organise [--to DIR] [--template T | --keep-names] [--copy]
 | O-OTHER | When a folder's tracks go to two different folders, where do its cover and cue files go? linuxBee: they stay. |
 | O-OTHER | Does an other file replace one of the same name at the target? linuxBee: never. |
 | O-CONFLICT | With "allow existing files to be replaced" and two new files of the same name, which wins? linuxBee: the first replaces, the second is numbered. |
-| O-TARGET | With "to folder" unticked and a template that has folders, are the folders used? linuxBee: no, only the file name. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| O-TARGET | With "to folder" unticked and a template that has folders, are the folders used? linuxBee: no, only the file name. | No: with "to folder" unticked the current folders are used ("File Organization"). O-TARGET already does so. |
