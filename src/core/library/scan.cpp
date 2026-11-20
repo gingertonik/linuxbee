@@ -360,6 +360,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     };
     if (!d->store.beginBatch())
         return refuse();
+    // L-DELETED: every storing removes the old deleted rows, with the scan's time, in its own
+    // change: a refusal here refuses the storing.
+    if (expireDeletedRows(d->store, options.now) < 0)
+        return refuse();
 
     // L-PARTS: a finding is acted on only while the library still holds the
     // track as it was when it was looked at. The four values are asked for by
@@ -406,10 +410,22 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         else if (!d->store.lastError().isEmpty())
             return refuse(); // L-FAILED: a refused write ends the storing
     }
+    // L-DELETED: the tracks brought back, in the order their files were met.
+    QList<qint64> broughtBack;
     // L-PARTS: a file the library holds by now is left alone.
     for (const LibraryTrack &reading : findings.fresh) {
-        if (d->store.byPath(QDir::cleanPath(reading.path)))
+        const QString clean = QDir::cleanPath(reading.path);
+        if (d->store.byPath(clean))
             continue;
+        // L-DELETED: a file at the path of a deleted track is that track's: it comes back, read
+        // again, with its id, its section, its date added and its statistics.
+        if (const qint64 row = d->store.deletedIdAt(clean); row > 0) {
+            if (d->store.restoreDeleted(row, reading))
+                broughtBack.append(row);
+            else if (!d->store.lastError().isEmpty())
+                return refuse();
+            continue;
+        }
         LibraryTrack track = reading;
         track.category = options.category;
         track.dateAdded = options.now;
@@ -455,7 +471,14 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     const qsizetype heldCount = findings.maybeMoved.size();
     QList<QList<qint64>> own(heldCount);
     QHash<qint64, int> claimed;
+    // L-DELETED: a held-back file at the path of a deleted track is that track's. It is brought
+    // back below, and claims no row: a deleted track is not followed.
+    QList<qint64> deletedHere(heldCount, 0);
+    for (qsizetype i = 0; i < heldCount; ++i)
+        deletedHere[i] = d->store.deletedIdAt(libraryPath(findings.maybeMoved.at(i).reading.path));
     for (qsizetype i = 0; i < heldCount; ++i) {
+        if (deletedHere.at(i) > 0)
+            continue;
         const ScanFindings::MaybeMoved &maybe = findings.maybeMoved.at(i);
         for (const qint64 row : maybe.rows) {
             if (!findings.judged.contains(row) || !stillFits(row))
@@ -479,6 +502,13 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         // L-PARTS: a file the library holds by now is left alone.
         if (d->store.byPath(libraryPath(reading.path)))
             continue;
+        if (deletedHere.at(i) > 0) {
+            if (d->store.restoreDeleted(deletedHere.at(i), reading))
+                broughtBack.append(deletedHere.at(i));
+            else if (!d->store.lastError().isEmpty())
+                return refuse();
+            continue;
+        }
         if (own[i].size() == 1 && claimed.value(own[i].first()) == 1) {
             const qint64 row = own[i].first();
             const QString newPath = libraryPath(reading.path);
@@ -508,6 +538,11 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         else if (!d->store.lastError().isEmpty())
             return refuse();
     }
+    // L-DELETED: brought back, they are in `found` after the missing tracks found; every view had
+    // let them go, so `tracksAdded` names them, after the new tracks, and `tracksUpdated` does not.
+    const QList<qint64> changed
+        = report.found + report.updated + report.followed + report.nowMissing;
+    report.found += broughtBack;
     report.unchanged = findings.unchanged + rereadUnchanged;
     report.notAudio = findings.notAudio;
     report.unreadableNames = findings.unreadableNames;
@@ -521,10 +556,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // L-SIGNALS: at most one signal of each kind, after the changes are
     // stored: one for what was added, one for everything else that changed
     // about a track, in the order found, updated, gone missing.
-    if (!report.added.isEmpty())
-        emit tracksAdded(report.added);
-    const QList<qint64> changed
-        = report.found + report.updated + report.followed + report.nowMissing;
+    if (const QList<qint64> appeared = report.added + broughtBack; !appeared.isEmpty())
+        emit tracksAdded(appeared);
     if (!changed.isEmpty())
         emit tracksUpdated(changed);
     // L-FOLLOW, L-MOVED: after tracksUpdated, one move for the rows followed.
@@ -561,6 +594,17 @@ qint64 Library::addFile(const QString &path, const QString &category, const QDat
     LibraryTrack track;
     if (!readAsTrack(clean, &track))
         return 0;
+    // L-DELETED: the file of a deleted track brings that track back, as it was: the section given
+    // is not used. No second row is made for the path.
+    if (const qint64 row = d->store.deletedIdAt(clean); row > 0) {
+        if (!d->store.restoreDeleted(row, track)) {
+            if (const QString why = d->store.lastError(); !why.isEmpty())
+                emit failed(why); // L-FAILED
+            return 0;
+        }
+        emit tracksAdded(QList<qint64> { row });
+        return row;
+    }
     track.category = category;
     track.dateAdded = now;
     const qint64 id = d->store.insert(track);

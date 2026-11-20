@@ -6,6 +6,7 @@
 #include <chrono>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "library/library.h"
 
@@ -88,6 +89,23 @@ public:
     // it found; the database's words when the statement failed (it was busy, say). Separate from
     // lastError(), which a read never clears.
     QString lastReadError() const;
+
+    // L-DELETED: marks the live tracks among `ids` deleted at `whenSecs` (whole seconds, not
+    // before 1970) and missing, by pieces, in one transaction. Returns the ids it marked (a
+    // deleted or unknown id is not one). L-FAILED: a refusal changes nothing, returns nothing and
+    // leaves words in lastError().
+    QList<qint64> markDeleted(const QList<qint64> &ids, qint64 whenSecs);
+    // L-DELETED: the deleted rows whose deleting is at or before `cutoffSecs`, as (id, path), in
+    // ascending order of id. A plain read.
+    QList<std::pair<qint64, QString>> deletedUntil(qint64 cutoffSecs) const;
+    // L-DELETED: removes the deleted rows among `ids` (a live row is never touched), by pieces,
+    // in one transaction. Returns the ids removed; a refusal as for markDeleted.
+    QList<qint64> removeDeleted(const QList<qint64> &ids);
+    // L-DELETED: the id of the deleted row at this exact path, 0 when there is none.
+    qint64 deletedIdAt(const QString &path) const;
+    // L-DELETED: the deleted row `id` is a track again: not deleted, not missing, with this reading
+    // of its file (as updateReading). False with lastError() empty: no such deleted row.
+    bool restoreDeleted(qint64 id, const LibraryTrack &track);
 
     // L-EDIT refresh: the file was read again, so its tags, size, time and
     // picture count replace what is stored. Everything only the library knows

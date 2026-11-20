@@ -86,6 +86,28 @@ bool anyWanted(const library::Store &store, const QList<qint64> &ids, Wants want
 
 } // namespace
 
+// L-DELETED: see library_p.h.
+int expireDeletedRows(library::Store &store, const QDateTime &now)
+{
+    if (!now.isValid())
+        return 0;
+    const qint64 kept = qint64(Library::deletedKeptDays()) * 24 * 60 * 60;
+    QList<qint64> goes;
+    for (const auto &row : store.deletedUntil(now.toSecsSinceEpoch() - kept)) {
+        // A file at the path is the track's, taken back out of the trash: the row stays, and a
+        // scan brings the track back. A link counts as something, also one that leads nowhere.
+        const QFileInfo there(row.second);
+        if (!there.isSymLink() && !there.exists())
+            goes.append(row.first);
+    }
+    if (goes.isEmpty())
+        return 0;
+    const QList<qint64> gone = store.removeDeleted(goes);
+    if (!store.lastError().isEmpty())
+        return -1;
+    return static_cast<int>(gone.size());
+}
+
 Library::Library()
     : d(std::make_unique<Private>())
 {
@@ -105,6 +127,9 @@ std::unique_ptr<Library> Library::open(const QString &databasePath, QString *err
             *error = reason;
         return nullptr;
     }
+    // L-DELETED: rows deleted thirty days ago or more go, with the clock's time. A failure here
+    // is no failure of the opening, and is not said.
+    expireDeletedRows(library->d->store, QDateTime::currentDateTimeUtc());
     return library;
 }
 
@@ -205,6 +230,45 @@ int Library::remove(const QList<qint64> &ids)
     if (!gone.isEmpty())
         emit tracksRemoved(gone);
     return static_cast<int>(gone.size());
+}
+
+// L-DELETED: the files of these tracks went to the trash at `when`. Each id that is a track is
+// marked, all of them in one change (all or none) and with one signal; an unknown or deleted id is
+// not counted, not named and does not move an earlier time.
+int Library::markDeleted(const QList<qint64> &ids, const QDateTime &when)
+{
+    // No time, or one before 1970: nothing happens.
+    if (!when.isValid() || when.toSecsSinceEpoch() < 0)
+        return 0;
+    // L-FAILED: no id is a track of ours, so there is nothing to refuse.
+    if (!anyWanted(d->store, ids, [](const LibraryTrack &) { return true; }))
+        return 0;
+    const QList<qint64> marked = d->store.markDeleted(ids, when.toSecsSinceEpoch());
+    if (const QString why = d->store.lastError(); !why.isEmpty()) {
+        emit failed(why);
+        return 0;
+    }
+    // The ids in the order given, each once, at its first place.
+    const QSet<qint64> markedSet(marked.cbegin(), marked.cend());
+    QSet<qint64> seen;
+    QList<qint64> named;
+    for (const qint64 id : ids) {
+        if (markedSet.contains(id) && !seen.contains(id)) {
+            seen.insert(id);
+            named.append(id);
+        }
+    }
+    if (named.isEmpty())
+        return 0;
+    emit tracksRemoved(named);
+    return static_cast<int>(named.size());
+}
+
+// L-DELETED: removes what was deleted thirty days before `now` or longer ago and has no file at
+// its path. Signals nothing, and a refusal is not said: nobody asked for it.
+int Library::expireDeleted(const QDateTime &now)
+{
+    return std::max(0, expireDeletedRows(d->store, now));
 }
 
 // L-EDIT setCategory: counts the tracks it changed, so an id that is unknown,
