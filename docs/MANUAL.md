@@ -60,7 +60,9 @@ command-line tool, or both.
   deletes no files.
 - Delete Files (File menu, Shift+Del) moves the selected tracks' files to the
   desktop trash, after a question. The tracks whose files were moved leave the
-  library. A file the trash does not take stays where it is, and the message
+  library. Their rows are kept for thirty days, so a file restored from the trash
+  comes back at the next scan with its plays and date added. A file the trash
+  does not take stays where it is, and the message
   says how many files were not moved. To take a file back, restore it from the
   trash. Nothing is deleted for good. `linuxbeectl trash FILE...` does the same
   for files named on the command line.
