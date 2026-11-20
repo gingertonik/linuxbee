@@ -18,6 +18,7 @@ tag-editor.md, organise-dialog.md, convert-dialog.md and preferences.md.
 |---|---|
 | W-FILE | MusicBee wiki, "File Menu", "Tools Menu", "Edit Menu": https://musicbee.fandom.com/wiki/File_Menu , https://musicbee.fandom.com/wiki/Tools_Menu , https://musicbee.fandom.com/wiki/Edit_Menu |
 | TS-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Convert Format": https://musicbee.fandom.com/wiki/Convert_Format |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "File Menu" (3.0.5899; 2020-05-01);
@@ -289,5 +290,10 @@ Every message goes to the window's status bar and is kept as
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| TS-CONVERT | Whether converted files are added to the library by default. |
 | TS-SELECTION | Whether Edit Tags with nothing selected does nothing, or edits the playing track. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| TS-CONVERT | Whether converted files are added to the library by default. | No: "add converted files to the inbox" is unticked ("Convert Format", version 2.1). TS-CONVERT already does not. |

@@ -16,6 +16,7 @@ monitor is handed a scanner function and calls it.
 |---|---|
 | W-LP | MusicBee wiki, "Library Preferences" (monitored folders, "on startup check for updated/missing files", "continuously monitor", inbox): https://musicbee.fandom.com/wiki/Library_Preferences |
 | FM-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Library Preferences": https://musicbee.fandom.com/wiki/Library_Preferences |
 
 Read on 2026-11-13. What MusicBee documents: folders can be monitored,
 new files found in them are added to the library or sent to the Inbox,
@@ -116,3 +117,9 @@ library: `Library::scan(folders, options)` with new files going to
 |---|---|
 | FM-SETTLE | How long MusicBee waits after a file appears before reading it. |
 | FM-DIRS | Whether hidden folders inside a monitored folder are scanned. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| FM-… | Which ways of watching a folder MusicBee offers. | Two: scan on startup only, or scan continuously as well, which watches the folders while it runs ("Library Preferences"). |

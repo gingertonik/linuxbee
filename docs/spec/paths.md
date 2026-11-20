@@ -18,6 +18,7 @@ Nothing in this subsystem reads or writes the disk.
 | W-T | MusicBee wiki, "Templates": https://musicbee.fandom.com/wiki/Templates |
 | W-UV | MusicBee wiki, "Useful Virtual Tag Formulas" (users' examples): https://musicbee.fandom.com/wiki/Useful_Virtual_Tag_Formulas |
 | P-… | A linuxBee decision. The public sources do not say. Listed again under "Open parity questions". |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "File Organization", "Useful Virtual Tag Formulas", "Templates": https://musicbee.fandom.com/wiki/File_Organization , https://musicbee.fandom.com/wiki/Useful_Virtual_Tag_Formulas , https://musicbee.fandom.com/wiki/Templates |
 
 Pages were read on 2026-11-13.
 
@@ -208,12 +209,17 @@ linuxbeectl path build [--field NAME=VALUE]... [--ext EXT] [--allow-missing]
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| P-SEP | Is `/` in a naming template a folder separator, or plain text? linuxBee: separator. |
 | P-SEP | Does a `\` inside a tag value create a folder? linuxBee: never. |
 | P-SPACES | `A: B` with default mapping: one space or two? linuxBee: one. |
 | P-TRIM | Is a leading dot kept (`...Baby One More Time`)? linuxBee: removed. |
 | P-TRIM | Is a trailing dot or space kept in a folder name? linuxBee: removed. |
-| P-DUP | Is the first duplicate `name_1`, `name_2` or something else? linuxBee: `_1`. |
 | P-MISSING | Does a blank field inside `$If(...)` count as a missing tag? linuxBee: no. |
 | P-LENGTH | What happens to a name that is too long? linuxBee: cut to 255 bytes. |
 | P-RESERVED | Are names like `CON` changed? linuxBee: `CON_`. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| P-DUP | Is the first duplicate `name_1`, `name_2` or something else? linuxBee: `_1`. | `_1`: "File Organization" appends `_#`, and "Useful Virtual Tag Formulas" gives the example `1-08 Right as Rain_1.mp3`. |
+| P-SEP | Is `/` in a naming template a folder separator, or plain text? linuxBee: separator. | "Templates" names only `\` as the folder separator, and only in templates for organising; elsewhere it is plain text. Nothing is said of `/`: as a separator it is linuxBee's own. |

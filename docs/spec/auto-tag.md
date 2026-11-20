@@ -18,6 +18,7 @@ out the changes. Fetching and saving belong to the caller.
 | MB | MusicBrainz API documentation: https://musicbrainz.org/doc/MusicBrainz_API , its search page https://musicbrainz.org/doc/MusicBrainz_API/Search and its rate limiting page https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting |
 | CAA | Cover Art Archive API: https://musicbrainz.org/doc/Cover_Art_Archive/API |
 | M-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Auto-Tagging": https://musicbee.fandom.com/wiki/Auto-Tagging |
 
 Read on 2026-11-13. What MusicBee documents (W-AT): Auto-Tag by Album runs
 a search, lists the albums found, and matches the selected tracks to the
@@ -148,6 +149,12 @@ outside the release, or a release that is not ok, gives no changes.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| M-CHANGES | Which fields does Auto-Tag by Album fill, and does Year get the release's date or the original year? |
+| M-CHANGES | Does Year get the release's date or the original year? |
 | M-MATCH | How does MusicBee line files up with the album's tracks when numbers and titles disagree? |
 | M-AGENT | (For the owner, not about MusicBee.) The contact URL in the User-Agent: the public repository address is assumed. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| M-CHANGES | Which fields does Auto-Tag by Album fill, and does Year get the release's date or the original year? | In part: by default all the fields it supports but artwork and lyrics, and "update blank fields only" is on, so it fills only empty fields ("Auto-Tagging"). Whether Year gets the release's date or the original year is still open above. |

@@ -13,8 +13,10 @@ in the window and none on the command line.
 
 - MusicBee wiki, "General Preferences"
   (https://musicbee.fandom.com/wiki/General_Preferences), confirmations: "confirm
-  permanent file deletion (using SHIFT delete)". MusicBee's Shift+Delete
-  removes for good; linuxBee's does not (see "Differences").
+  permanent file deletion (using SHIFT delete)". The "Hotkeys" page
+  (https://musicbee.fandom.com/wiki/Hotkeys) says instead that Shift+Delete sends the files "to the
+  Recycle Bin". The wiki disagrees with itself; linuxBee's moves to the
+  trash (see "Differences").
 - MusicBee wiki, "File Organization"
   (https://musicbee.fandom.com/wiki/File_Organization): "replaced files will be moved to
   the Recycle Bin".
@@ -202,8 +204,10 @@ Exit 0 when every file went to the trash, 3 when at least one did not,
 
 ## Differences from MusicBee
 
-- MusicBee's Shift+Delete deletes for good, and its confirmations can
-  be switched off. Here Shift+Del moves to the trash, and always asks.
+- One page of the MusicBee wiki calls Shift+Delete a permanent
+  deletion, another says it sends the files to the Recycle Bin; its
+  confirmations can be switched off. Here Shift+Del moves to the
+  trash, and always asks.
 
 ## Not in this version
 

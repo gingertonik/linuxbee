@@ -217,6 +217,9 @@ written). Changes that need none are recorded and undone as usual.
 ## Not in this version
 
 - More than one step; redo.
+- Undo of the last change to the list of playing tracks, which
+  MusicBee's Edit menu also has ("Edit Menu" on the MusicBee wiki:
+  https://musicbee.fandom.com/wiki/Edit_Menu).
 - Undo for a file move (the organiser), a conversion, or a delete (the
   trash is its undo).
 - Saying which file could not be put back, and why.

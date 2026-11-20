@@ -18,6 +18,7 @@ bar shows are decided in play-queue.md, player.md and player-bar.md.
 |---|---|
 | W-PC | MusicBee wiki, "Player Controls", "Playing Tracks" and "Now Playing Preferences": https://musicbee.fandom.com/wiki/Player_Controls , https://musicbee.fandom.com/wiki/Playing_Tracks , https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 | PS-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Now Playing Preferences": https://musicbee.fandom.com/wiki/Now_Playing_Preferences |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Player Controls" (no version given;
@@ -256,7 +257,11 @@ The program starts and leaves cleanly on a machine with no sound device.
 
 ## Open parity questions
 
-| Rule | Question for someone with MusicBee |
-|---|---|
-| PS-PLAY | What a double-click on a track does by default (play now and replace the queue, or queue it). |
-| PS-TITLE | The default text of the now-playing line. |
+None is left open.
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| PS-PLAY | What a double-click on a track does by default (play now and replace the queue, or queue it). | Play Now, which stops the current track and starts the new ones ("Now Playing Preferences"). |
+| PS-TITLE | The default text of the now-playing line. | `<Artist> - <Title>` ("Now Playing Preferences"). PS-TITLE already does so. |

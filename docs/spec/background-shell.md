@@ -19,6 +19,7 @@ a scan does in library.md.
 |---|---|
 | W-LP | MusicBee wiki, "Library Preferences" (monitored folders, inbox, check on startup): https://musicbee.fandom.com/wiki/Library_Preferences |
 | BG-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Library Preferences": https://musicbee.fandom.com/wiki/Library_Preferences |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
 describes, and when it was last edited: "Library Preferences" (3.0.5976;
@@ -144,7 +145,11 @@ when the first has it; a second with the same profile is refused
 
 ## Open parity questions
 
-| Rule | Question for someone with MusicBee |
-|---|---|
-| BG-MONITOR | Whether new files in a monitored folder go to the Inbox or straight into the library by default. |
-| BG-STARTUP | Whether "check on startup" is on by default. |
+None is left open.
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| BG-MONITOR | Whether new files in a monitored folder go to the Inbox or straight into the library by default. | To the Inbox: "Library Preferences" gives "add to inbox" as the default. BG-MONITOR already does so. |
+| BG-STARTUP | Whether "check on startup" is on by default. | Off: "Library Preferences" gives "on startup check for updated or missing files" as unticked. `checkOnStartup` is already false. |

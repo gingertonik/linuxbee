@@ -13,6 +13,7 @@ check it.
 |---|---|
 | W-TE | MusicBee wiki, "Tagging", the part on the tag editor: https://musicbee.fandom.com/wiki/Tagging#Tag_Editor |
 | E-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Tagging": https://musicbee.fandom.com/wiki/Tagging |
 
 Read on 2026-11-13. What MusicBee documents: the editor opens for one
 file or several (Shift+Enter); with several files a field whose values
@@ -158,6 +159,11 @@ not move anything; the caller acts on `saved`.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| E-STATE | What a field with differing values shows, and how it is cleared for all files. |
 | E-SPLIT | Whether Album Artist takes several values, and whether repeats are dropped. |
 | E-FIELDS | The fields on the first page of the editor and their order. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| E-STATE | What a field with differing values shows, and how it is cleared for all files. | Blank, with a box beside it; a change ticks the box and the value goes to every file ("Tagging", on the tag editor). So a blank value given with the box ticked clears it for all. |

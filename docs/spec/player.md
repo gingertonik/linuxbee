@@ -20,6 +20,7 @@ plan; the test uses a stand-in.
 | W-PC | MusicBee wiki, "Player Controls" and the Controls menu (Play/Pause, Stop, Stop After Current, Next, Previous, Mute): https://musicbee.fandom.com/wiki/Controls_Menu |
 | W-NP | MusicBee wiki, "Now Playing Preferences" (when a play and a skip are counted): see play-queue.md |
 | X-… | A linuxBee decision. |
+| W-ANS | MusicBee wiki, the pages that answer the questions under "Answered from the MusicBee wiki": "Controls Menu": https://musicbee.fandom.com/wiki/Controls_Menu |
 
 Read on 2026-11-13. The wiki names the controls. It does not say what
 Previous does in the middle of a track, what happens to a playing track
@@ -194,5 +195,10 @@ When the backend reports that the file cannot be played:
 |---|---|
 | X-NEXT | What Previous does a few seconds into a track, and where the line is. |
 | X-QUEUE | What happens to the playing track when it is removed from Playing Tracks. |
-| X-END | After "stop after current", does Play continue with the next track? |
 | X-ERROR | What MusicBee does with a file it cannot play. |
+
+### Answered from the MusicBee wiki (checked 2026-11-20)
+
+| Rule | Question | What the wiki says |
+|---|---|---|
+| X-END | After "stop after current", does Play continue with the next track? | The next track is put in the player and not started ("Controls Menu"), so Play plays it. X-END already does so. |
