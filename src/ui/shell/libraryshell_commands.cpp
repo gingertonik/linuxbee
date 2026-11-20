@@ -216,7 +216,8 @@ void LibraryShell::deleteSelected()
         return;
 
     // Steps 2 and 3: to the trash, or the file stays. Only the tracks whose files went leave the
-    // library, in one call. No file is removed in any other way.
+    // library's lists, in one call, and their rows are kept (SH-DELETE step 3). No file is removed
+    // in any other way.
     int notThere = 0;
     int couldNot = 0; // refused and failed together
     QList<qint64> gone;
@@ -239,7 +240,9 @@ void LibraryShell::deleteSelected()
     if (!gone.isEmpty()) {
         const QMetaObject::Connection listening
             = connect(d->library, &Library::failed, this, [&refused] { refused = true; });
-        d->library->remove(gone);
+        // SH-DELETE step 3: the time is the shell's `now`, or the clock without one.
+        const QDateTime when = d->hooks.now ? d->hooks.now() : QDateTime::currentDateTimeUtc();
+        d->library->markDeleted(gone, when);
         disconnect(listening);
         // Step 5: once, after the library was told: the paths as the library held them, in the
         // order shown.
