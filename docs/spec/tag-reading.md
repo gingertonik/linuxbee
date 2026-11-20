@@ -120,7 +120,12 @@ Known and left:
   a border), TagLib is short by two pages and one is added.
 - A page of Speex with more than twelve frames to a packet can hold
   more than the limit; nothing is added for it.
-- No test holds Speex: there is no fixture of it.
+- A file whose name ends in `.spx` is not taken into the library by a
+  scan (the list of music files has no such ending). The rule reaches
+  a Speex file where its tags are read alone, and in Convert.
+- A header that gives a rate of one unit a second, which TagLib
+  accepts, can still give a length of weeks. It is TagLib's own
+  reading of a header that makes no sense.
 
 ## 2. Fields
 
