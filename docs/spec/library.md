@@ -407,7 +407,7 @@ Known and left:
   held-back file. With 500 files moved of 5,000 a scan took nine
   times as long as with none (the review, a debug build).
 - **A disk that is away.** Its tracks are marked missing (its folder
-  is there and empty), nothing is at their paths, and copies alike in
+  is there and empty, or is gone), nothing is at their paths, and copies alike in
   size, time and tags that are found elsewhere take the rows over.
   When the disk is back its files are new tracks. Nothing is lost:
   the plays are on the copies. A scan cannot tell a disk that is
