@@ -44,6 +44,18 @@ int openError(const QString &dbPath, const QString &reason)
     return 3;
 }
 
+// L-SCHEMA: one line on standard error when the opening brought the library up to date after a
+// copy of it. Standard output is not touched.
+void sayStep(const linuxbee::Library &library)
+{
+    const QString notice = linuxbee::schemaStepNotice(library.stepAtOpening());
+    if (notice.isEmpty())
+        return;
+    QTextStream err(stderr);
+    err << QStringLiteral("linuxbeectl: ") << notice << '\n';
+    err.flush();
+}
+
 // I-CLI: a rating as stars, without a needless ".0".
 QString starsText(double stars)
 {
@@ -127,6 +139,7 @@ int runImport(const QString &dbPath, const QString &exportPath, const QStringLis
     const std::unique_ptr<linuxbee::Library> library = linuxbee::Library::open(dbPath, &reason);
     if (!library)
         return openError(dbPath, reason);
+    sayStep(*library);
 
     const QList<linuxbee::LibraryTrack> held = library->tracks();
     const linuxbee::ImportPlan plan = linuxbee::planImport(imported, held, mapping);
@@ -351,6 +364,7 @@ int runLibrary(const QStringList &arguments)
         = linuxbee::Library::open(parser.value(dbOption), &reason);
     if (!library)
         return openError(parser.value(dbOption), reason);
+    sayStep(*library);
 
     QTextStream out(stdout);
     if (subcommand == QLatin1String("count")) {

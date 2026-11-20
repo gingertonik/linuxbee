@@ -100,7 +100,7 @@ std::unique_ptr<Library> Library::open(const QString &databasePath, QString *err
     // The constructor is private, so the unique_ptr is the owner from here.
     std::unique_ptr<Library> library(new Library());
     QString reason;
-    if (!library->d->store.open(databasePath, &reason)) {
+    if (!library->d->store.open(databasePath, &reason, &library->d->step)) {
         if (error)
             *error = reason;
         return nullptr;
@@ -113,6 +113,25 @@ QStringList Library::categories()
 {
     return { QStringLiteral("Music"), QStringLiteral("Inbox"), QStringLiteral("Audiobooks"),
         QStringLiteral("Podcasts"), QStringLiteral("Videos") };
+}
+
+// L-SCHEMA: what the opening did to a file of an older schema; all empty when no step ran.
+SchemaStep Library::stepAtOpening() const
+{
+    return d->step;
+}
+
+// L-SCHEMA: the one line a program says after a step, the same for the window and the command line.
+QString schemaStepNotice(const SchemaStep &step)
+{
+    if (step.from == 0 && step.to == 0 && step.copyPath.isEmpty())
+        return QString();
+    return QStringLiteral(
+        "The library was brought up to date (schema %1 to %2). A copy of it as it "
+        "was before: %3")
+        .arg(step.from)
+        .arg(step.to)
+        .arg(step.copyPath);
 }
 
 // L-SCHEMA: the number this version writes, and the highest it accepts.

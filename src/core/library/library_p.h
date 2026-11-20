@@ -33,6 +33,8 @@ struct Library::Private {
     // waits (a quarter of a second until set). The store holds one at a time.
     std::chrono::milliseconds writeWait { 5000 };
     std::chrono::milliseconds quickWait { 250 };
+    // L-SCHEMA: what the opening did to a file of an older schema; all empty when no step ran.
+    SchemaStep step;
 };
 
 } // namespace linuxbee

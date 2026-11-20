@@ -8,6 +8,7 @@
 #include <QPixmap>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTextStream>
 #include <QTimer>
 
@@ -156,6 +157,11 @@ int main(int argc, char *argv[])
             QMessageBox::critical(nullptr, linuxbee::ui::applicationDisplayName(), reason);
         return 4; // the file is not touched and no window is shown
     }
+    // L-SCHEMA: a library of an older schema was copied before it was brought up to date; the
+    // one line goes to standard error here and to the status bar once the window is made.
+    const QString stepNotice = linuxbee::schemaStepNotice(library->stepAtOpening());
+    if (!stepNotice.isEmpty())
+        QTextStream(stderr) << QStringLiteral("linuxbee: ") << stepNotice << '\n';
     QDir().mkpath(dataDir + QStringLiteral("/playlists"));
     linuxbee::PlaylistStore playlists(dataDir + QStringLiteral("/playlists"));
 
@@ -167,6 +173,8 @@ int main(int argc, char *argv[])
     linuxbee::ui::SkinApplier skinApplier(&application, &settings);
 
     linuxbee::ui::MainWindow window(&registry, &settings);
+    if (!stepNotice.isEmpty())
+        window.statusBar()->showMessage(stepNotice);
 
     // SC-MAIN (docs/spec/skins.md): View > Skins, over the window, the registry and the applier,
     // with the folder `skins` in the data folder (made when a skin is added, not here).
