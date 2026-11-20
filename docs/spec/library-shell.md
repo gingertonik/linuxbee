@@ -173,9 +173,15 @@ The action's text is set whenever the view changes.
    the question is a yes-or-no dialog whose default is "no".
 2. On "yes" the tracks' paths go to `moveFilesToTrash`
    (delete-files.md, FD-TRASH).
-3. The tracks whose files are `Trashed` are taken out of the library
-   by one `Library::remove` call for all of them, so the list changes
-   once. When none is, the library is not asked at all. Every other
+3. The tracks whose files are `Trashed` leave the library's lists by
+   one `Library::markDeleted` call for all of them, so the list
+   changes once. The time given is the shell's `now` (the `now` hook
+   of `ShellHooks`; the clock without one). Their rows are kept for
+   thirty days (library.md, L-DELETED): a file taken back out of the
+   trash to where it was is, at the next scan, the track it was, with
+   its plays and its date added. (The owner, 2026-11-18. It was one
+   `Library::remove` call, and the plays went with the file.) When
+   none is `Trashed`, the library is not asked at all. Every other
    track stays in the library: one whose file was not there, was
    refused, or was not taken by the trash.
 4. The message: `Moved T files to the trash` (`Moved 1 file to the
@@ -196,7 +202,8 @@ The action's text is set whenever the view changes.
 
 There is no permanent delete: nothing in the window removes a file in
 any other way than to the trash. "Remove from Library" (`file.remove`)
-is still the command that takes a track away and leaves its file.
+is still the command that takes a track away and leaves its file, and keeps nothing
+of the track.
 
 A file that is playing is moved like any other: the player keeps the
 file it has open and plays the track to its end. It stays in the queue until
