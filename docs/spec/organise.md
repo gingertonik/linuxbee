@@ -316,6 +316,21 @@ Known and left: extended attributes and access lists are not carried
 to another file system. The folder is flushed once for each file,
 not once for a run.
 
+Known and left too, each seen by the audit of the write paths:
+
+- A file too large for the target (a disk or a limit that answers
+  "file too large", as a FAT disk does above 4 GB) fails with `could
+  not copy the file`, not with the words for no room. Nothing is
+  left at the target and the source stays.
+- A source that another program rewrites in place during the copy,
+  to the same size and with its times put back, passes the check.
+- With a source folder that cannot be written, the whole file is
+  copied before the removal of the original is refused; the copy is
+  then taken back.
+- When the library cannot be told of a move (another program holds
+  it), the status line says so and nothing asks again: the track
+  stays at its old path until a scan.
+
 ### O-SPARE: a copy is made under a spare name
 
 (Found by the write-path audit, part 2, 2026-11-18. F4: the copy was
