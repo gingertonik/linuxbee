@@ -415,6 +415,8 @@ Known and left:
   second case is what this rule is for.
 - `linuxbeectl library scan` has no playlists: a file it follows
   keeps its old path in them until the window relinks.
+- A track at whose path a link now lies is not followed: something
+  is at its path, and the row stays on the link, as before this rule.
 
 ### L-NAMES
 
