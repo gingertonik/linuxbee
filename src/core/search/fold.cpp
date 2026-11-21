@@ -63,6 +63,31 @@ QString foldKeepingUnit(const QString &text)
     return foldRuns(text);
 }
 
+// S-FOLD, accents heeded: compatibility composition (NFKC), then lower case. Text below U+0080
+// is unchanged by NFKC, so only A to Z change.
+QString foldKeepingUnit(const QString &text, bool ignoreAccents)
+{
+    if (ignoreAccents)
+        return foldRuns(text);
+    bool ascii = true;
+    for (const QChar c : text) {
+        if (c.unicode() >= 0x80) {
+            ascii = false;
+            break;
+        }
+    }
+    return (ascii ? text : text.normalized(QString::NormalizationForm_KC)).toLower();
+}
+
+QString foldForSearch(const QString &text, bool ignoreAccents)
+{
+    if (!text.contains(QChar(0x1F)))
+        return foldKeepingUnit(text, ignoreAccents);
+    QString plain = text;
+    plain.replace(QChar(0x1F), QLatin1Char(' '));
+    return foldKeepingUnit(plain, ignoreAccents);
+}
+
 // S-FOLD: U+001F becomes a space; then compatibility decomposition (NFKD), combining
 // marks removed, then lower case. Spaces and punctuation are kept.
 QString foldForSearch(const QString &text)

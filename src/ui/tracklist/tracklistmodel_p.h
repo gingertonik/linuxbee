@@ -49,6 +49,11 @@ struct TrackListModel::Private {
     QList<SortKey> sortKeys; // sortFields, taken apart
     bool givenOrder = false; // T-GIVEN: show the tracks as given, the keys decide nothing
     SearchQuery filter;
+    // T-MODEL "Accents": the options every match and every preparation uses (the default
+    // fields, made once) and, after a change of the way, whether the rows still have to be
+    // worked out again when the last piece is done.
+    SearchOptions options;
+    bool refilterPending = false;
     QList<int> order; // slots: every track, in the order the keys (or the order given) give
     QList<int> shown; // slots, in the order shown: the rows
     qint64 shownBytes = 0;
@@ -63,7 +68,15 @@ struct TrackListModel::Private {
     // Queues a slot, and starts the timer.
     void enqueue(int slot);
     // One piece: prepares at most kPiece queued tracks; stops the timer when none is left.
-    void prepareSome();
+    // True when that was the last piece of a change of the way of folding and the rows are
+    // to be worked out again now (a filter is in force).
+    bool prepareSome();
+    // True when the track's search value is made, the way the options ask for.
+    bool madeFor(const SearchCache &cache, const QStringList &fields) const
+    {
+        return cache.joinedMade && cache.joinedFor == fields
+            && cache.accentsHeeded == !options.ignoreAccents;
+    }
     // True when every live track's search value is made.
     bool allPrepared() const;
 

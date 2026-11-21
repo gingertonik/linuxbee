@@ -58,7 +58,8 @@ const Names &namesOf(const QStringList &fields)
 // folding (counted) and putting the answer into the cache. A field the track
 // does not know is remembered too and is not counted. Without a cache nothing
 // is remembered.
-SearchCache::Entry fieldOf(const QString &field, const TagSource &track, SearchCache *cache)
+SearchCache::Entry fieldOf(
+    const QString &field, const TagSource &track, SearchCache *cache, bool ignoreAccents)
 {
     const QString key = field.toLower();
     if (cache) {
@@ -71,7 +72,7 @@ SearchCache::Entry fieldOf(const QString &field, const TagSource &track, SearchC
     if (value) {
         entry.known = true;
         entry.blank = isBlank(*value);
-        entry.folded = foldForSearch(*value);
+        entry.folded = foldForSearch(*value, ignoreAccents);
         foldedCount.fetch_add(1, std::memory_order_relaxed);
     }
     if (cache)
@@ -119,7 +120,7 @@ const QString &joinedOf(const TagSource &track, const SearchOptions &options, Se
     }
 
     if (!keys.isEmpty()) {
-        const QString folded = foldKeepingUnit(raw);
+        const QString folded = foldKeepingUnit(raw, options.ignoreAccents);
         const QList<QStringView> parts = QStringView(folded).split(QChar(0x1F));
         if (parts.size() == keys.size()) {
             for (qsizetype k = 0; k < keys.size(); ++k)
@@ -128,8 +129,8 @@ const QString &joinedOf(const TagSource &track, const SearchOptions &options, Se
             // Not expected (a fold neither makes nor keeps a U+001F): fold each by itself.
             for (const QString &key : std::as_const(keys)) {
                 const qsizetype at = names.lower.indexOf(key);
-                cache.fields[key].folded
-                    = foldForSearch(track.value(options.fields.at(at)).value_or(QString()));
+                cache.fields[key].folded = foldForSearch(
+                    track.value(options.fields.at(at)).value_or(QString()), options.ignoreAccents);
             }
         }
         foldedCount.fetch_add(keys.size(), std::memory_order_relaxed);
@@ -162,24 +163,38 @@ const QString &joinedOf(const TagSource &track, const SearchOptions &options, Se
 bool termHolds(const SearchQuery::Term &term, const TagSource &track, const SearchOptions &options,
     SearchCache *cache)
 {
+    // The text in the form the options ask for (S-PARSE).
+    const QString &wanted = options.ignoreAccents ? term.text : term.textKept;
     if (!term.field.isEmpty()) {
-        const SearchCache::Entry entry = fieldOf(term.field, track, cache);
+        const SearchCache::Entry entry = fieldOf(term.field, track, cache, options.ignoreAccents);
         if (!entry.known)
             return false;
-        if (term.text.isEmpty())
+        if (wanted.isEmpty())
             return !entry.blank;
-        return entry.folded.contains(term.text);
+        return entry.folded.contains(wanted);
     }
 
     if (cache)
-        return joinedOf(track, options, *cache).contains(term.text);
+        return joinedOf(track, options, *cache).contains(wanted);
 
     for (const QString &field : options.fields) {
-        const SearchCache::Entry entry = fieldOf(field, track, nullptr);
-        if (entry.known && entry.folded.contains(term.text))
+        const SearchCache::Entry entry = fieldOf(field, track, nullptr, options.ignoreAccents);
+        if (entry.known && entry.folded.contains(wanted))
             return true;
     }
     return false;
+}
+
+// S-CACHE: a cache holds values folded one way. Used the other way it is emptied first.
+void keepWay(SearchCache &cache, const SearchOptions &options)
+{
+    if (cache.accentsHeeded == !options.ignoreAccents)
+        return;
+    cache.fields.clear();
+    cache.joinedMade = false;
+    cache.joinedFor.clear();
+    cache.joined.clear();
+    cache.accentsHeeded = !options.ignoreAccents;
 }
 
 }
@@ -195,6 +210,8 @@ bool SearchQuery::matches(const TagSource &track, const SearchOptions &options) 
 bool SearchQuery::matches(
     const TagSource &track, const SearchOptions &options, SearchCache *cache) const
 {
+    if (cache)
+        keepWay(*cache, options);
     for (const QList<Term> &group : m_groups) {
         bool groupHolds = false;
         for (const Term &term : group) {
@@ -215,6 +232,7 @@ void prepareSearch(const TagSource &track, const SearchOptions &options, SearchC
 {
     if (!cache)
         return;
+    keepWay(*cache, options);
     joinedOf(track, options, *cache);
 }
 

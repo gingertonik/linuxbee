@@ -98,7 +98,8 @@ SearchQuery SearchQuery::parse(const QString &text)
         Term term;
         term.negated = token.negated;
         term.field = foldForSearch(token.field); // empty when the token has no field
-        term.text = foldForSearch(token.text);
+        term.text = foldForSearch(token.text, true);
+        term.textKept = foldForSearch(token.text, false);
         // A token with an empty text and no field is dropped. A token with a
         // field and an empty text (genre:) is kept.
         if (!token.hasField && term.text.isEmpty())
@@ -112,6 +113,26 @@ SearchQuery SearchQuery::parse(const QString &text)
         orPending = false;
     }
     return query;
+}
+
+// S-CANONICAL: alike when the groups and terms are: each term's field, both of its texts and
+// whether it is negated.
+bool SearchQuery::operator==(const SearchQuery &other) const
+{
+    if (m_groups.size() != other.m_groups.size())
+        return false;
+    for (qsizetype g = 0; g < m_groups.size(); ++g) {
+        const QList<Term> &a = m_groups.at(g);
+        const QList<Term> &b = other.m_groups.at(g);
+        if (a.size() != b.size())
+            return false;
+        for (qsizetype t = 0; t < a.size(); ++t) {
+            if (a.at(t).field != b.at(t).field || a.at(t).text != b.at(t).text
+                || a.at(t).textKept != b.at(t).textKept || a.at(t).negated != b.at(t).negated)
+                return false;
+        }
+    }
+    return true;
 }
 
 bool SearchQuery::isEmpty() const
