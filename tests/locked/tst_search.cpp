@@ -45,7 +45,7 @@ MapSource track()
         { s(u"Comment"), s(u"from the OR sessions: take 2") },
         { s(u"Filename"), s(u"01 deja vu.flac") },
         { s(u"Rating"), s(u"4.5") }, // not a default search field
-        { s(u"Publisher"), s(u"Columbia") }, // nor this
+        { s(u"Publisher"), s(u"Columbia") }, // a default search field (S-FIELDS, 2026-11-20)
     };
     return t;
 }
@@ -71,10 +71,13 @@ void SearchTest::fold_data()
     QTest::addColumn<QString>("expected");
     // S-FOLD
     QTest::newRow("case") << s(u"The DARK Side") << s(u"the dark side");
-    QTest::newRow("accents") << s(u"Beyonc\u00e9 D\u00e9j\u00e0 \u00dcber Sigur R\u00f3s") << s(u"beyonce deja uber sigur ros");
+    QTest::newRow("accents") << s(u"Beyonc\u00e9 D\u00e9j\u00e0 \u00dcber Sigur R\u00f3s")
+                             << s(u"beyonce deja uber sigur ros");
     QTest::newRow("decomposed") << s(u"Beyonce\u0301") << s(u"beyonce"); // e + combining acute
-    QTest::newRow("compatibility") << s(u"\ufb01ve \uff21") << s(u"five a"); // the fi ligature, a full-width A
-    QTest::newRow("untouched") << s(u"r&b 2006 b'day \u65e5\u672c") << s(u"r&b 2006 b'day \u65e5\u672c");
+    QTest::newRow("compatibility")
+        << s(u"\ufb01ve \uff21") << s(u"five a"); // the fi ligature, a full-width A
+    QTest::newRow("untouched") << s(u"r&b 2006 b'day \u65e5\u672c")
+                               << s(u"r&b 2006 b'day \u65e5\u672c");
     QTest::newRow("spaces-kept") << s(u"  a  b ") << s(u"  a  b ");
     QTest::newRow("empty") << QString() << QString();
 }
@@ -90,8 +93,13 @@ void SearchTest::defaults()
 {
     // S-FIELDS
     QCOMPARE(linuxbee::defaultSearchFields(),
-        QStringList({ s(u"Title"), s(u"Artist"), s(u"Album"), s(u"Album Artist"), s(u"Genre"), s(u"Composer"),
-            s(u"Year"), s(u"Comment"), s(u"Filename") }));
+        QStringList({ s(u"Title"), s(u"Artist"), s(u"Album"), s(u"Album Artist"), s(u"Genre"),
+            s(u"Composer"), s(u"Year"), s(u"Comment"), s(u"Filename"), s(u"Conductor"),
+            s(u"Publisher"), s(u"Grouping"), s(u"Mood"), s(u"Lyricist"), s(u"Copyright"),
+            s(u"ISRC"), s(u"Sort Title"), s(u"Sort Artist"), s(u"Sort Album"),
+            s(u"Sort Album Artist"), s(u"Sort Composer"), s(u"Original Year"),
+            s(u"Original Artist"), s(u"Original Album"), s(u"Subtitle"), s(u"Language"),
+            s(u"Initial Key"), s(u"Encoded By"), s(u"Mix Artist") }));
     QCOMPARE(linuxbee::SearchOptions().fields, linuxbee::defaultSearchFields());
 }
 
@@ -127,7 +135,8 @@ void SearchTest::canonical_data()
     row("or", u"rock OR pop", u"\"rock\" OR \"pop\"");
     row("or-chain", u"a OR b OR c d", u"\"a\" OR \"b\" OR \"c\" \"d\"");
     row("or-binds-tighter", u"x a OR b y", u"\"x\" \"a\" OR \"b\" \"y\"");
-    row("or-lower-case", u"rock or pop", u"\"rock\" \"or\" \"pop\""); // only upper case is the operator
+    row("or-lower-case", u"rock or pop",
+        u"\"rock\" \"or\" \"pop\""); // only upper case is the operator
     row("or-quoted", u"rock \"OR\" pop", u"\"rock\" \"or\" \"pop\"");
     row("or-leading", u"OR rock", u"\"rock\"");
     row("or-trailing", u"rock OR", u"\"rock\"");
@@ -165,8 +174,10 @@ void SearchTest::matches_data()
     row("phrase", u"\"live at the\"", true);
     row("phrase-order-matters", u"\"at live\"", false);
     row("words-any-order", u"at live", true);
-    row("phrase-across-fields", u"\"vu beyonce\"", false); // a term is looked for in one field at a time
-    row("not-default-field", u"columbia", false);
+    row("phrase-across-fields", u"\"vu beyonce\"",
+        false); // a term is looked for in one field at a time
+    row("not-default-field", u"4.5", false); // Rating
+    row("publisher-is-a-default-field", u"columbia", true);
     row("filename", u"\"01 deja\"", true);
     row("field", u"artist:jay", true);
     row("field-other-value", u"artist:beyonce", true);
@@ -208,7 +219,8 @@ void SearchTest::options()
     o.fields = { s(u"Publisher") };
     QVERIFY(SearchQuery::parse(s(u"columbia")).matches(track(), o));
     QVERIFY(!SearchQuery::parse(s(u"beyonce")).matches(track(), o));
-    QVERIFY(SearchQuery::parse(s(u"artist:beyonce")).matches(track(), o)); // a named field is not limited
+    QVERIFY(SearchQuery::parse(s(u"artist:beyonce"))
+            .matches(track(), o)); // a named field is not limited
     o.fields = { };
     QVERIFY(!SearchQuery::parse(s(u"beyonce")).matches(track(), o));
     QVERIFY(SearchQuery::parse(s(u"-beyonce")).matches(track(), o));

@@ -43,6 +43,7 @@ settings and the library file may still change.
 - **A `+` on its own joins two terms as OR does.** A search for `philter + sadistik` now finds tracks by either artist, as MusicBee's searching page says its `+` does. Before, the `+` was an ordinary word and the search wanted both. A `+` inside a word (`c++`, `a+b`), in quotes, or after a `-` is still a character.
 - `linuxbeectl rules operators` lists every rule operator: its id, a tab, and the name a person reads (`matches-case` is MusicBee's "match RegEx", `matches` its "match RegEx/i"), so a rule set written by hand can use the right id.
 - **The first keystroke of a search is quicker.** A field name written as the lists write it is now found by one lookup, not by comparing it with every name ignoring case; any other spelling is looked for as before. No answer changes.
+- **A plain word in the search box is now looked for in every text field but Lyrics, and Filename,** 29 fields in all (Publisher, Conductor, Grouping, Mood, the Sort fields and the rest, where it was nine): a word in a track's Publisher or Mood now finds it. The seven number and flag fields (Track#, Disc# and the like) stay out, so `1` does not find every first track, and each can still be named (`track#:1`). A phrase still does not run from one field into the next, and a search ignores accents in all of them.
 
 ## 0.8.0 (2026-11-18)
 
