@@ -27,13 +27,15 @@ int reportFailure(const QString &reason)
     return kFailed;
 }
 
-// CV-CLI: --file-first puts the folder's file before the embedded picture.
+// CV-CLI: --file-first tries every picture file, linuxBee's own names too, before the embedded one.
 CoverOptions optionsFor(bool fileFirst, bool wantData)
 {
     CoverOptions options;
     options.data = wantData;
-    if (fileFirst)
+    if (fileFirst) {
         options.order = { Cover::Source::File, Cover::Source::Embedded };
+        options.fallbackLast = false;
+    }
     return options;
 }
 
