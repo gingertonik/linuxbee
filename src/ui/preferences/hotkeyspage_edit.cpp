@@ -109,6 +109,17 @@ void HotkeysPage::resetAll()
     checkModified();
 }
 
+void HotkeysPage::setConfirmMove(
+    std::function<bool(const QKeySequence &key, const QString &holder)> confirm)
+{
+    d->confirmMove = std::move(confirm);
+}
+
+ShortcutResult HotkeysPage::move(const QString &id, const QKeySequence &sequence)
+{
+    return assign(id, sequence); // red stub: fix-hk1 replaces it (HK-MOVE)
+}
+
 QString HotkeysPage::apply()
 {
     // HK-APPLY: the end state is exactly the pending keys. Take the key

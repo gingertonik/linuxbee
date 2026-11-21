@@ -130,8 +130,22 @@ A refused key changes nothing. The answer is `Conflict` with the id of
 the command that has the key, and `conflictLabel` reads: the key as shown
 in the table, ` is used by: `, and that command's command cell.
 
-To move a key the user first takes it from the command that has it; the
-registry's own state does not matter until the edits are applied.
+`assign` never moves a key; `move` does (HK-MOVE), and the Assign button
+asks before it does (HK-BUTTONS). The registry's own state does not
+matter until the edits are applied.
+
+### HK-MOVE
+
+W-HK: a key assigned to another command gives a warning, and Assign asks
+for confirmation; the owner's ruling of 2026-11-20 (N14) is that a taken
+key warns and moves. `move(id, sequence)` answers as `assign` for an
+unknown id, more than one combination, an empty sequence, a free key or
+the command's own key. When another command has the key among the
+pending keys, that command is left with no key, this one gets it, both
+cells show it, and the answer is `Ok` with `conflictsWith` naming the
+command that lost it. The conflict label then reads: the key as shown in
+the table, ` moved from: `, and that command's command cell. Nothing
+reaches the registry before `apply()`.
 
 ### HK-RESET
 
@@ -157,20 +171,28 @@ refused.
 | Name | Kind | Does |
 |---|---|---|
 | `keyEdit` | `QKeySequenceEdit`, one combination at most | where the user types a key |
-| `assignButton` | `QPushButton` | `assign` the key in `keyEdit` to the chosen row |
+| `assignButton` | `QPushButton` | `assign` the key in `keyEdit` to the chosen row; when another command has it, ask first, and `move` it on yes |
 | `clearButton` | `QPushButton` | empties `keyEdit` and assigns no key to the chosen row |
 | `resetButton` | `QPushButton` | `reset` for the chosen row |
 | `resetAllButton` | `QPushButton` | `resetAll` |
 | `conflictLabel` | `QLabel` | HK-CONFLICT |
+| `conflictIcon` | `QLabel`, a warning picture | shown while the key in `keyEdit` is another command's pending key |
 
 The first three are enabled only while a row is chosen. Choosing a row
-puts its pending key in `keyEdit` and empties the conflict label. After a
+puts its pending key in `keyEdit` and empties the conflict label.
+
+While the key in `keyEdit` is another command's pending key (W-HK), the
+warning icon shows and the conflict label reads as in HK-CONFLICT; when
+it stops being so, the icon hides and the label is emptied. Assign with
+such a key asks `confirmMove(key, holder)` once (set by
+`setConfirmMove`; none set is a dialog, "Hotkeys", No the default): yes
+is `move`, no is `assign`, which refuses and changes nothing. A free key
+and Clear are not asked about. `load()` and a move hide the icon. After a
 reset, `keyEdit` shows the chosen row's pending key.
 
 ## Not in this version
 
 - Global (system-wide) hotkeys and media keys: desktop integration.
-- Offering to take a key from the command that has it, in one step.
 - Several keys for one command; mouse buttons and wheel as hotkeys.
 - A page that follows changes made to the registry while it is open.
 
@@ -178,5 +200,4 @@ reset, `keyEdit` shows the chosen row's pending key.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
-| HK-CONFLICT | What happens there when a key that is in use is typed for another command. |
 | PF-APPLY | Whether Apply and Save differ in anything but closing. |

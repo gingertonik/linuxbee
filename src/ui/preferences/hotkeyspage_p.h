@@ -1,5 +1,6 @@
 #pragma once
 #include <QKeySequence>
+#include <functional>
 #include <QMap>
 
 #include "actions/actionregistry.h"
@@ -24,6 +25,8 @@ struct linuxbee::ui::HotkeysPage::Private {
     QLineEdit *filterEdit = nullptr;
     QKeySequenceEdit *keyEdit = nullptr;
     QLabel *conflictLabel = nullptr;
+    QLabel *conflictIcon = nullptr; // HK-BUTTONS: shown while the typed key is taken
+    std::function<bool(const QKeySequence &, const QString &)> confirmMove; // HK-BUTTONS
     QPushButton *assignButton = nullptr;
     QPushButton *clearButton = nullptr;
     QPushButton *resetButton = nullptr;
