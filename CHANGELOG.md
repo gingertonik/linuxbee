@@ -42,6 +42,7 @@ settings and the library file may still change.
 - **Delete Files keeps the track's row for thirty days.** A file taken back out of the trash to where it was comes back at the next scan as the same track, with its plays and date added. Before, Delete Files removed the row, and the plays went with the file.
 - **A `+` on its own joins two terms as OR does.** A search for `philter + sadistik` now finds tracks by either artist, as MusicBee's searching page says its `+` does. Before, the `+` was an ordinary word and the search wanted both. A `+` inside a word (`c++`, `a+b`), in quotes, or after a `-` is still a character.
 - `linuxbeectl rules operators` lists every rule operator: its id, a tab, and the name a person reads (`matches-case` is MusicBee's "match RegEx", `matches` its "match RegEx/i"), so a rule set written by hand can use the right id.
+- **The first keystroke of a search is quicker.** A field name written as the lists write it is now found by one lookup, not by comparing it with every name ignoring case; any other spelling is looked for as before. No answer changes.
 
 ## 0.8.0 (2026-11-18)
 

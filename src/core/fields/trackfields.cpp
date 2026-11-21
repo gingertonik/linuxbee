@@ -2,6 +2,8 @@
 
 #include "format.h"
 
+#include <QSet>
+
 namespace linuxbee {
 
 namespace {
@@ -33,6 +35,14 @@ const QStringList &computedFieldNames()
 // The canonical spelling of a computed field name, or empty when it is not one.
 QString canonicalComputedName(const QString &fieldName)
 {
+    // A name written exactly as the list writes it is found by one lookup in a set made once.
+    static const QSet<QString> exact = [] {
+        const QStringList &names = computedFieldNames();
+        return QSet<QString>(names.cbegin(), names.cend());
+    }();
+    if (exact.contains(fieldName))
+        return fieldName;
+
     for (const QString &name : computedFieldNames()) {
         if (name.compare(fieldName, Qt::CaseInsensitive) == 0)
             return name;
