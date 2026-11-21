@@ -58,6 +58,7 @@ settings and the library file may still change.
 - **A Speex file (`.spx`) is written with Vorbis comment keys.** A tag write to a Speex file used the MPEG-4 keys, so a Disc Count write gave `DISCNUMBER=1/3` and dropped both totals. Speex now takes the keys Ogg Vorbis and Opus take, as the spec's N8 ruling says.
 - **Adding a track that is in the playlist already now asks first**, as MusicBee does: "Add them again", "Skip those already in" or Cancel. The setting `playlists/warnOnDuplicates` (true unless `false` or `0`) turns the question off; there is no page for it yet.
 - **The Library page has the warning box** for adding tracks already in a playlist. It shows and stores `playlists/warnOnDuplicates`, the setting the warning reads at each add. It is ticked unless the setting is `false` or `0`.
+- **A `linuxbeectl library` command that only reads no longer changes the library.** `count`, `list` and `import` without `--apply` used to make a library that was not there and to bring an older one up to date. They now open it to read only: a missing file is refused (`there is no such file`) and nothing is made, and an older schema is refused, with the reason, and left as it was (exit 3, as for a newer one). `library scan`, `import --apply` and the window still bring a library up to date, after a copy.
 
 ## 0.8.0 (2026-11-18)
 

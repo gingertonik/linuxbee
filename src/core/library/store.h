@@ -34,6 +34,12 @@ public:
     // versions and the place of the copy made before it), and stays as it was when none ran.
     bool open(const QString &databasePath, QString *error, SchemaStep *step = nullptr);
 
+    // L-READ: opens an existing library to read only, through the database's read-only mode:
+    // nothing is made, no step runs, no write-ahead-log switch, no write lock. Returns false and
+    // sets *error when there is no file, it is not a library, its schema is older or newer than
+    // this program's, or it cannot be read.
+    bool openToRead(const QString &databasePath, QString *error);
+
     // L-STORE: how many tracks are stored, the missing ones included.
     int count() const;
 

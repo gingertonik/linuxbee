@@ -175,6 +175,12 @@ public:
     // gives a library that lives only as long as the object. Returns null and
     // sets *error when the file cannot be used.
     static std::unique_ptr<Library> open(const QString &databasePath, QString *error = nullptr);
+    // L-READ: opens an existing library to read only. Makes nothing, steps nothing, takes away
+    // no deleted row, and never writes to the file. Returns null and sets *error when there is
+    // no file, or the file cannot be read as it is (an older or newer schema included). The
+    // library handed back is for reading: a call that changes it is refused by the database.
+    static std::unique_ptr<Library> openToRead(
+        const QString &databasePath, QString *error = nullptr);
     ~Library() override;
 
     static QStringList categories(); // L-CATEGORY
