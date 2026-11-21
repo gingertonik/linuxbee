@@ -57,6 +57,7 @@ settings and the library file may still change.
 - **A hotkey that another command has now warns and moves, as in MusicBee.** On the Hotkeys page, typing a key that another command has shows a warning icon and says who has it. Assign then asks whether to move the key; yes takes it from that command and gives it to the chosen one (nothing is saved until Apply), no changes nothing. It used to refuse the key without asking.
 - **A Speex file (`.spx`) is written with Vorbis comment keys.** A tag write to a Speex file used the MPEG-4 keys, so a Disc Count write gave `DISCNUMBER=1/3` and dropped both totals. Speex now takes the keys Ogg Vorbis and Opus take, as the spec's N8 ruling says.
 - **Adding a track that is in the playlist already now asks first**, as MusicBee does: "Add them again", "Skip those already in" or Cancel. The setting `playlists/warnOnDuplicates` (true unless `false` or `0`) turns the question off; there is no page for it yet.
+- **The Library page has the warning box** for adding tracks already in a playlist. It shows and stores `playlists/warnOnDuplicates`, the setting the warning reads at each add. It is ticked unless the setting is `false` or `0`.
 
 ## 0.8.0 (2026-11-18)
 
