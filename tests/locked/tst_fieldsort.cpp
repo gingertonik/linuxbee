@@ -117,7 +117,7 @@ void FieldSortTest::ignoreWords()
     QCOMPARE(sign(compareFieldValues(s(u"Artist"), s(u"Them"), s(u"Talking Heads"))), 1); // a word, not a prefix
     QCOMPARE(sign(compareFieldValues(s(u"Artist"), s(u"The The"), s(u"Talking Heads"))), 1); // one word is dropped: "The"
     QCOMPARE(sign(compareFieldValues(s(u"Artist"), s(u"The"), s(u"Talking Heads"))), 1); // nothing left to drop to
-    QCOMPARE(sign(compareFieldValues(s(u"Title"), s(u"The End"), s(u"Eleanor Rigby"))), 1); // every text field
+    QCOMPARE(sign(compareFieldValues(s(u"Title"), s(u"The End"), s(u"Eleanor Rigby"))), 1); // title, artist and album (W-SORT)
     SortOptions none;
     none.ignoreWords.clear();
     QCOMPARE(sign(compareFieldValues(s(u"Artist"), s(u"The Beatles"), s(u"Bob Dylan"), none)), 1);

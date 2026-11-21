@@ -75,10 +75,14 @@ treated as a number, and what is not a number comes last.
 
 1. Both values are folded as for search (`foldForSearch`: lower case,
    accents removed) and trimmed.
-2. If a value then starts with one of `options.ignoreWords` (folded the
-   same way) followed by a space and something more, that word and the
-   space are dropped. One word only: "The The" sorts as "the". By default
-   the list is "The" (W-SORT).
+2. For Title, Artist, Album, Album Artist and Display Artist only (names
+   ignoring case): if a value then starts with one of `options.ignoreWords`
+   (folded the same way) followed by a space and something more, that word
+   and the space are dropped. One word only: "The The" sorts as "the". By
+   default the list is "The". W-SORT: the words are "ignored when sorting
+   by title, artist, or album"; that Album Artist and Display Artist count
+   as the artist is linuxBee's own reading. Every other text field sorts as
+   it is written.
 3. A blank value comes after every value that is not blank.
 4. Otherwise the values are compared left to right. A run of digits in
    both at the same place is compared as a number of any length, leading
@@ -304,6 +308,5 @@ order. Each list on screen uses its own group.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | T-COMPARE | Does "Track 2" sort before "Track 10"? Are accents ignored? Where do blank values go? |
-| T-COMPARE | Do "ignore words" apply to titles and albums, or only to artists? |
 | T-MODEL | What does a click on a header use as second and later sort keys? |
 | T-SUMMARY | The exact wording of the status bar summary. |

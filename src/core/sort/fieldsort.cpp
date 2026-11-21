@@ -123,6 +123,16 @@ QString dropIgnoreWord(const QString &folded, const QStringList &foldedWords)
     return folded.mid(best.size() + 1).trimmed();
 }
 
+// T-COMPARE, Text, step 2: the ignore words apply to Title, Artist, Album,
+// Album Artist and Display Artist only (names ignoring case).
+bool usesIgnoreWords(const QString &fieldName)
+{
+    const QString name = fieldName.toLower();
+    return name == QStringLiteral("title") || name == QStringLiteral("artist")
+        || name == QStringLiteral("album") || name == QStringLiteral("album artist")
+        || name == QStringLiteral("display artist");
+}
+
 // T-COMPARE, Text, step 4: left to right, digit runs by value, other characters
 // by code, a value that is the start of the other comes first.
 int compareText(const QString &a, const QString &b)
@@ -189,10 +199,15 @@ PreparedValue prepareValue(
         parsed = parseSize(value);
         break;
     case FieldKind::Text: {
+        const QString folded = foldForSearch(value).trimmed();
+        if (!usesIgnoreWords(fieldName)) {
+            prepared.text = folded;
+            return prepared;
+        }
         QStringList foldedWords;
         for (const QString &word : options.ignoreWords)
             foldedWords << foldForSearch(word).trimmed();
-        prepared.text = dropIgnoreWord(foldForSearch(value).trimmed(), foldedWords);
+        prepared.text = dropIgnoreWord(folded, foldedWords);
         return prepared;
     }
     }
