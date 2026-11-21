@@ -221,7 +221,17 @@ int main(int argc, char *argv[])
 
     // PE-MAIN: the playlist commands of the navigator's right click and File > Playlists > New
     // Playlist, with the window's own dialogs; declared after the shell, it goes before the shell.
-    linuxbee::ui::PlaylistEditing playlistEditing(&window, &registry, &shell, &playlists);
+    // PE-DUPLICATES: the warning follows the setting playlists/warnOnDuplicates, read at each add
+    // by the Library page's rule: false only for false or 0 in any case of letters, true when
+    // missing.
+    linuxbee::ui::PlaylistEditing::Hooks playlistHooks;
+    playlistHooks.warnOnDuplicates = [&settings] {
+        const QString text
+            = settings.value(QStringLiteral("playlists/warnOnDuplicates")).toString().toLower();
+        return !(text == QStringLiteral("false") || text == QStringLiteral("0"));
+    };
+    linuxbee::ui::PlaylistEditing playlistEditing(
+        &window, &registry, &shell, &playlists, playlistHooks);
 
     // TS-MAIN: the tools shell, with the default presenter (the dialogs run modally).
     linuxbee::ui::ToolsShell tools(&window, &registry, library.get(), &shell, &settings);
