@@ -51,7 +51,7 @@ A catalogue field gives its values joined with `"; "`, exactly as
 | Year (yyyy) | the four-digit year of Year (F-YEAR) | W-SF |
 | Decade | the year with its last digit replaced by `0s`: `2010s` (F-DECADE) | W-SF |
 | Album [Year] | `Album [yyyy]`; just Album when there is no year; blank when there is no Album | W-SF |
-| Display Artist | the Artist values joined with `"; "` (F-DISPLAY) | F |
+| Display Artist | the DISPLAY ARTIST tag (F-DISPLAY), else the Artist values joined with `"; "` | W-SF, W-TG |
 | Artist & Title | `Artist - Title` when both have a value, otherwise Filename | W-SF |
 | ArtistAndTitle | the same | W-SF |
 | Filename | the file's name with its extension, no folders | W-SF |
@@ -94,8 +94,15 @@ year.
 
 ### F-DISPLAY
 
-Display Artist is what a track list shows in its Artist column. Until the
-artist roles exist it is the Artist values joined with `"; "`.
+Display Artist is what a track list shows in its Artist column. It "is
+saved to your files in its own frame" (W-SF): TXXX `DISPLAY ARTIST` in
+ID3v2 and the `DISPLAY ARTIST` comment in Vorbis (W-TG); TagLib reports
+it as the key `DISPLAY ARTIST` in every format, and linuxBee keeps it among
+the other tags (tag-reading.md, R-OTHER). Its values joined with `"; "` and
+trimmed are the field; when it is missing or blank, the Artist values
+joined with `"; "` are (the owner's ruling of 2026-11-20). The tag is not a
+catalogue field: it is not edited with the others, and changing the Artist
+leaves it as it is (as MusicBee keeps the two apart, W-TG).
 
 ### F-FILE
 
@@ -140,7 +147,7 @@ Rate and Channels are also blank when their number is 0.
 | F-DECADE | How is Decade written: `2010s`, `10s`, `2010`? linuxBee: `2010s`. |
 | F-KIND | The Kind text for each format other than MP3. |
 | Table | How Time, Bitrate, Sample Rate and Channels are written in a template. |
-| F-DISPLAY | What Display Artist shows for two artists. |
+| F-DISPLAY | Answered (W-SF, W-TG): the stored DISPLAY ARTIST tag, else the join. |
 | Year (yyyy) | Is the four-digit year written `<Year(yyyy)>` in a template? "Special Fields" lists the field as "Year (yyyy)"; a guide on "How to Create a File-Naming Template" writes `<Year(YYYY)>`. linuxBee: the name as in the table. |
 
 ### Decided by the owner (2026-11-20)

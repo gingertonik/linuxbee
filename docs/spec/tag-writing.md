@@ -101,7 +101,7 @@ comment or atom for the format (TL).
 |---|---|---|---|
 | Year | DATE | DATE | DATE |
 | Track#, Track Count | TRACKNUMBER, as `n/total` | TRACKNUMBER and TRACKTOTAL | TRACKNUMBER, as `n/total` |
-| Disc#, Disc Count | DISCNUMBER, as `n/total` | DISCNUMBER and DISCTOTAL | DISCNUMBER, as `n/total` |
+| Disc#, Disc Count | DISCNUMBER, as `n/total` | DISCNUMBER and TOTALDISCS (W-TG; W-DISCTOTAL) | DISCNUMBER, as `n/total` |
 | Publisher | LABEL (`TPUB`) | ORGANIZATION (W-TG) | LABEL |
 | Grouping | WORK (`TIT1`, W-TG) | CONTENTGROUP (W-TG) | GROUPING |
 | Lyrics | LYRICS (`USLT`) | UNSYNCEDLYRICS (F-V) | LYRICS |
@@ -116,7 +116,8 @@ comment or atom for the format (TL).
 
 When a field is written or removed, every key its R-CATALOGUE row reads
 from is removed first (and WORK, for Grouping in an ID3v2 tag). A field
-never ends up stored under two spellings.
+never ends up stored under two spellings, with the one exception (W-DISCTOTAL)
+of a Vorbis DISCTOTAL.
 
 ### W-NUMBERS
 
@@ -125,6 +126,18 @@ the values the file will have afterwards. In the `n/total` formats a
 missing count gives a bare `n`, and a count with no number gives `/total`.
 In a Vorbis comment a stored `2/8` is split into TRACKNUMBER `2` and
 TRACKTOTAL `8` the first time either is written.
+
+### W-DISCTOTAL
+
+linuxBee's own (the orchestrator's word of 2026-11-21, on the owner's
+ruling): other players read DISCTOTAL, and the owner's files carry it. So
+when Disc# or Disc Count is written to a Vorbis comment (W-NUMBERS), the
+count goes to TOTALDISCS, and a DISCTOTAL the file already has is given the
+same value: the two never disagree. DISCTOTAL is never made where there was
+none. When the count is removed, both go, since a DISCTOTAL left behind
+would be read back as the count (R-CATALOGUE reads DISCTOTAL first). A save
+that names neither field leaves both as they are. This is the one exception
+to W-ONEHOME.
 
 ### W-MULTI
 
@@ -480,7 +493,7 @@ linuxbeectl tags write [--set NAME=VALUE]... [--clear NAME]...
 |---|---|
 | W-RATING | The byte for each star rating, and the address text MusicBee puts in a new `POPM` frame. linuxBee: the R-RATING anchors and an empty address. |
 | W-RATING | The number MusicBee writes in a Vorbis `RATING` comment for 3.5 stars. linuxBee: 70. |
-| W-TABLE | Vorbis totals: TRACKTOTAL and DISCTOTAL, or TOTALTRACKS and TOTALDISCS? The public sources give both. linuxBee writes the first pair and reads both. |
+| W-TABLE | Vorbis totals. "Tagging" (W-TG) gives Total Tracks as "TOTALTRACKS or TRACKTOTAL", and Total Discs is TOTALDISCS only. linuxBee writes TRACKTOTAL and TOTALDISCS (the owner's ruling of 2026-11-20), keeps a DISCTOTAL the file has (W-DISCTOTAL), and reads both spellings of each. |
 | W-MULTI | How MusicBee stores two artists in an ID3v2.3 frame. linuxBee: as TagLib does. |
 | W-NUMBERS | Is a disc count with no disc number written at all? linuxBee: as `/4`. |
 | W-ID3VER | Does saving an ID3v2.4 file with the default setting turn it into ID3v2.3? linuxBee: no; a save keeps the file's version (W-ID3VER). |

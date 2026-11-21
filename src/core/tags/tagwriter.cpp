@@ -99,6 +99,10 @@ QString composeNumber(const QString &number, const QString &total)
 void rewriteNumbers(TagLib::PropertyMap &map, const QString &numberField, const QString &totalField,
     const TrackTags &after, KeyFamily family)
 {
+    // W-DISCTOTAL: a Vorbis DISCTOTAL the file has is kept, with the count's value.
+    const bool hadDiscTotal = family == KeyFamily::Vorbis
+        && totalField == QLatin1String("Disc Count")
+        && map.contains(tagString(QStringLiteral("DISCTOTAL")));
     for (const QString &key : tags::readKeys(numberField, family))
         map.erase(tagString(key));
     for (const QString &key : tags::readKeys(totalField, family))
@@ -109,8 +113,11 @@ void rewriteNumbers(TagLib::PropertyMap &map, const QString &numberField, const 
     if (family == KeyFamily::Vorbis) {
         if (!number.isEmpty())
             map.insert(tagString(tags::writeKey(numberField, family)), tagList({ number }));
-        if (!total.isEmpty())
+        if (!total.isEmpty()) {
             map.insert(tagString(tags::writeKey(totalField, family)), tagList({ total }));
+            if (hadDiscTotal)
+                map.insert(tagString(QStringLiteral("DISCTOTAL")), tagList({ total }));
+        }
         return;
     }
     const QString text = composeNumber(number, total);

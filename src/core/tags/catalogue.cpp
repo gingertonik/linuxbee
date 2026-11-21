@@ -155,6 +155,10 @@ void assignFields(QMap<QString, QStringList> properties, bool id3, TrackTags &ta
     for (auto it = upper.cbegin(); it != upper.cend(); ++it) {
         if (claimed.contains(it.key()) || it.key() == QLatin1String("METADATA_BLOCK_PICTURE"))
             continue;
+        // R-OTHER: DISCTOTAL and TOTALDISCS holding the same values are one tag.
+        if (it.key() == QLatin1String("TOTALDISCS") && claimed.contains(QStringLiteral("DISCTOTAL"))
+            && withoutBlanks(upper.value(QStringLiteral("DISCTOTAL"))) == withoutBlanks(it.value()))
+            continue;
         const QStringList values = withoutBlanks(it.value());
         if (!values.isEmpty())
             tags.other.insert(it.key(), values);
@@ -196,7 +200,7 @@ QString writeKey(const QString &field, KeyFamily family)
     if (field == QLatin1String("Track Count"))
         return vorbis ? QStringLiteral("TRACKTOTAL") : QStringLiteral("TRACKNUMBER");
     if (field == QLatin1String("Disc Count"))
-        return vorbis ? QStringLiteral("DISCTOTAL") : QStringLiteral("DISCNUMBER");
+        return vorbis ? QStringLiteral("TOTALDISCS") : QStringLiteral("DISCNUMBER");
     if (field == QLatin1String("Rating"))
         return QStringLiteral("RATING");
     // Every other field: the first key of its row (R-CATALOGUE).
