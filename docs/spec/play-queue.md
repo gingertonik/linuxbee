@@ -48,7 +48,8 @@ moves. The same path can be in the list more than once.
   leaves the list). Only the waiting tracks that directly follow the
   current entry (or the remembered place, with none) are passed over: one
   moved away, or reached and left by Previous, is not (linuxBee's own
-  reading). `queueLast` tracks never wait this way.
+  reading). `queueLast` tracks never wait this way. Which tracks are
+  waiting is not kept across a restart: the queue itself is not saved.
 - `queueLast(paths)` adds them at the end.
 - `removeAt(positions)` removes the entries at those positions; positions
   that do not exist are ignored. `move(from, to)` moves one entry so that
@@ -94,7 +95,10 @@ when there is nowhere to go, in which case the current entry stays.
 ## Q-SHUFFLE
 
 `setShuffle(true, seed)` starts a *round*: every entry except the current
-one, in an order decided by the seed. Switching shuffle on does not change
+one, in an order decided by the seed. Tracks still waiting from
+`queueNext` (Q-EDIT) are dealt into the new round like the rest; a
+`queueNext` after that goes after the waiting ones at the front of the
+round, if there are any there. Switching shuffle on does not change
 the current entry. The same list, current entry and seed give the same
 round; the method is the implementation's own.
 

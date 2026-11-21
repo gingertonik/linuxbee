@@ -12,6 +12,7 @@ Code: `src/core/covers/cover.h`. Command: `linuxbeectl cover`.
 | Id | Source |
 |---|---|
 | W-ART | MusicBee wiki, "Album Art and Artist Pictures": a picture is embedded in the music file, or saved beside it as `folder.jpg`, or linked as an organised copy named `Cover.jpg` by default: https://musicbee.fandom.com/wiki/Album_Art_and_Artist_Pictures |
+| W-TP | MusicBee wiki, "Tags Preferences", "set which pictures are displayed": MusicBee "will try each option in succession until it finds something"; the default order is Cover.\*, Artwork.\*, Front.\*, <Filename>.\*, Embedded, and Folder.jpg is an option, off by default: https://musicbee.fandom.com/wiki/Tags_Preferences |
 | W-FAQ | MusicBee wiki, "FAQ": under "set which pictures are displayed" the sources are a list in an order, each of which can be unticked ("move 'embedded' to the top and untick all other options"): https://musicbee.fandom.com/wiki/FAQ |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
@@ -44,7 +45,9 @@ nothing.
   lies; the cover is named by the link's path in the folder, and the
   limits above are those of the file it leads to.
 - The names looked for, case ignored, in this order (`coverNames()`):
-  `cover`, `folder`, `front`, `album`, `albumart`. The first of these
+  `cover`, `artwork`, `front`, `folder`, `album`, `albumart`. The first
+  three are MusicBee's (W-TP); the last three are linuxBee's own
+  (CV-FIND). The first of these
   names that a picture file has wins; when one name has several
   extensions, `jpg` before `jpeg` before `png`; when two files differ
   only in case, the one that sorts first by code point.
@@ -57,16 +60,28 @@ nothing.
 
 `findCover(musicFile, options)` answers a `Cover`.
 
-`options.order` lists the sources to try, in order; by default
-`Embedded`, then `File` (W-FAQ: the order is the user's). A source not
-in the list is not tried; an empty list finds nothing.
+`options.order` lists the sources to try, in order; by default `File`,
+then `Embedded` (W-TP; W-FAQ: the order is the user's). A source not in
+the list is not tried; an empty list finds nothing. So by default the
+order is MusicBee's: `cover`, `artwork`, `front`, the music file's own
+name (its name without the extension, case ignored), the embedded
+picture; and only then linuxBee's own: `folder`, `album`, `albumart`, the
+lone picture. The last four are departures, kept so that a folder that
+has a cover in linuxBee today keeps it (the owner's ruling of
+2026-11-20 names `folder.jpg`; the orchestrator's of 2026-11-21 keeps
+the other three). They come after every source in the order
+(`options.fallbackLast`, true by default); with it false, they are tried
+within the `File` step, after MusicBee's names.
 
 - `Embedded`: the file is read (tag-reading.md) and CV-EMBEDDED chooses.
   The answer has `source` `Embedded`, `file` the music file, and the
   picture's `mimeType`, `type` and `byteCount`. A file that is not
   there, or is not audio, has no embedded cover.
-- `File`: CV-FILE on the folder the music file is in (whether or not the
-  music file itself is there). The answer has `source` `File`, `file`
+- `File`: the picture files of the folder the music file is in (whether
+  or not the music file itself is there), by the rules of CV-FILE:
+  MusicBee's names, then the music file's own name. `coverFileIn(folder)`
+  knows no music file, so it gives the folder's names in their own order
+  and then the lone picture. The answer has `source` `File`, `file`
   the picture's path, `mimeType` `image/jpeg` for `jpg` and `jpeg` and
   `image/png` for `png`, an empty `type`, and `byteCount` the file's
   size.
@@ -145,8 +160,9 @@ bytes=69
 ```
 
 `source` is `embedded`, `file` or `none`; with `none` that line is the
-only one. `--file-first` tries the folder's file before the embedded
-picture.
+only one. Without options the order is CV-FIND's default. `--file-first`
+tries every picture file before the embedded picture, linuxBee's own
+names too (`fallbackLast` false).
 
 `linuxbeectl cover extract FILE OUT [--file-first]` writes the cover's
 bytes to OUT and prints `wrote N bytes to OUT`. It exits 3, writing
@@ -173,7 +189,7 @@ number of files is a usage mistake: exit 2, nothing on standard output.
 
 | Rule | Question |
 |---|---|
-| CV-FIND | In which order MusicBee tries its picture sources on a new install, and which are ticked. linuxBee: embedded, then the folder's file. |
-| CV-FILE | Which file names MusicBee accepts beside `folder.jpg` and its own `Cover.jpg`. linuxBee: cover, folder, front, album, albumart. |
+| CV-FIND | Answered (W-TP): Cover, Artwork, Front, <Filename>, Embedded; Folder.jpg off. linuxBee adds folder, album, albumart and the lone picture after them. |
+| CV-FILE | MusicBee's `*.*` option (any picture) is not offered; the lone picture is linuxBee's narrower form of it. |
 | CV-FILE | Whether MusicBee has a largest size for a picture file. linuxBee: 32 MiB, its own number. |
 | CV-FILE | Whether MusicBee uses a lone picture with another name. linuxBee: yes, when it is the only one. |
