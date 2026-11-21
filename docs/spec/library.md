@@ -57,8 +57,8 @@ Known and not yet so (found by the review, 2026-11-17): a read-only
 then refused and said; a read-only mount and a full disk at opening
 are still answered with "not a linuxBee library". What open says in
 each of these is a package of its own, judged by the database's error
-code and not by its words. Opening a library to read only is not in
-this version.
+code and not by its words. A command that only reads opens the library
+to read only (L-READ opens it so).
 
 Everything the library holds survives closing and opening again.
 
@@ -79,11 +79,63 @@ the code, 2026-11-16, and measured before this was written.)
   write lock, and the other looks again once it has the lock and
   finds them made.
 
+### L-READ
+
+(The owner's ruling of 2026-11-20: a command that only reads refuses an
+older library and says why; only a writing command brings it up to
+date. This reverses the departure that let every command step it.)
+
+What opens the library, and how:
+
+| Opens the library | Kind |
+|---|---|
+| `linuxbeectl library count` | reads |
+| `linuxbeectl library list`, with or without `--category` and `--format` | reads |
+| `linuxbeectl library import EXPORT` without `--apply` (with or without `--list`) | reads |
+| `linuxbeectl library import EXPORT --apply` | writes |
+| `linuxbeectl library scan` | writes |
+| the window, at start | writes |
+
+No other command opens the library.
+
+A reading command opens the file through the database's read-only
+mode. It never writes to the library file:
+
+- **No file.** When there is no file at the path, nothing is made; the
+  reason is `there is no such file`.
+- **An older schema** is not brought up to date and no copy is made;
+  the reason is `it is at schema N and this linuxBee reads schema V. A
+  command that only reads does not bring it up to date; library scan,
+  library import --apply or the window does, after a copy.` A newer
+  schema is refused as for every command (L-SCHEMA).
+- No switch to a write-ahead log, no write lock, and rows deleted long
+  ago are not taken away (L-DELETED): that is the next writer's.
+- **Beside a writer.** Another program may have the library open and
+  be writing it: the reading command reads what was committed, and an
+  open transaction does not hold it up. (Not `immutable`: that is
+  unsafe while another program writes.)
+- **The side files.** The bytes of the library file are unchanged by
+  a read. The database may leave its two side files beside a closed
+  library, `-wal` (empty) and `-shm`: they are its normal files, and
+  the next writer to close last (the window, a scan) takes them away.
+  The program never removes them itself (the orchestrator, 2026-11-21:
+  removing them rests on the database's private locks, and is the one
+  act that could harm a library in use).
+- A folder that cannot be written to, with no `-shm` file beside the
+  library, is answered as in L-OPEN (`The library cannot be written
+  to`): the database needs that file to read a library kept with a
+  write-ahead log.
+
+Each refusal is exit 3 on the command line, the code every library
+that cannot be opened gets, newer schemas included, so a script sees
+one code for "this library cannot be read as it is".
+
 ### L-SCHEMA
 
 The schema version is SQLite's `user_version`. This version is 3. A file
-with a lower version is brought up to date when opened; a file with a
-higher version is refused.
+with a lower version is brought up to date when a writing command (L-READ)
+opens it; a command that only reads refuses it. A file with a higher
+version is refused by every command.
 
 A later version of the schema comes with its own step from the one
 before it, added with the first change that needs it. A step runs with
@@ -157,8 +209,6 @@ older program then refuses it. So the library as it was is kept.
 
 Known and left:
 
-- Every program that opens the library runs the step, a command that
-  only reads too. With the copy nothing is lost by that.
 - A run that is killed between the naming of the copy and the end of
   the step leaves the copy beside a library of the old version; the
   next opening makes another, under the next name. A run killed
@@ -847,7 +897,8 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
   no or an unknown subcommand, `scan` without a folder, an extra argument,
   an unknown category, a `--now` that is not a date, a template that does
   not parse (`error at N: message`). Exit 3, with a message on standard
-  error, when the library file cannot be opened.
+  error, when the library file cannot be opened: for a reading command
+  that cannot open it as L-READ says, too.
 
 ## Not in this version
 

@@ -31,16 +31,22 @@ PRAGMA user_version = 1;" || fail "the old library could not be made"
 rows() { sqlite3 "$1" "SELECT id, path, play_count FROM tracks ORDER BY id" 2> /dev/null | sha256sum | cut -c1-64; }
 version() { sqlite3 "$1" 'PRAGMA user_version' 2> /dev/null; }
 
-# The schema this program writes.
-"$bin" library --db "$work/now.db" count > /dev/null 2>&1
+# The schema this program writes. (fix-ro1) L-READ: a scan of an empty folder makes the library.
+mkdir -p "$work/nothing"
+"$bin" library --db "$work/now.db" scan --now 2026-11-13T12:00:00Z "$work/nothing" > /dev/null 2>&1
 now=$(version "$work/now.db")
 [ "${now:-0}" -ge 2 ] && pass setup-now || fail "setup-now [$now]"
 
 # --- The command line: the answer on standard output as ever, the line on standard error.
 old "$work/old.db"
 before=$(rows "$work/old.db")
+# (fix-ro1) L-READ: count refuses an old library and leaves it; a scan makes the copy and steps it.
+bytes=$(sha256sum < "$work/old.db")
 out=$("$bin" library --db "$work/old.db" count 2> "$work/err"); rc=$?
-[ "$rc" = 0 ] && [ "$out" = 3 ] && pass cli-answers || fail "cli-answers rc=$rc [$out]"
+[ "$rc" = 3 ] && [ -z "$out" ] && [ "$(sha256sum < "$work/old.db")" = "$bytes" ] && [ ! -e "$work/old.db.schema-1" ] \
+    && pass cli-count-refuses || fail "cli-count-refuses rc=$rc [$out] [$(ls "$work")]"
+out=$("$bin" library --db "$work/old.db" scan --now 2026-11-13T12:00:00Z "$work/nothing" 2> "$work/err"); rc=$?
+[ "$rc" = 0 ] && [ "$out" = "added 0, updated 0, unchanged 0, missing 0, found again 0, not music 0" ] && pass cli-answers || fail "cli-answers rc=$rc [$out]"
 want="linuxbeectl: The library was brought up to date (schema 1 to $now). A copy of it as it was before: $work/old.db.schema-1"
 [ "$(cat "$work/err")" = "$want" ] && pass cli-says-it || fail "cli-says-it [$(cat "$work/err")] want [$want]"
 [ -f "$work/old.db.schema-1" ] && [ "$(version "$work/old.db.schema-1")" = 1 ] && [ "$(rows "$work/old.db.schema-1")" = "$before" ] \
