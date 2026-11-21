@@ -32,6 +32,7 @@ The page's title is `Library`. Its widgets, by object name:
 | `sectionCombo` | combo box, not editable | the library's sections (`Library::categories()`, in that order) |
 | `checkOnStartupBox` | check box | BG-STARTUP |
 | `ignoreAccentsBox` | check box, "Ignore accents when searching" (linuxBee's own words) | S-FOLD, SH-SEARCH |
+| `warnDuplicatesBox` | check box, "Warn when adding tracks already in a playlist" (linuxBee's words for MusicBee's box: "General Preferences" has "warn when duplicate tracks are added to a playlist", ticked by default) | playlist-editing.md, PE-DUPLICATES |
 
 ## LP-LOAD
 
@@ -44,6 +45,11 @@ group `library`:
 | `monitoredCategory` | the section; `Inbox` when missing or not a section |
 | `checkOnStartup` | checked when the stored text is `true` (in any case of letters) or `1`; not checked otherwise |
 | `searchIgnoresAccents` | checked unless the stored text is `false` (in any case of letters) or `0`: checked when missing |
+
+And one key outside the group, `playlists/warnOnDuplicates`: checked
+unless the stored text is `false` (in any case of letters) or `0`,
+checked when missing. The page holds it because linuxBee has no page
+for playlists (MusicBee keeps the box among its general confirmations).
 
 Values are read as a later run of the program finds them, which is as
 text: a single folder is one plain text, true is the text `true`.

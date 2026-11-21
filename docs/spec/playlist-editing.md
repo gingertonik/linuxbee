@@ -114,8 +114,9 @@ says `N of the tracks are in "ID" already.` (or `1 of the tracks is`),
 with the buttons "Add them again", "Skip those already in" and Cancel,
 Cancel the default. The window answers from the setting
 `playlists/warnOnDuplicates`, read at each add (true when it is not
-set, false when it is `false` in any case of letters or `0`); there is
-no page for it in the preferences yet.
+set, false when it is `false` in any case of letters or `0`). The
+Library page's box `warnDuplicatesBox` shows and stores it
+(library-preferences.md); an add after Apply sees the new value.
 
 ## PE-MESSAGE
 
