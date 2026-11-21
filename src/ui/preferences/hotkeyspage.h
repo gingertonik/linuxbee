@@ -1,5 +1,6 @@
 #pragma once
 #include <QKeySequence>
+#include <functional>
 
 #include "actions/actionregistry.h"
 #include "preferences/preferencesdialog.h"
@@ -29,6 +30,13 @@ public:
     void reset(const QString &id);
     void resetAll();
 
+    // HK-MOVE: as assign(), but a key another command has is taken from it. The answer names
+    // that command in conflictsWith.
+    ShortcutResult move(const QString &id, const QKeySequence &sequence);
+    // HK-BUTTONS: asked by the Assign button before a move; none set means a dialog.
+    void setConfirmMove(
+        std::function<bool(const QKeySequence &key, const QString &holder)> confirm);
+
 private:
     struct Private;
     Private *d;
@@ -43,6 +51,9 @@ private:
     void applyFilter(); // HK-FILTER
     void checkModified(); // emit modifiedChanged only when the answer flips
     QString selectedId() const;
+    QString holderOf(const QString &id, const QKeySequence &sequence) const; // HK-CONFLICT
+    void showWarning(); // HK-BUTTONS: the icon and the label follow the key in keyEdit
+    void assignChosen(); // HK-BUTTONS: the Assign button
 };
 
 }

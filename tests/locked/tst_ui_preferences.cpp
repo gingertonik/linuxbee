@@ -502,6 +502,8 @@ void PreferencesTest::hotkeyButtons()
     // HK-BUTTONS: the widgets drive the same four functions.
     ActionRegistry actions;
     HotkeysPage page(&actions);
+    // HK-BUTTONS (fix-hk1): Assign with a taken key asks; this test answers no.
+    page.setConfirmMove([](const QKeySequence &, const QString &) { return false; });
     auto *table = need<QTableWidget>(page, u"hotkeyTable");
     auto *edit = need<QKeySequenceEdit>(page, u"keyEdit");
     auto *assign = need<QPushButton>(page, u"assignButton");

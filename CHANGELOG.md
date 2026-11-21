@@ -54,6 +54,7 @@ settings and the library file may still change.
 - **The ignore words ("The" by default) now apply to Title, Artist, Album, Album Artist and Display Artist only,** as MusicBee's Sorting/Grouping Preferences say ("ignored when sorting by title, artist, or album"). They were dropped for every text field, so a Genre of `The Zen` sorted under Z; every other text field now sorts as written.
 - **Display Artist is read from its own tag** (`DISPLAY ARTIST`, in ID3v2 a TXXX frame), as MusicBee saves it; a track without one still shows its Artist values joined. **A Vorbis disc total (FLAC, Ogg, Opus) is now written as `TOTALDISCS`**, as MusicBee's "Tagging" gives it. A `DISCTOTAL` a file already had is kept, with the same value; it is never made where there was none.
 - **Covers now follow MusicBee's order.** A cover file named cover, artwork, front or like the track now wins over the picture inside the file; the picture inside comes next. A folder.jpg (and album, albumart and a lone picture) still shows, after it. `linuxbeectl cover --file-first` tries every picture file, those names too, before the picture inside.
+- **A hotkey that another command has now warns and moves, as in MusicBee.** On the Hotkeys page, typing a key that another command has shows a warning icon and says who has it. Assign then asks whether to move the key; yes takes it from that command and gives it to the chosen one (nothing is saved until Apply), no changes nothing. It used to refuse the key without asking.
 
 ## 0.8.0 (2026-11-18)
 

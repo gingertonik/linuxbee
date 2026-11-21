@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QStyle>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
@@ -67,6 +68,11 @@ HotkeysPage::HotkeysPage(ActionRegistry *actions, QSettings *settings, QWidget *
     d->conflictLabel = new QLabel(this);
     d->conflictLabel->setObjectName(QStringLiteral("conflictLabel"));
 
+    d->conflictIcon = new QLabel(this); // HK-BUTTONS: the warning picture, hidden at first
+    d->conflictIcon->setObjectName(QStringLiteral("conflictIcon"));
+    d->conflictIcon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(16, 16));
+    d->conflictIcon->hide();
+
     auto *editRow = new QHBoxLayout;
     editRow->addWidget(d->keyEdit);
     editRow->addWidget(d->assignButton);
@@ -74,11 +80,15 @@ HotkeysPage::HotkeysPage(ActionRegistry *actions, QSettings *settings, QWidget *
     editRow->addWidget(d->resetButton);
     editRow->addWidget(d->resetAllButton);
 
+    auto *warnRow = new QHBoxLayout;
+    warnRow->addWidget(d->conflictIcon);
+    warnRow->addWidget(d->conflictLabel, 1);
+
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(d->filterEdit);
     layout->addWidget(d->table, 1);
     layout->addLayout(editRow);
-    layout->addWidget(d->conflictLabel);
+    layout->addLayout(warnRow);
 
     connect(d->filterEdit, &QLineEdit::textChanged, this, &HotkeysPage::applyFilter);
 
@@ -98,11 +108,11 @@ HotkeysPage::HotkeysPage(ActionRegistry *actions, QSettings *settings, QWidget *
                 d->keyEdit->setKeySequence(d->pending.value(idForRow(row)));
         });
 
-    connect(d->assignButton, &QPushButton::clicked, this, [this] {
-        const QString id = selectedId();
-        if (!id.isEmpty())
-            assign(id, d->keyEdit->keySequence());
-    });
+    // HK-BUTTONS: the icon and the label follow the key typed in the field.
+    connect(d->keyEdit, &QKeySequenceEdit::keySequenceChanged, this,
+        [this](const QKeySequence &) { showWarning(); });
+
+    connect(d->assignButton, &QPushButton::clicked, this, [this] { assignChosen(); });
 
     connect(d->clearButton, &QPushButton::clicked, this, [this] {
         const QString id = selectedId();
@@ -177,6 +187,22 @@ QString HotkeysPage::idForRow(int row) const
 QString HotkeysPage::selectedId() const
 {
     return idForRow(d->table->currentRow());
+}
+
+void HotkeysPage::showWarning()
+{
+    // HK-BUTTONS: while the key in the field is another command's pending key, the icon shows
+    // and the label says who has it. When it stops being so, the icon hides and the label is
+    // emptied (only a label this warning put there: the icon is what says it did).
+    const QString holder = holderOf(selectedId(), d->keyEdit->keySequence());
+    if (!holder.isEmpty()) {
+        d->conflictLabel->setText(d->keyEdit->keySequence().toString(QKeySequence::NativeText)
+            + tr(" is used by: ") + commandLabel(d->actions->info(holder)));
+        d->conflictIcon->show();
+    } else if (!d->conflictIcon->isHidden()) {
+        d->conflictIcon->hide();
+        d->conflictLabel->clear();
+    }
 }
 
 void HotkeysPage::setRowKey(int row, const QKeySequence &key)
