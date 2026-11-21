@@ -15,6 +15,7 @@ is and what the store does are playlists.md (Y-NAME, Y-STORE).
 | Tag | Source |
 |---|---|
 | W-NAV | MusicBee wiki, "Navigator": playlists are managed from the left sidebar's context menu: https://musicbee.fandom.com/wiki/Navigator |
+| W-GP | MusicBee wiki, "General Preferences", confirmations: "warn when duplicate tracks are added to a playlist", ticked by default (the page says it is up to date with 3.0.5903): https://musicbee.fandom.com/wiki/General_Preferences |
 | W-PL | MusicBee wiki, "Playlists" (the List menu and its Remove Duplicates): https://musicbee.fandom.com/wiki/Playlists |
 | PE-… | A linuxBee decision. The wording and order of MusicBee's menu are not documented in what could be read. |
 
@@ -72,10 +73,12 @@ changes nothing, when the row does not offer that command.
   refuses ends it with false and the `create` message of PE-MESSAGE.
 - An id the store does not have ends it with false and the message
   `Could not add to the playlist "ID": there is no such playlist`.
-- Then the tracks are added to the end of the playlist, in one call of
-  `PlaylistStore::append` with duplicates allowed: a track that is in
-  the playlist already is added once more (playlists.md; MusicBee's
-  List menu has "Remove Duplicates" for this, W-PL). The message is
+- Then, after PE-DUPLICATES, the tracks are added to the end of the
+  playlist, in one call of `PlaylistStore::append`: with "Add them
+  again", or when nothing was asked, a track that is in the playlist
+  already is added once more (playlists.md; MusicBee's List menu has
+  "Remove Duplicates" for this, W-PL); with "Skip those already in",
+  only the others, in the order shown. The message is
   `Added 1 track to "ID"` or `Added N tracks to "ID"`. When the store
   could not write, false and
   `Could not add to the playlist "ID": the file could not be written`.
@@ -87,6 +90,32 @@ changes nothing, when the row does not offer that command.
 
 Speed: one write of the playlist's file for the whole selection, however
 many tracks (`PlaylistStore::tracksChanged` once).
+
+## PE-DUPLICATES
+
+W-GP: "warn when duplicate tracks are added to a playlist", ticked by
+default. `Hooks::warnOnDuplicates` answers whether that box is ticked;
+with no answer it is. When it is ticked and some of the selected tracks are in the playlist already
+(compared as the store holds the paths), PE-ADD asks
+`askDuplicates(ID, COUNT)` once, after the store's `editProblem` and
+before the write. A new playlist is never asked about. The answers are
+linuxBee's own (the orchestrator's word of 2026-11-21; W-GP names only
+the box):
+
+- `AddAgain`, "Add them again": every selected track is added, as when
+  nothing is asked.
+- `Skip`, "Skip those already in": only the others. When none are left,
+  nothing is written, the answer is false, and the message is
+  `Nothing added to "ID": every track is in it already`.
+- `Cancel`: false, nothing changed, the message left as it was.
+
+Without a hook, the question is a dialog titled "Add to Playlist" that
+says `N of the tracks are in "ID" already.` (or `1 of the tracks is`),
+with the buttons "Add them again", "Skip those already in" and Cancel,
+Cancel the default. The window answers from the setting
+`playlists/warnOnDuplicates`, read at each add (true when it is not
+set, false when it is `false` in any case of letters or `0`); there is
+no page for it in the preferences yet.
 
 ## PE-MESSAGE
 

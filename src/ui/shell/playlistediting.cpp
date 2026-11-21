@@ -5,6 +5,8 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QSet>
 #include <QStatusBar>
 
 #include <utility>
@@ -99,6 +101,28 @@ PlaylistEditing::Hooks defaultHooks(MainWindow *window)
         if (items.indexOf(picked) == 0)
             return QString();
         return picked;
+    };
+    // PE-DUPLICATES: the question, with Cancel as the default button.
+    hooks.askDuplicates = [window](const QString &id, int count) {
+        QMessageBox box(window);
+        box.setWindowTitle(QStringLiteral("Add to Playlist"));
+        box.setText(QString::number(count)
+            + (count == 1 ? QStringLiteral(" of the tracks is in ")
+                          : QStringLiteral(" of the tracks are in "))
+            + quoted(id) + QStringLiteral(" already."));
+        QPushButton *again
+            = box.addButton(QStringLiteral("Add them again"), QMessageBox::AcceptRole);
+        QPushButton *skip
+            = box.addButton(QStringLiteral("Skip those already in"), QMessageBox::AcceptRole);
+        QPushButton *cancel = box.addButton(QMessageBox::Cancel);
+        box.setDefaultButton(cancel);
+        box.setEscapeButton(cancel);
+        box.exec();
+        if (box.clickedButton() == again)
+            return PlaylistEditing::DuplicateChoice::AddAgain;
+        if (box.clickedButton() == skip)
+            return PlaylistEditing::DuplicateChoice::Skip;
+        return PlaylistEditing::DuplicateChoice::Cancel;
     };
     return hooks;
 }
@@ -249,6 +273,8 @@ PlaylistEditing::PlaylistEditing(MainWindow *window, ActionRegistry *actions, Li
         d->hooks.showMenu = fallback.showMenu;
     if (!d->hooks.choosePlaylist)
         d->hooks.choosePlaylist = fallback.choosePlaylist;
+    if (!d->hooks.askDuplicates)
+        d->hooks.askDuplicates = fallback.askDuplicates;
 
     // PE-WIRING: File > Playlists > New Playlist. Destroying this object frees the command.
     actions->implement(QStringLiteral("file.playlists.new"), this,
@@ -359,9 +385,40 @@ bool PlaylistEditing::addSelected()
         return false;
     }
 
-    // PE-ADD: one call for the whole selection, duplicates allowed. The paths are not empty and the
-    // playlist exists, so 0 here can only mean the store could not write.
-    const int added = d->playlists->append(id, paths, true);
+    // PE-DUPLICATES: a playlist just made holds nothing, so it is never asked about. No answer to
+    // "warn?" means ticked.
+    QStringList toAdd = paths;
+    bool allowDuplicates = true;
+    if (!d->hooks.warnOnDuplicates || d->hooks.warnOnDuplicates()) {
+        const QStringList held = d->playlists->tracks(id);
+        const QSet<QString> heldSet(held.cbegin(), held.cend());
+        QStringList others;
+        int inAlready = 0;
+        for (const QString &path : paths) {
+            if (heldSet.contains(path))
+                ++inAlready;
+            else
+                others.append(path);
+        }
+        if (inAlready > 0 && d->hooks.askDuplicates) {
+            const DuplicateChoice answer = d->hooks.askDuplicates(id, inAlready);
+            if (answer == DuplicateChoice::Cancel)
+                return false;
+            if (answer == DuplicateChoice::Skip) {
+                if (others.isEmpty()) {
+                    d->report(QStringLiteral("Nothing added to ") + quoted(id)
+                        + QStringLiteral(": every track is in it already"));
+                    return false;
+                }
+                toAdd = others;
+                allowDuplicates = false;
+            }
+        }
+    }
+
+    // PE-ADD: one call for the whole selection. The paths are not empty and the playlist exists,
+    // so 0 here can only mean the store could not write.
+    const int added = d->playlists->append(id, toAdd, allowDuplicates);
     if (added == 0) {
         d->report(QStringLiteral("Could not add to the playlist ") + quoted(id)
             + QStringLiteral(": the file could not be written"));
