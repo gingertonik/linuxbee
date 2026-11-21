@@ -50,6 +50,7 @@ settings and the library file may still change.
 - **`$Date` reads a date written with slashes** (`2021/12/31`, `2021/1/5`, `1998/03`, which means the 1st), as MusicBee's formulas build one; a day written first (`31/12/2021`) is still not read. **`$Group(x,n)` is now the first n letters of x in upper case** (`$Group(Deafheaven,3)` is `DEA`), as MusicBee describes it, where it gave an alphabet bucket; a first character that is not a letter still gives `#`.
 - **Organise and `linuxbeectl convert --template` no longer refuse a file with no track number.** A blank `Disc-Track#` in the naming template is now written `#` (as MusicBee does, `Adele/21/# Someone like You.mp3`), where such a file was refused for a missing tag or named `Unknown Disc-Track#`. A caller can change this with `PathRules::blankAs`; other blank fields behave as before.
 - **Queue Next now places the tracks after the earlier ones.** Queue Next twice put the second batch in front of the first; MusicBee puts it after any others added with the same command. A track waits from its Queue Next until it first plays, and a new Queue Next goes after the waiting ones that directly follow the playing track (under shuffle too). Tracks added with Queue Last do not wait this way.
+- **An auto-playlist with "filter out duplicates" on now compares artist and title, as MusicBee's option says.** The album no longer counts, so the same song on two albums appears once. A track with no title is never a duplicate.
 
 ## 0.8.0 (2026-11-18)
 
