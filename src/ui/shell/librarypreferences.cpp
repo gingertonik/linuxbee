@@ -9,16 +9,21 @@
 namespace linuxbee::ui {
 
 void installLibraryPreferences(ToolsShell *tools, BackgroundShell *background, QSettings *settings,
-    std::function<QString(QWidget *parent)> chooseFolder)
+    std::function<QString(QWidget *parent)> chooseFolder, std::function<void()> searchStored)
 {
     // LP-INSTALL: each page made is over these settings, has this chooser, and
-    // tells the background shell when it stored something (BG-RELOAD).
-    tools->addPreferencesPage([background, settings, chooseFolder]() -> PreferencesPage * {
-        LibraryPage::Hooks hooks;
-        hooks.chooseFolder = chooseFolder;
-        hooks.stored = [background] { background->reload(); };
-        return new LibraryPage(settings, hooks);
-    });
+    // tells the background shell when it stored something (BG-RELOAD), then the search hook.
+    tools->addPreferencesPage(
+        [background, settings, chooseFolder, searchStored]() -> PreferencesPage * {
+            LibraryPage::Hooks hooks;
+            hooks.chooseFolder = chooseFolder;
+            hooks.stored = [background, searchStored] {
+                background->reload();
+                if (searchStored)
+                    searchStored();
+            };
+            return new LibraryPage(settings, hooks);
+        });
 }
 
 }

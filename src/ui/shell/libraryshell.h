@@ -59,6 +59,11 @@ public:
     // this whenever the play queue changes.
     void setPlayingPaths(const QStringList &paths);
 
+    // SH-SEARCH: gives the track list what the settings say of accents
+    // (library/searchIgnoresAccents). Done when the shell is made; call it again after the settings
+    // change.
+    void readSearchSettings();
+
     // SH-EXTEND: for the plans that add to what the shell shows.
     QList<LibraryTrack> nodeTracks() const; // what the node holds, before narrowing and search
     // Only tracks for which `keep` answers true are listed. Empty: all of them.

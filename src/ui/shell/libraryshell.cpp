@@ -79,6 +79,7 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     // alone until a browser is set.
     d->model = new TrackListModel(this);
     d->model->load(*d->settings, QStringLiteral("tracklist"));
+    readSearchSettings(); // SH-SEARCH: the accent setting, as the settings hold it when made
     d->splitter = new QSplitter(Qt::Horizontal);
     d->splitter->setObjectName(QStringLiteral("browserSplitter"));
     d->page = new TrackListPage(d->model, d->actions, d->splitter);
@@ -242,6 +243,16 @@ QStringList LibraryShell::shownPaths() const
 QString LibraryShell::lastMessage() const
 {
     return d->message;
+}
+
+void LibraryShell::readSearchSettings()
+{
+    // SH-SEARCH: accents are ignored unless the stored text is false or 0, in any case of letters.
+    // A missing key is ignored too, as LP-LOAD reads it.
+    const QString text
+        = d->settings->value(QStringLiteral("library/searchIgnoresAccents")).toString().toLower();
+    d->model->setSearchIgnoresAccents(
+        !(text == QStringLiteral("false") || text == QStringLiteral("0")));
 }
 
 void LibraryShell::setPlayingPaths(const QStringList &paths)

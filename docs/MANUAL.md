@@ -45,7 +45,8 @@ command-line tool, or both.
 - The navigator shows the library sections (Music, Inbox, Audiobooks,
   Podcasts, Videos), the playlists and Playing Tracks.
 - The track list shows one track in one row. It sorts by column and narrows
-  by a search box.
+  by a search box. The search ignores case and, unless "Ignore accents when
+  searching" is cleared on the Library page of the preferences, accents.
 - The main panel has a Tracks view and an Album and Tracks view, chosen from
   the drop-down box at the top of the main panel. Album and Tracks shows the
   tracks under a heading for each album, in album order, with a jump bar of

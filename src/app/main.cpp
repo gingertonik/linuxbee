@@ -260,7 +260,9 @@ int main(int argc, char *argv[])
     scanProgress.watch(background->scanner()); // SP-MAIN: the folder monitor's scans too
 
     // LP-MAIN: the Library page joins the preferences, with the default folder chooser.
-    linuxbee::ui::installLibraryPreferences(&tools, background.get(), &settings);
+    // SH-SEARCH: applying the page makes the box take effect at once, with the dialog open.
+    linuxbee::ui::installLibraryPreferences(
+        &tools, background.get(), &settings, { }, [&shell] { shell.readSearchSettings(); });
 
     if (wantServices) {
         // BG-MAIN: what the shell found, with no window: whether the media keys are on,

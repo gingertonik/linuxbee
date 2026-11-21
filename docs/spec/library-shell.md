@@ -404,6 +404,14 @@ again on every change of the library. Adding a source reads the chosen
 node again. `reloadNode()` reads it again on request (a source's answer
 changed); the search text stays.
 
+## SH-SEARCH
+
+The shell gives its track list the way of folding the settings say
+(`library/searchIgnoresAccents`, read as LP-LOAD reads it: accents ignored
+unless the text is `false`, in any case, or `0`), when it is made and each
+time `readSearchSettings()` is called (T-MODEL "Accents"). It reads
+nothing else here and stores nothing.
+
 ## SH-STORE
 
 `saveState()` saves the model to the settings group `tracklist` and the
