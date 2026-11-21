@@ -119,7 +119,12 @@ BuiltPath buildRelativePath(const Template &pathTemplate, const TagSource &tags,
         QStringList missing;
         for (const QString &field : pathTemplate.topLevelFields()) {
             const std::optional<QString> value = tags.value(field);
-            if (value.has_value() && value->trimmed().isEmpty())
+            bool placeholder = false; // P-PLACEHOLDER: never counts as missing
+            for (auto it = rules.blankAs.constBegin(); it != rules.blankAs.constEnd(); ++it) {
+                if (it.key().compare(field, Qt::CaseInsensitive) == 0)
+                    placeholder = true;
+            }
+            if (!placeholder && value.has_value() && value->trimmed().isEmpty())
                 missing.append(field);
         }
         if (!missing.isEmpty()) {
@@ -132,6 +137,7 @@ BuiltPath buildRelativePath(const Template &pathTemplate, const TagSource &tags,
     FilteredTagSource filtered(tags, rules.characterMap);
     TemplateOptions options = rules.templateOptions;
     options.unknownForBlank = !rules.skipWhenTagsMissing;
+    options.blankAs = rules.blankAs; // P-PLACEHOLDER, in both ways
     const QString text = pathTemplate.evaluate(filtered, options);
 
     QStringList components;
