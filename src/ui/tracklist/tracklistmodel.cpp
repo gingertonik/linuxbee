@@ -1,11 +1,18 @@
 #include "tracklist/tracklistmodel_p.h"
 
 #include <QSettings>
+#include <QTimer>
+#include <QScopeGuard>
 
 // Contract: docs/spec/track-list.md (T-MODEL). Sorting and filtering are in tracklistorder.cpp.
 namespace linuxbee::ui {
 
 namespace {
+
+bool madeForDefault(const SearchCache &cache, const QStringList &fields)
+{
+    return cache.joinedMade && cache.joinedFor == fields;
+}
 
 // Numbers, durations and sizes line up on the right; text on the left. Both
 // are vertically centred.
@@ -25,6 +32,54 @@ TrackListModel::TrackListModel(QObject *parent)
 {
     d->columns = defaultColumns();
     d->setSortFields(defaultSort());
+    d->timer = new QTimer(this);
+    d->timer->setInterval(0);
+    connect(d->timer, &QTimer::timeout, this, [this]() { d->prepareSome(); });
+}
+
+void TrackListModel::Private::enqueue(int slot)
+{
+    todo.append(slot);
+    if (!timer->isActive())
+        timer->start();
+}
+
+void TrackListModel::Private::prepareSome()
+{
+    const QStringList fields = defaultSearchFields();
+    int done = 0;
+    while (todoAt < todo.size() && done < kPiece) {
+        const int slot = todo.at(todoAt++);
+        if (slot >= held.size() || !held.at(slot).live)
+            continue;
+        Entry &entry = held[slot];
+        if (madeForDefault(entry.cache, fields))
+            continue;
+        prepareSearch(LibraryFieldSource(entry.track), { }, &entry.cache);
+        ++done;
+    }
+    if (todoAt >= todo.size()) {
+        todo.clear();
+        todoAt = 0;
+        timer->stop();
+    }
+}
+
+bool TrackListModel::Private::allPrepared() const
+{
+    const QStringList fields = defaultSearchFields();
+    for (qsizetype i = todoAt; i < todo.size(); ++i) {
+        const int slot = todo.at(i);
+        if (slot < held.size() && held.at(slot).live
+            && !madeForDefault(held.at(slot).cache, fields))
+            return false;
+    }
+    return true;
+}
+
+bool TrackListModel::searchPrepared() const
+{
+    return d->allPrepared();
 }
 
 TrackListModel::~TrackListModel()
@@ -115,11 +170,22 @@ void TrackListModel::setTracks(const QList<LibraryTrack> &tracks)
     d->order.clear();
     d->shown.clear();
     d->nextSeq = 0;
+    d->todo.clear();
+    d->todoAt = 0;
+    d->timer->stop();
     for (const LibraryTrack &track : tracks)
         d->put(track, false);
     d->reorder();
     endResetModel();
     emit summaryChanged();
+    // After the call's own work: each track's search value is made later, in pieces.
+    d->todo.reserve(d->held.size());
+    for (int slot = 0; slot < d->held.size(); ++slot) {
+        if (d->held.at(slot).live)
+            d->todo.append(slot);
+    }
+    if (!d->todo.isEmpty())
+        d->timer->start();
 }
 
 void TrackListModel::upsertTracks(const QList<LibraryTrack> &tracks)
@@ -157,6 +223,8 @@ void TrackListModel::upsertTracks(const QList<LibraryTrack> &tracks)
         }
         d->mergeIn(touched);
         d->rebuildShown();
+        for (const int slot : std::as_const(touched))
+            d->enqueue(slot);
 
         QModelIndexList to;
         to.reserve(from.size());
@@ -172,6 +240,11 @@ void TrackListModel::upsertTracks(const QList<LibraryTrack> &tracks)
 
     const int lastColumn = int(d->columns.size()) - 1;
     for (const LibraryTrack &track : tracks) {
+        const auto queue = qScopeGuard([&]() {
+            const auto at = d->slotOf.constFind(track.id);
+            if (at != d->slotOf.constEnd())
+                d->enqueue(at.value());
+        });
         // Everything is worked out before the first signal, from the keys the
         // rows have now and the keys of this track as it is now.
         const QList<PreparedValue> keys = d->prepareKeys(track);
