@@ -20,6 +20,10 @@ cp "$data/basic.mp3" "$data/basic.flac" "$data/basic.ogg" "$work/music/"
 db="$work/lib/library.db"
 now="--now 2026-11-13T12:00:00Z"
 
+# (fix-ro1) L-READ: count makes no library, so a scan of an empty folder makes it.
+mkdir -p "$work/nothing"
+# shellcheck disable=SC2086
+"$bin" library --db "$db" scan $now "$work/nothing" > /dev/null 2>&1
 out=$("$bin" library --db "$db" count 2> /dev/null); [ "$out" = 0 ] && pass made || fail "made [$out]"
 sqlite3 "$db" "CREATE TRIGGER refuse_one BEFORE INSERT ON tracks BEGIN SELECT RAISE(ROLLBACK, 'refused for the test'); END" \
     || fail "the trigger could not be planted"

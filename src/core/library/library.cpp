@@ -133,6 +133,19 @@ std::unique_ptr<Library> Library::open(const QString &databasePath, QString *err
     return library;
 }
 
+// L-READ: see library.h.
+std::unique_ptr<Library> Library::openToRead(const QString &databasePath, QString *error)
+{
+    std::unique_ptr<Library> library(new Library());
+    QString reason;
+    if (!library->d->store.openToRead(databasePath, &reason)) {
+        if (error)
+            *error = reason;
+        return nullptr;
+    }
+    return library;
+}
+
 // L-CATEGORY (W-L): the nodes a MusicBee library has, in that order.
 QStringList Library::categories()
 {

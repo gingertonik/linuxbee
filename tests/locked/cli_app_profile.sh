@@ -84,7 +84,12 @@ mkdir -p "$b/elsewhere" "$b/data/linuxbee"; echo precious > "$b/elsewhere/librar
 ln -s "$b/elsewhere" "$b/data/linuxbee/linuxbee"
 run --screenshot "$b/w.png" > /dev/null 2>&1
 [ "$(cat "$b/elsewhere/library.db")" = precious ] && [ -L "$b/data/linuxbee/linuxbee" ] && pass link-left || fail link-left
-[ "$("$ctl" library --db "$b/data/linuxbee/library.db" count 2> /dev/null)" = 0 ] && pass link-fresh-library || fail link-fresh-library
+# (fix-ro1) The window does not start while the linked older folder holds a library, and makes none
+# (main-window.md, "Never an empty library while an older one waits"). The row once passed only because
+# count made an empty library; under L-READ a reading command makes none, and refuses.
+[ ! -e "$b/data/linuxbee/library.db" ] && pass link-no-empty-library || fail "link-no-empty-library [$(ls -A "$b/data/linuxbee")]"
+"$ctl" library --db "$b/data/linuxbee/library.db" count > /dev/null 2>&1; rc=$?
+[ "$rc" = 3 ] && [ ! -e "$b/data/linuxbee/library.db" ] && pass link-count-makes-none || fail "link-count-makes-none rc=$rc"
 
 # --- W-ONE: one program a profile
 box one

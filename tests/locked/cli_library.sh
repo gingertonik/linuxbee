@@ -30,8 +30,9 @@ cp "$data/basic.m4a" "$data/notaudio.mp3" "$work/music/b/"
 db="$work/library.db"
 NOW=2026-11-13T12:00:00Z
 
-check count-new 0 "0" library --db "$db" count
-[ -f "$db" ] && pass db-created || fail db-created
+# (fix-ro1) L-READ: a reading command makes no library; the scan below makes it.
+check count-new 3 "" library --db "$db" count
+[ ! -e "$db" ] && pass db-not-created || fail db-not-created
 check scan 0 "added 3, updated 0, unchanged 0, missing 0, found again 0, not music 1" \
     library --db "$db" scan --now "$NOW" "$work/music"
 check count 0 "3" library --db "$db" count

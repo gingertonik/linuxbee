@@ -136,7 +136,10 @@ int runImport(const QString &dbPath, const QString &exportPath, const QStringLis
     }
 
     QString reason;
-    const std::unique_ptr<linuxbee::Library> library = linuxbee::Library::open(dbPath, &reason);
+    // L-READ: without --apply the import only reads, so the library is opened to read only.
+    const std::unique_ptr<linuxbee::Library> library = apply
+        ? linuxbee::Library::open(dbPath, &reason)
+        : linuxbee::Library::openToRead(dbPath, &reason);
     if (!library)
         return openError(dbPath, reason);
     sayStep(*library);
@@ -360,8 +363,10 @@ int runLibrary(const QStringList &arguments)
     }
 
     QString reason;
-    const std::unique_ptr<linuxbee::Library> library
-        = linuxbee::Library::open(parser.value(dbOption), &reason);
+    // L-READ: count and list only read; scan writes.
+    const std::unique_ptr<linuxbee::Library> library = subcommand == QLatin1String("scan")
+        ? linuxbee::Library::open(parser.value(dbOption), &reason)
+        : linuxbee::Library::openToRead(parser.value(dbOption), &reason);
     if (!library)
         return openError(parser.value(dbOption), reason);
     sayStep(*library);

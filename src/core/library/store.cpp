@@ -583,6 +583,57 @@ bool openAndCheckSchema(
     return true;
 }
 
+// L-READ: opens the file through the database's read-only mode and checks what it holds. Nothing
+// is written: no step, no copy, no write-ahead-log switch, no write lock.
+bool openToReadAndCheck(const QString &databasePath, const QString &connection, QString *error)
+{
+    const QFileInfo file(databasePath);
+    // exists() follows a link, so a link that leads nowhere is no file either.
+    if (!file.exists()) {
+        setError(error, QStringLiteral("there is no such file"));
+        return false;
+    }
+    QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+    database.setDatabaseName(databasePath);
+    database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+    if (!database.open()) {
+        setError(error,
+            QStringLiteral("Cannot open the library file: %1").arg(database.lastError().text()));
+        return false;
+    }
+    QSqlQuery version(database);
+    if (!version.exec(QStringLiteral("PRAGMA user_version")) || !version.next()) {
+        const QString words = version.lastError().text();
+        if (words.contains(QLatin1String("readonly"), Qt::CaseInsensitive))
+            setError(error,
+                QStringLiteral("The library cannot be written to: %1 (%2)")
+                    .arg(databasePath, words));
+        else
+            setError(error, QStringLiteral("That file is not a linuxBee library: %1").arg(words));
+        return false;
+    }
+    const int found = version.value(0).toInt();
+    version.finish();
+    if (found > kSchemaVersionValue) {
+        setError(error,
+            QStringLiteral("That library was written by a newer linuxBee: schema %1, "
+                           "this linuxBee reads schema %2")
+                .arg(found)
+                .arg(kSchemaVersionValue));
+        return false;
+    }
+    if (found < kSchemaVersionValue) {
+        setError(error,
+            QStringLiteral("it is at schema %1 and this linuxBee reads schema %2. A command "
+                           "that only reads does not bring it up to date; library scan, "
+                           "library import --apply or the window does, after a copy.")
+                .arg(found)
+                .arg(kSchemaVersionValue));
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 struct Store::Private {
@@ -643,6 +694,18 @@ bool Store::open(const QString &databasePath, QString *error, SchemaStep *step)
 {
     const QString name = Private::nextName();
     if (!openAndCheckSchema(databasePath, name, error, step)) {
+        QSqlDatabase::removeDatabase(name);
+        return false;
+    }
+    d->connection = name;
+    d->opened = true;
+    return true;
+}
+
+bool Store::openToRead(const QString &databasePath, QString *error)
+{
+    const QString name = Private::nextName();
+    if (!openToReadAndCheck(databasePath, name, error)) {
         QSqlDatabase::removeDatabase(name);
         return false;
     }

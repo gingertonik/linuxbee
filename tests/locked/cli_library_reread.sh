@@ -41,13 +41,15 @@ PRAGMA user_version = 1;" || fail "the old library could not be made"
 old "$work/old.db"
 [ "$(sqlite3 "$work/old.db" 'PRAGMA user_version')" = 1 ] && [ "$(loved "$work/old.db")" = 0 ] && pass setup-old || fail setup-old
 
+# (fix-ro1) L-READ: count refuses the old library and leaves it; the scan brings it up.
 out=$("$bin" library --db "$work/old.db" count 2> "$work/err"); rc=$?
-[ "$rc" = 0 ] && [ "$out" = 6 ] && pass old-opens || fail "old-opens rc=$rc [$out] [$(cat "$work/err")]"
-[ "$(sqlite3 "$work/old.db" 'PRAGMA user_version')" -ge 2 ] && pass old-brought-up || fail "old-brought-up [$(sqlite3 "$work/old.db" 'PRAGMA user_version')]"
+[ "$rc" = 3 ] && [ -z "$out" ] && pass old-count-refuses || fail "old-count-refuses rc=$rc [$out] [$(cat "$work/err")]"
+[ "$(sqlite3 "$work/old.db" 'PRAGMA user_version')" = 1 ] && pass old-left || fail "old-left [$(sqlite3 "$work/old.db" 'PRAGMA user_version')]"
 [ "$(loved "$work/old.db")" = 0 ] && pass opening-reads-no-file || fail opening-reads-no-file
 
 # The scan: every file is as stored, every file is read again, and three read differently.
 out=$("$bin" library --db "$work/old.db" scan --now 2026-11-17T12:00:00Z "$music" 2> /dev/null)
+[ "$(sqlite3 "$work/old.db" 'PRAGMA user_version')" -ge 2 ] && pass old-brought-up || fail "old-brought-up [$(sqlite3 "$work/old.db" 'PRAGMA user_version')]"
 [ "$out" = "added 0, updated 3, unchanged 3, missing 0, found again 0, not music 0" ] && pass reread-counts || fail "reread-counts [$out]"
 [ "$(loved "$work/old.db")" = 3 ] && pass reread-love-is-there || fail "reread-love-is-there [$(loved "$work/old.db")]"
 [ "$(sqlite3 "$work/old.db" 'SELECT count(*) FROM tracks WHERE play_count = 3 AND date_added_secs = (SELECT date_added_secs FROM tracks LIMIT 1)')" = 6 ] \
@@ -62,7 +64,9 @@ out=$("$bin" library --db "$work/old.db" scan --now 2026-11-17T12:00:00Z "$music
 round=1; bad=0
 while [ $round -le 12 ]; do
     old "$work/race.db"
-    i=1; while [ $i -le 8 ]; do ("$bin" library --db "$work/race.db" count > "$work/r$i.out" 2> "$work/r$i.err"; echo $? > "$work/r$i.rc") & i=$((i + 1)); done
+    # (fix-ro1) L-READ: the eight programs are scans of an empty folder, which write; a count reads.
+    mkdir -p "$work/nothing"
+    i=1; while [ $i -le 8 ]; do ("$bin" library --db "$work/race.db" scan --now 2026-11-17T12:00:00Z "$work/nothing" > /dev/null 2> "$work/r$i.err"; echo $? > "$work/r$i.rc"; "$bin" library --db "$work/race.db" count > "$work/r$i.out" 2> /dev/null) & i=$((i + 1)); done
     wait
     i=1; while [ $i -le 8 ]; do
         [ "$(cat "$work/r$i.rc")" = 0 ] && [ "$(cat "$work/r$i.out")" = 6 ] || { bad=$((bad + 1)); [ $bad -le 3 ] && echo "  round $round, program $i: rc=$(cat "$work/r$i.rc") [$(head -c 200 "$work/r$i.err")]"; }
