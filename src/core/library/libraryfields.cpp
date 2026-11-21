@@ -1,6 +1,7 @@
 #include "library/library.h"
 
 #include <QDateTime>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -77,6 +78,15 @@ std::optional<QString> LibraryFieldSource::value(const QString &fieldName) const
     // because they are what a track's own tags cannot give; after them every
     // name TrackFieldSource answers is there unchanged, and any other name is
     // unknown.
+    // A name written exactly as fieldNames() writes it is found by one lookup in a set made
+    // once; any other spelling goes the way it always went.
+    static const QSet<QString> exact = [] {
+        const QStringList &names = fieldNames();
+        return QSet<QString>(names.cbegin(), names.cend());
+    }();
+    if (exact.contains(fieldName))
+        return libraryValue(m_track, fieldName);
+
     for (const QString &name : fieldNames()) {
         if (name.compare(fieldName, Qt::CaseInsensitive) == 0)
             return libraryValue(m_track, name);

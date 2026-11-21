@@ -318,6 +318,12 @@ art items.
 catalogue field, ignoring case, gives `joined(field)`, which is an empty
 text when the field has no value. Any other name is unknown (`nullopt`).
 
+A name written as the catalogue writes it is found by one lookup; any
+other spelling is looked for ignoring case. The answer is the same either
+way, here, in `TrackFieldSource` and in `LibraryFieldSource` (L-FIELDS).
+The search asks for 29 names of every track at its first keystroke
+(S-FIELDS), so the quick way is what it pays for.
+
 ## 5. Command line
 
 ### R-CLI
