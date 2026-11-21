@@ -142,7 +142,7 @@ check exists-update 0 "tags updated: $data/tone.flac -> $want" \
 # P-MISSING: hires.flac has a title and nothing else
 check template-missing 3 "" convert --out-dir "$d" --template "$T" "$data/hires.flac"
 err=$("$bin" convert --out-dir "$d" --template "$T" "$data/hires.flac" 2>&1 >/dev/null)
-is template-missing-message "failed: $data/hires.flac: missing tags: Album Artist, Album, Disc-Track#" "$err"
+is template-missing-message "failed: $data/hires.flac: missing tags: Album Artist, Album" "$err" # Disc-Track# is written as #
 
 # One bad file does not stop the others; the exit code says something failed.
 d="$work/mixed"

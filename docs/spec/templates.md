@@ -71,6 +71,12 @@ top level of the template (not inside any function argument) gives
 A field inside a function argument is never replaced this way, which is what
 makes the documented idiom `$IsNull(<Album>,,<Album>)` work (W-T).
 
+`TemplateOptions::blankAs` maps field names (ignoring case) to a text: a
+blank top-level field named there (empty, or only white space) gives that
+text, before `unknownForBlank` is looked at. Inside a function argument the
+field is blank as it is. Empty by default; organise uses it (paths.md,
+P-PLACEHOLDER).
+
 ## 2. Arguments
 
 Inside the parentheses of a call:
