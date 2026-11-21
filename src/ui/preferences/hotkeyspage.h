@@ -51,6 +51,9 @@ private:
     void applyFilter(); // HK-FILTER
     void checkModified(); // emit modifiedChanged only when the answer flips
     QString selectedId() const;
+    QString holderOf(const QString &id, const QKeySequence &sequence) const; // HK-CONFLICT
+    void showWarning(); // HK-BUTTONS: the icon and the label follow the key in keyEdit
+    void assignChosen(); // HK-BUTTONS: the Assign button
 };
 
 }

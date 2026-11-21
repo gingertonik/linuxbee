@@ -1,4 +1,6 @@
+#include <QKeySequenceEdit>
 #include <QLabel>
+#include <QMessageBox>
 #include <QSettings>
 
 #include "preferences/hotkeyspage.h"
@@ -34,6 +36,7 @@ void HotkeysPage::load()
         it.value() = d->actions->shortcut(it.key());
     refreshHotkeyCells();
     d->conflictLabel->clear();
+    d->conflictIcon->hide(); // HK-BUTTONS: load() forgets the warning with the edits
     applyFilter();
     checkModified();
 }
@@ -41,6 +44,17 @@ void HotkeysPage::load()
 QKeySequence HotkeysPage::pending(const QString &id) const
 {
     return d->pending.value(id); // empty for an unknown id
+}
+
+QString HotkeysPage::holderOf(const QString &id, const QKeySequence &sequence) const
+{
+    // HK-CONFLICT: the command, other than this one, that has the key among the pending keys.
+    if (sequence.isEmpty() || sequence.count() > 1)
+        return { };
+    for (auto it = d->pending.constBegin(); it != d->pending.constEnd(); ++it)
+        if (it.key() != id && it.value() == sequence)
+            return it.key();
+    return { };
 }
 
 ShortcutResult HotkeysPage::assign(const QString &id, const QKeySequence &sequence)
@@ -117,7 +131,57 @@ void HotkeysPage::setConfirmMove(
 
 ShortcutResult HotkeysPage::move(const QString &id, const QKeySequence &sequence)
 {
-    return assign(id, sequence); // red stub: fix-hk1 replaces it (HK-MOVE)
+    // HK-MOVE: the same refusals as assign() for an unknown id and more than one combination.
+    if (!d->pending.contains(id) || sequence.count() > 1)
+        return assign(id, sequence);
+
+    const QString holder = holderOf(id, sequence);
+    if (holder.isEmpty()) { // nobody else has it: as assign()
+        const ShortcutResult result = assign(id, sequence);
+        if (result.status == ShortcutResult::Status::Ok)
+            d->conflictIcon->hide();
+        return result;
+    }
+
+    d->pending[holder] = QKeySequence(); // the holder is left with no key...
+    d->pending[id] = sequence; // ...and this command has it
+    setRowKey(rowForId(holder), QKeySequence());
+    setRowKey(rowForId(id), sequence);
+    applyFilter();
+    d->conflictLabel->setText(sequence.toString(QKeySequence::NativeText) + tr(" moved from: ")
+        + commandLabel(d->actions->info(holder)));
+    d->conflictIcon->hide();
+    checkModified();
+    return { ShortcutResult::Status::Ok, holder };
+}
+
+void HotkeysPage::assignChosen()
+{
+    // HK-BUTTONS: Assign asks first when another command has the key.
+    const QString id = selectedId();
+    if (id.isEmpty())
+        return;
+    const QKeySequence sequence = d->keyEdit->keySequence();
+    const QString holder = holderOf(id, sequence);
+    if (holder.isEmpty()) {
+        assign(id, sequence);
+        return;
+    }
+    bool yes = false;
+    if (d->confirmMove) {
+        yes = d->confirmMove(sequence, holder);
+    } else {
+        yes = QMessageBox::question(this, tr("Hotkeys"),
+                  sequence.toString(QKeySequence::NativeText) + tr(" is used by: ")
+                      + commandLabel(d->actions->info(holder)) + tr("\n\nMove it to ")
+                      + commandLabel(d->actions->info(id)) + tr("?"),
+                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+            == QMessageBox::Yes;
+    }
+    if (yes)
+        move(id, sequence);
+    else
+        assign(id, sequence); // refuses, and the label says who has the key
 }
 
 QString HotkeysPage::apply()
