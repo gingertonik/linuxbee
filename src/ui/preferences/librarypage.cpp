@@ -54,6 +54,15 @@ bool storedCheckOnStartup(const QSettings *settings)
     return text == QStringLiteral("true") || text == QStringLiteral("1");
 }
 
+// LP-LOAD: checked unless the stored text is false or 0, in any case of letters; missing is
+// checked.
+bool storedIgnoreAccents(const QSettings *settings)
+{
+    const QString text
+        = settings->value(QStringLiteral("library/searchIgnoresAccents")).toString().toLower();
+    return !(text == QStringLiteral("false") || text == QStringLiteral("0"));
+}
+
 }
 
 struct LibraryPage::Private {
@@ -65,11 +74,13 @@ struct LibraryPage::Private {
     QPushButton *removeFolderButton = nullptr;
     QComboBox *sectionCombo = nullptr;
     QCheckBox *checkOnStartupBox = nullptr;
+    QCheckBox *ignoreAccentsBox = nullptr;
 
     // What load() showed: the baseline "modified" is measured against.
     QStringList shownFolders;
     QString shownSection;
     bool shownCheckOnStartup = false;
+    bool shownIgnoreAccents = true;
     // The last answer of isModified() that modifiedChanged announced.
     bool announced = false;
 
@@ -123,6 +134,11 @@ LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
     d->checkOnStartupBox->setObjectName(QStringLiteral("checkOnStartupBox"));
     layout->addWidget(d->checkOnStartupBox);
 
+    // LP-STRUCTURE: the accent box, under the start-up box.
+    d->ignoreAccentsBox = new QCheckBox(tr("Ignore accents when searching"), this);
+    d->ignoreAccentsBox->setObjectName(QStringLiteral("ignoreAccentsBox"));
+    layout->addWidget(d->ignoreAccentsBox);
+
     // LP-REMOVE: the remove button is enabled only while a row is the current one.
     connect(d->monitoredList, &QListWidget::currentRowChanged, this,
         [this](int row) { d->removeFolderButton->setEnabled(row >= 0); });
@@ -141,6 +157,7 @@ LibraryPage::LibraryPage(QSettings *settings, Hooks hooks, QWidget *parent)
     connect(d->sectionCombo, &QComboBox::currentTextChanged, this,
         [this](const QString &) { d->noticeChange(); });
     connect(d->checkOnStartupBox, &QCheckBox::toggled, this, [this](bool) { d->noticeChange(); });
+    connect(d->ignoreAccentsBox, &QCheckBox::toggled, this, [this](bool) { d->noticeChange(); });
 
     load();
 }
@@ -162,6 +179,7 @@ void LibraryPage::load()
         QSignalBlocker a(d->monitoredList);
         QSignalBlocker b(d->sectionCombo);
         QSignalBlocker c(d->checkOnStartupBox);
+        QSignalBlocker e(d->ignoreAccentsBox);
         d->monitoredList->clear();
         d->shownFolders = storedFolders(d->settings);
         d->monitoredList->addItems(d->shownFolders);
@@ -169,6 +187,8 @@ void LibraryPage::load()
         d->sectionCombo->setCurrentText(d->shownSection);
         d->shownCheckOnStartup = storedCheckOnStartup(d->settings);
         d->checkOnStartupBox->setChecked(d->shownCheckOnStartup);
+        d->shownIgnoreAccents = storedIgnoreAccents(d->settings);
+        d->ignoreAccentsBox->setChecked(d->shownIgnoreAccents);
     }
     d->removeFolderButton->setEnabled(d->monitoredList->currentRow() >= 0);
     d->noticeChange();
@@ -181,12 +201,15 @@ QString LibraryPage::apply()
         return { };
     const QString section = d->sectionCombo->currentText();
     const bool checked = d->checkOnStartupBox->isChecked();
+    const bool ignore = d->ignoreAccentsBox->isChecked();
     d->settings->setValue(QStringLiteral("library/monitored"), folders());
     d->settings->setValue(QStringLiteral("library/monitoredCategory"), section);
     d->settings->setValue(QStringLiteral("library/checkOnStartup"), checked);
+    d->settings->setValue(QStringLiteral("library/searchIgnoresAccents"), ignore);
     d->shownFolders = folders();
     d->shownSection = section;
     d->shownCheckOnStartup = checked;
+    d->shownIgnoreAccents = ignore;
     d->noticeChange();
     if (d->hooks.stored)
         d->hooks.stored();
@@ -196,7 +219,8 @@ QString LibraryPage::apply()
 bool LibraryPage::isModified() const
 {
     return folders() != d->shownFolders || d->sectionCombo->currentText() != d->shownSection
-        || d->checkOnStartupBox->isChecked() != d->shownCheckOnStartup;
+        || d->checkOnStartupBox->isChecked() != d->shownCheckOnStartup
+        || d->ignoreAccentsBox->isChecked() != d->shownIgnoreAccents;
 }
 
 QStringList LibraryPage::folders() const
