@@ -29,6 +29,11 @@ struct SearchCache {
         QString folded;
     };
     QHash<QString, Entry> fields; // by the field's name in lower case
+    // For a term with no field: the folded values of the search fields the track knows,
+    // in the order of joinedFor, each from the next by U+001F. Made once for that list.
+    bool joinedMade = false;
+    QStringList joinedFor;
+    QString joined;
 };
 
 // S-CACHE: values folded for a match, in the whole process, since it started.

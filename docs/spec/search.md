@@ -28,14 +28,28 @@ describes, and when it was last edited: "Searching" (no version given;
 Text is compared after folding: Unicode compatibility decomposition (NFKD),
 combining marks removed, then lower case. So `Beyoncé`, `BEYONCE` and
 `Beyonce` followed by a combining accent all fold to `beyonce`, and the `ﬁ`
-ligature folds to `fi`. Nothing else is changed; spaces and punctuation
-stay.
+ligature folds to `fi`. U+001F (the unit separator) becomes a space, so
+that no folded value and no folded term holds it (S-CACHE); a broken tag
+may hold one. Nothing else is changed; spaces and punctuation stay.
 
 ## S-FIELDS
 
 A term with no field name is looked for in each field of
-`SearchOptions::fields`. The default list is Title, Artist, Album, Album
-Artist, Genre, Composer, Year, Comment, Filename.
+`SearchOptions::fields`. The default list is every text field of the
+catalogue but Lyrics, and Filename, 29 in all: first the nine of before,
+Title, Artist, Album, Album Artist, Genre, Composer, Year, Comment,
+Filename; then Conductor, Publisher, Grouping, Mood, Lyricist, Copyright,
+ISRC, Sort Title, Sort Artist, Sort Album, Sort Album Artist, Sort
+Composer, Original Year, Original Artist, Original Album, Subtitle,
+Language, Initial Key, Encoded By, Mix Artist.
+
+Not in it: Lyrics (long, and a word in a song is not what a search box
+looks for), the seven number and flag fields (Track#, Track Count, Disc#,
+Disc Count, BPM, Compilation, Love: with them `1` would find every first
+track and every one-disc album), and what the library counts or rates.
+Each can still be named (`track#:1`). linuxBee's own choice, the owner's
+ruling of 2026-11-20 (MusicBee searches "all fields" by default, W-S, and
+does not say which).
 
 ## S-PARSE
 
@@ -81,7 +95,8 @@ query with no groups (`isEmpty()`) matches every track.
 
 A term with no field holds when its text is found inside the folded value
 of at least one of the search fields. Each field is looked at on its own:
-a phrase does not run from one field into the next.
+a phrase does not run from one field into the next. (With a cache it is
+looked for in one joined value, S-CACHE; the answer is the same.)
 
 A term with a field asks the track for that field by the name given. It
 holds when the track knows the field and the text is found inside its
@@ -102,6 +117,18 @@ value, whether it is blank, or that the track does not know the field. A field t
 folded again, whatever the query. The caller keeps one cache for each
 track and throws it away when the track changes; a cache used with
 another track gives wrong answers.
+
+For a term with no field the cache also holds one value of the track,
+made once: `joined`, the folded values of the fields of `options.fields`
+the track knows, blank ones too, in the order of the list, each from the
+next by U+001F; `joinedFor` is the list it was made for and `joinedMade`
+says it is made. A term with no field is looked for in `joined` alone.
+Since no folded value and no folded term holds U+001F (S-FOLD), a term
+found there is found inside one field's value, as S-MATCH asks. A match
+with another list makes `joined` again, from the fields the cache holds
+(folding only those it does not), and the fields go into the cache as
+they are folded, so a field named after it is not folded again. Each
+value is folded once and counted once, joined or not.
 
 `searchValuesFolded()` counts, for the whole process since it started,
 the values folded for a match, with a cache or without. It is for tests
@@ -131,10 +158,10 @@ and is not expected to survive the round trip.)
 | Rule | Question for someone with MusicBee |
 |---|---|
 | S-PARSE | Is a space between words AND? Does `-word` exclude? What does `+` do? |
-| S-FIELDS | Which fields does a plain search cover by default? |
 
 ### Decided by the owner (2026-11-20)
 
 | Rule | Question | Decision |
 |---|---|---|
+| S-FIELDS | Which fields does a plain search cover by default? | Every text field but Lyrics, and Filename; not the seven number and flag fields, since `1` would find every first track (the owner, 2026-11-20). MusicBee says "all fields" (W-S) and does not list them. linuxBee's own. |
 | S-FOLD | Does searching "beyonce" find "Beyoncé"? | Yes here, always: a search ignores accents (the owner, 2026-11-20). In MusicBee it does so only when "ignore diacritic marks when searching" is ticked, and it is not by default (W-DIA). A difference, and meant. |
