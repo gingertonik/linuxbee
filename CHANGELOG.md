@@ -49,6 +49,7 @@ settings and the library file may still change.
 - **The Library page has a box for accents in search.** "Ignore accents when searching" sits under the start-up box and is ticked by default. Applying the page changes the track list at once, with the preferences still open, and the setting is kept as `library/searchIgnoresAccents`.
 - **`$Date` reads a date written with slashes** (`2021/12/31`, `2021/1/5`, `1998/03`, which means the 1st), as MusicBee's formulas build one; a day written first (`31/12/2021`) is still not read. **`$Group(x,n)` is now the first n letters of x in upper case** (`$Group(Deafheaven,3)` is `DEA`), as MusicBee describes it, where it gave an alphabet bucket; a first character that is not a letter still gives `#`.
 - **Organise and `linuxbeectl convert --template` no longer refuse a file with no track number.** A blank `Disc-Track#` in the naming template is now written `#` (as MusicBee does, `Adele/21/# Someone like You.mp3`), where such a file was refused for a missing tag or named `Unknown Disc-Track#`. A caller can change this with `PathRules::blankAs`; other blank fields behave as before.
+- **Queue Next now places the tracks after the earlier ones.** Queue Next twice put the second batch in front of the first; MusicBee puts it after any others added with the same command. A track waits from its Queue Next until it first plays, and a new Queue Next goes after the waiting ones that directly follow the playing track (under shuffle too). Tracks added with Queue Last do not wait this way.
 
 ## 0.8.0 (2026-11-18)
 

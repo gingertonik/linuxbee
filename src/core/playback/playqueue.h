@@ -2,6 +2,7 @@
 #include <QHash>
 #include <QList>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -76,6 +77,7 @@ private:
     std::mt19937 m_random;
     QList<qint64> m_upcoming; // shuffle: entry ids still to play, in order
     QList<qint64> m_history; // shuffle: entry ids played before the current one
+    QSet<qint64> m_waiting; // Q-EDIT: queueNext entries that have not yet become current
 };
 
 // Q-COUNT: what a finished play does to the statistics.

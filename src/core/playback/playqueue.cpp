@@ -51,6 +51,7 @@ void PlayQueue::playNow(const QStringList &paths, int startAt)
     // A new list is a new round, and the way back belonged to the old list.
     m_history.clear();
     m_upcoming.clear();
+    m_waiting.clear();
     if (m_shuffle)
         reshuffle();
     emit entriesChanged();
@@ -58,8 +59,9 @@ void PlayQueue::playNow(const QStringList &paths, int startAt)
     emit nextChanged();
 }
 
-// Right after the current entry, or at the remembered place with none.
-// Under shuffle the tracks are played next, in the order given.
+// Right after the current entry, or at the remembered place with none, and
+// after the earlier queueNext tracks still waiting there. Under shuffle the
+// tracks are played next, after the waiting ones, in the order given.
 void PlayQueue::queueNext(const QStringList &paths)
 {
     if (paths.isEmpty())
@@ -67,13 +69,20 @@ void PlayQueue::queueNext(const QStringList &paths)
     QList<Entry> fresh;
     for (const QString &path : paths)
         fresh.append(Entry { m_nextId++, path });
-    const int at = qBound(0, m_current < 0 ? m_resumeAt : m_current + 1, count());
+    int at = qBound(0, m_current < 0 ? m_resumeAt : m_current + 1, count());
+    while (at < count() && m_waiting.contains(m_entries.at(at).entryId))
+        ++at;
     m_entries = m_entries.mid(0, at) + fresh + m_entries.mid(at);
+    QList<qint64> ids;
+    for (const Entry &entry : fresh) {
+        ids.append(entry.entryId);
+        m_waiting.insert(entry.entryId);
+    }
     if (m_shuffle) {
-        QList<qint64> ids;
-        for (const Entry &entry : fresh)
-            ids.append(entry.entryId);
-        m_upcoming = ids + m_upcoming;
+        int front = 0;
+        while (front < m_upcoming.size() && m_waiting.contains(m_upcoming.at(front)))
+            ++front;
+        m_upcoming = m_upcoming.mid(0, front) + ids + m_upcoming.mid(front);
     }
     emit entriesChanged();
     emit nextChanged();
@@ -152,6 +161,7 @@ int PlayQueue::removeAt(const QList<int> &positions)
     for (int i = 0; i < count(); ++i) {
         if (gone.at(i)) {
             dropped.insert(m_entries.at(i).entryId);
+            m_waiting.remove(m_entries.at(i).entryId);
         } else {
             kept.append(m_entries.at(i));
         }
@@ -211,6 +221,7 @@ void PlayQueue::clear()
     m_entries.clear();
     m_upcoming.clear();
     m_history.clear();
+    m_waiting.clear();
     m_current = -1;
     m_resumeAt = 0;
     emit entriesChanged();
@@ -247,8 +258,10 @@ void PlayQueue::setCurrentInternal(int index)
     if (index == m_current)
         return;
     m_current = index;
-    if (index >= 0)
+    if (index >= 0) {
         m_resumeAt = index;
+        m_waiting.remove(m_entries.at(index).entryId); // Q-EDIT: it has become current
+    }
     emit currentChanged(index);
     emit nextChanged();
 }
