@@ -22,6 +22,9 @@ class MainWindow;
 class PlaylistEditing : public QObject {
     Q_OBJECT
 public:
+    // PE-DUPLICATES: the answers to "some are in the playlist already".
+    enum class DuplicateChoice { AddAgain, Skip, Cancel };
+
     // What must be asked of the user. Tests replace all of them.
     struct Hooks {
         // A name, with a title for the question and the text to start from.
@@ -37,6 +40,10 @@ public:
         // PE-ADD: one of the playlist `ids`, or the empty text for a new playlist. No value: gave
         // up.
         std::function<std::optional<QString>(const QStringList &ids)> choosePlaylist;
+        // PE-DUPLICATES: `count` of the tracks being added are in the playlist `id` already.
+        std::function<DuplicateChoice(const QString &id, int count)> askDuplicates;
+        // PE-DUPLICATES (W-GP): whether that is asked at all. None: ticked, the default.
+        std::function<bool()> warnOnDuplicates;
     };
 
     // Nothing handed in is owned; all of it must outlive this object.

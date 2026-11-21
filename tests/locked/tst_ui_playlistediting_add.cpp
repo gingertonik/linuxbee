@@ -147,6 +147,7 @@ struct Adding {
             r.asked.append(QStringLiteral("playlist:") + ids.join(QLatin1Char('|')));
             return choice;
         };
+        h.askDuplicates = [](const QString &, int) { return PlaylistEditing::DuplicateChoice::AddAgain; }; // PE-DUPLICATES
         r.editing = std::make_unique<PlaylistEditing>(&r.window, &r.actions, r.shell.get(), &r.playlists, h);
     }
     QString put(const char *from, const char *to)
