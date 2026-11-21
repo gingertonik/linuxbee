@@ -41,7 +41,14 @@ moves. The same path can be in the list more than once.
   becomes current; a `startAt` outside the list means the first entry; an
   empty list has no current entry.
 - `queueNext(paths)` inserts the tracks right after the current entry, in
-  the order given. A later `queueNext` goes in front of an earlier one.
+  the order given, and after any earlier `queueNext` tracks that are still
+  waiting there: "after any others that have been added with the same
+  command" (Now Playing Preferences; Main Panel Views says the same). A
+  track waits from its `queueNext` until it first becomes current (or
+  leaves the list). Only the waiting tracks that directly follow the
+  current entry (or the remembered place, with none) are passed over: one
+  moved away, or reached and left by Previous, is not (linuxBee's own
+  reading). `queueLast` tracks never wait this way.
 - `queueLast(paths)` adds them at the end.
 - `removeAt(positions)` removes the entries at those positions; positions
   that do not exist are ignored. `move(from, to)` moves one entry so that
@@ -97,7 +104,8 @@ round; the method is the implementation's own.
 - Previous goes back through the entries that were current before, most
   recent first, and returns -1 when there are none. Going back does not
   use the round up: Next afterwards retraces the same entries forward.
-- `queueNext` tracks are played next, in the order given.
+- `queueNext` tracks are played next, in the order given, after the
+  earlier waiting ones (Q-EDIT): in the order they were queued.
 - `queueLast` tracks join the current round at a place the seed's random
   sequence decides.
 - A removed entry leaves the round and the way back.

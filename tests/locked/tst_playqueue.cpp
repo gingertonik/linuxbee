@@ -163,11 +163,11 @@ void PlayQueueTest::queueing()
     q.playNow(letters("abcd"), 1);
     q.queueNext(letters("xy"));
     QCOMPARE(show(q), QStringLiteral("a[b]xycd"));
-    q.queueNext(letters("z")); // again: before the earlier ones
-    QCOMPARE(show(q), QStringLiteral("a[b]zxycd"));
+    q.queueNext(letters("z")); // again: after the earlier ones (W-NP)
+    QCOMPARE(show(q), QStringLiteral("a[b]xyzcd"));
     q.queueLast(letters("pq"));
-    QCOMPARE(show(q), QStringLiteral("a[b]zxycdpq"));
-    QCOMPARE(drain(q), QStringLiteral("zxycdpq"));
+    QCOMPARE(show(q), QStringLiteral("a[b]xyzcdpq"));
+    QCOMPARE(drain(q), QStringLiteral("xyzcdpq"));
     q.queueNext({ });
     q.queueLast({ });
     QCOMPARE(q.count(), 9);
@@ -175,7 +175,7 @@ void PlayQueueTest::queueing()
     PlayQueue fresh;
     fresh.queueLast(letters("ab"));
     fresh.queueNext(letters("c"));
-    QCOMPARE(show(fresh), QStringLiteral("cab"));
+    QCOMPARE(show(fresh), QStringLiteral("cab")); // ab came by queueLast, so c goes first
     QCOMPARE(fresh.currentIndex(), -1);
     QVERIFY(fresh.hasNext(true));
     QCOMPARE(fresh.next(true), 0);
