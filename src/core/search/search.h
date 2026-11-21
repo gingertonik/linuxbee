@@ -39,6 +39,9 @@ struct SearchCache {
 // S-CACHE: values folded for a match, in the whole process, since it started.
 qint64 searchValuesFolded();
 
+// S-CACHE: makes the track's joined value for options.fields, as a term with no field would.
+void prepareSearch(const TagSource &track, const SearchOptions &options, SearchCache *cache);
+
 class SearchQuery {
 public:
     // S-PARSE. Never fails: text that makes no sense as syntax is searched for

@@ -130,6 +130,12 @@ with another list makes `joined` again, from the fields the cache holds
 they are folded, so a field named after it is not folded again. Each
 value is folded once and counted once, joined or not.
 
+`prepareSearch(track, options, &cache)` makes `joined` for `options.fields`
+as a term with no field would, with no query: what the cache holds is not
+folded again, and a cache already made for that list is left as it is.
+With no cache it does nothing. A caller that has time before the first
+keystroke (the track list, T-MODEL) spends it here.
+
 `searchValuesFolded()` counts, for the whole process since it started,
 the values folded for a match, with a cache or without. It is for tests
 and for timing; nothing decides anything by it.
