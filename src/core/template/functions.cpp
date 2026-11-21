@@ -405,16 +405,9 @@ QString callGroup(const std::vector<Argument> &arguments, const EvalContext &con
     // T-GROUP: an empty x, an n below 1, or an n that is not a count.
     if (x.isEmpty() || !letters.has_value() || *letters < 1)
         return { };
-    const QChar first = x.at(0).toUpper();
-    if (first < u'A' || first > u'Z')
-        return QStringLiteral("#"); // T-GROUP
-    const int position = int(first.unicode()) - int(u'A');
-    const int start = (position / *letters) * *letters;
-    const int stop = std::min(start + *letters, 26); // T-GROUP: the last bucket stops at Z
-    QString out;
-    for (int index = start; index < stop; ++index)
-        out += QChar(int(u'A') + index);
-    return out;
+    if (!x.at(0).isLetter())
+        return QStringLiteral("#"); // T-GROUP: the first character is not a letter
+    return x.left(*letters).toUpper(); // T-GROUP: the first n characters, upper case
 }
 
 QString callDate(const std::vector<Argument> &arguments, const EvalContext &context)
