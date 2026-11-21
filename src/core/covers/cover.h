@@ -21,8 +21,11 @@ struct Cover {
 };
 
 struct CoverOptions {
-    QList<Cover::Source> order = { Cover::Source::Embedded, Cover::Source::File };
+    QList<Cover::Source> order = { Cover::Source::File, Cover::Source::Embedded }; // CV-FIND, W-TP
     bool data = true;
+    // CV-FIND: with File in the order, linuxBee's own names (folder, album, albumart, the lone
+    // picture) are tried after every source; false: within the File step, after MusicBee's names.
+    bool fallbackLast = true;
 };
 
 // CV-EMBEDDED: the position of the cover among a file's pictures; -1: none.

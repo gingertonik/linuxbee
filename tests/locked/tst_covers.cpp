@@ -62,6 +62,7 @@ CoverOptions fileFirst()
 {
     CoverOptions o;
     o.order = { Cover::Source::File, Cover::Source::Embedded };
+    o.fallbackLast = false; // every file before the picture inside
     return o;
 }
 
@@ -94,7 +95,7 @@ void CoversTest::embedded()
 void CoversTest::names()
 {
     // CV-FILE
-    QCOMPARE(coverNames(), QStringList({ s(u"cover"), s(u"folder"), s(u"front"), s(u"album"), s(u"albumart") }));
+    QCOMPARE(coverNames(), QStringList({ s(u"cover"), s(u"artwork"), s(u"front"), s(u"folder"), s(u"album"), s(u"albumart") }));
 }
 
 void CoversTest::fileInFolder_data()
@@ -106,8 +107,8 @@ void CoversTest::fileInFolder_data()
     QTest::newRow("cover") << QStringList { s(u"cover.jpg") } << s(u"cover.jpg");
     QTest::newRow("folder") << QStringList { s(u"folder.jpg") } << s(u"folder.jpg");
     QTest::newRow("cover before folder") << QStringList { s(u"folder.jpg"), s(u"cover.jpg") } << s(u"cover.jpg");
-    QTest::newRow("folder before front") << QStringList { s(u"front.jpg"), s(u"folder.png") } << s(u"folder.png");
-    QTest::newRow("front before album") << QStringList { s(u"album.jpg"), s(u"front.png") } << s(u"front.png");
+    QTest::newRow("front before folder") << QStringList { s(u"front.jpg"), s(u"folder.png") } << s(u"front.jpg"); // W-TP
+    QTest::newRow("folder before album") << QStringList { s(u"album.jpg"), s(u"folder.png") } << s(u"folder.png");
     QTest::newRow("album before albumart") << QStringList { s(u"albumart.jpg"), s(u"album.jpeg") } << s(u"album.jpeg");
     QTest::newRow("albumart") << QStringList { s(u"albumart.png"), s(u"scan.jpg") } << s(u"albumart.png");
     QTest::newRow("case of the name") << QStringList { s(u"Folder.JPG") } << s(u"Folder.JPG");
@@ -213,6 +214,7 @@ void CoversTest::findWithoutData()
     const QString folderFile = place.file(u"a/cover.png", QByteArray("12345"));
     CoverOptions o;
     o.data = false;
+    o.order = { Cover::Source::Embedded }; // by default a cover file comes first (W-TP)
     Cover c = findCover(withPicture, o);
     QVERIFY(c.source == Cover::Source::Embedded);
     QCOMPARE(c.byteCount, qsizetype(69));
