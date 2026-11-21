@@ -7,6 +7,8 @@
 #include <QHash>
 #include <QSet>
 
+class QTimer;
+
 namespace linuxbee::ui {
 
 // The state behind TrackListModel, shared by tracklistmodel.cpp (changes and
@@ -51,6 +53,19 @@ struct TrackListModel::Private {
     QList<int> shown; // slots, in the order shown: the rows
     qint64 shownBytes = 0;
     qint64 shownMs = 0;
+
+    // T-MODEL "Prepared ahead": slots whose search value may not be made yet, worked
+    // through from todoAt, at most kPiece of them for each pass of `timer` (the model's child).
+    static constexpr int kPiece = 256;
+    QTimer *timer = nullptr;
+    QList<int> todo;
+    qsizetype todoAt = 0;
+    // Queues a slot, and starts the timer.
+    void enqueue(int slot);
+    // One piece: prepares at most kPiece queued tracks; stops the timer when none is left.
+    void prepareSome();
+    // True when every live track's search value is made.
+    bool allPrepared() const;
 
     const LibraryTrack &trackAt(int slot) const { return held.at(slot).track; }
 

@@ -46,6 +46,7 @@ public:
     void setFilter(const SearchQuery &query);
 
     int totalCount() const; // before the filter
+    bool searchPrepared() const; // T-MODEL "Prepared ahead": every track's search value is made
     qint64 trackId(int row) const; // 0 for a row that does not exist
     int rowOf(qint64 id) const; // -1 when not shown
     QString summary() const; // T-SUMMARY over the rows shown

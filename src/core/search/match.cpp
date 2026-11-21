@@ -210,6 +210,14 @@ bool SearchQuery::matches(
     return true;
 }
 
+// S-CACHE: what a term with no field would make, with no query.
+void prepareSearch(const TagSource &track, const SearchOptions &options, SearchCache *cache)
+{
+    if (!cache)
+        return;
+    joinedOf(track, options, *cache);
+}
+
 qint64 searchValuesFolded()
 {
     return foldedCount.load(std::memory_order_relaxed);

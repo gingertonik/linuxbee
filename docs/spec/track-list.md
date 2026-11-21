@@ -159,6 +159,22 @@ look at each track and no more. So the model keeps two things:
   are set anew. A second filter over the same tracks folds only values
   the first did not need.
 
+**Prepared ahead.** The first keystroke would otherwise fold every
+value of every track (29 fields, S-FIELDS: about 120 ms in Release for
+17,000 tracks, measured 2026-11-20). So after tracks are given or
+replaced (`setTracks`, `upsertTracks`) the model makes each track's
+search value (`prepareSearch`, S-CACHE, for the default fields) while the
+event loop is idle: in pieces of at most 256 tracks, one piece for each
+pass of a zero-time timer, so the window keeps answering. Nothing is
+folded ahead inside `setTracks`, `upsertTracks`, `removeTracks` or
+`setFilter` themselves (they fold what the filter in force needs, as
+before, and no more). A filter set before the pieces are done answers
+as it would have, and each value is still folded once in all. Folding
+ahead changes no row and sends no signal. `searchPrepared()` is true when
+every track's value is made. The cost: every track's folded values are
+held from the start rather than from the first keystroke (about 23 MB of
+text for 17,000 tracks).
+
 **T-ROWS: one track, one row.** A change of a few tracks must not cost
 the whole list. So the model also keeps, for each track, the values of
 the sort keys in force, prepared (T-PREPARED), and:
