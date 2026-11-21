@@ -120,9 +120,14 @@ QString computedValue(const TrackTags &tags, const QString &path, const QString 
         return album + QStringLiteral(" [") + year + QLatin1Char(']');
     }
 
-    // F-DISPLAY: until artist roles exist, the Artist values joined.
-    if (name == QLatin1String("Display Artist"))
-        return tags.joined(QStringLiteral("Artist"));
+    // F-DISPLAY: the DISPLAY ARTIST tag (kept among the other tags), its values joined and
+    // trimmed; when it is missing or blank, the Artist values joined.
+    if (name == QLatin1String("Display Artist")) {
+        const QString own = tags.other.value(QStringLiteral("DISPLAY ARTIST"))
+                                .join(QStringLiteral("; "))
+                                .trimmed();
+        return own.isEmpty() ? tags.joined(QStringLiteral("Artist")) : own;
+    }
 
     // W-SF: "Artist - Title" when both are set, otherwise the filename.
     if (name == QLatin1String("Artist & Title") || name == QLatin1String("ArtistAndTitle")) {
