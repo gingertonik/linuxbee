@@ -173,12 +173,15 @@ When no word applies, x is returned unchanged. The default list is `The`
 
 ### T-GROUP
 
-Take the first character of x after trimming and upper-casing. If it is not
-`A` to `Z`, the result is `#`. Otherwise number the alphabet from 0, find
-the bucket of n letters the character falls in (bucket start = position
-divided by n, rounded down, times n), and return the letters of that bucket,
-stopping at `Z`. For `Deafheaven`: n=3 gives `DEF`, n=4 gives `ABCD` (F-C).
-An empty x or an n below 1 gives an empty string.
+x is trimmed. If its first character is not a letter (of any script), the
+result is `#`. Otherwise the result is the first n characters of x, in
+upper case, or all of x when it is shorter. For `Deafheaven`: n=3 gives
+`DEA`, n=4 gives `DEAF`; for `The Beatles`, n=1 gives `T` (W-F: "the first
+# letters"; the owner's ruling of 2026-11-20, which drops the alphabet
+buckets the forum's cheatsheet describes). The characters after the first
+are taken as they are (`AC/DC`, n=3: `AC/`). An empty x or an n below 1
+gives an empty string. The `#` for a first character that is not a letter is
+linuxBee's own.
 
 ### T-CASE
 
@@ -231,8 +234,14 @@ and `$RSplit` are case-sensitive.
 ### T-DATE
 
 `$Date(x,format)` reads x as one of: an ISO 8601 date (`2021-12-31`), an ISO
-8601 date and time (`2021-12-31T19:30:00`), or a four-digit year (`1999`,
-meaning 1 January). Anything else gives an empty string. Tag sources supply
+8601 date and time (`2021-12-31T19:30:00`), a four-digit year (`1999`,
+meaning 1 January), or a year, a month and a day with slashes
+(`2021/12/31`, `2021/1/5`), or a year and a month (`1998/03`, meaning its
+1st). W-VTF builds such a text to format it; the year and month alone are
+linuxBee's own. A time may follow the day as in the ISO form
+(`2021/12/31 19:30`). Spaces round x are ignored; a date that does not exist
+(`2021/02/30`) or a day written first (`31/12/2021`) gives an empty string,
+as anything else does. Tag sources supply
 date fields in one of those forms.
 
 The format is scanned left to right. At each position the longest token

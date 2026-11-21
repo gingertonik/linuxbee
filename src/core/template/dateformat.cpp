@@ -14,8 +14,11 @@
 namespace linuxbee::tmpl {
 namespace {
 
-// T-DATE: an ISO 8601 date, an ISO 8601 date and time, or a four-digit year
-// meaning 1 January. Anything else is not a date.
+// T-DATE: an ISO 8601 date, an ISO 8601 date and time, a four-digit year
+// meaning 1 January, a year, month and day with slashes (one or two digits
+// for month and day, a time may follow the day), or a year and month with a
+// slash meaning the 1st. Spaces round x are ignored. Anything else is not a
+// date.
 std::optional<QDateTime> readDate(const QString &value)
 {
     // Built once; QRegularExpression is reentrant when used read-only.
@@ -26,7 +29,24 @@ std::optional<QDateTime> readDate(const QString &value)
             return std::nullopt;
         return QDateTime(date, QTime(0, 0));
     }
-    const QDateTime parsed = QDateTime::fromString(value, Qt::ISODate);
+    // Built once, as above. Year, month, then optionally a day and a time.
+    static const QRegularExpression kSlashes(
+        QStringLiteral("^(\\d{4})/(\\d{1,2})(?:/(\\d{1,2})(?:[ T](\\S+))?)?$"));
+    const QRegularExpressionMatch slashed = kSlashes.match(value.trimmed());
+    if (slashed.hasMatch()) {
+        const QDate date(slashed.captured(1).toInt(), slashed.captured(2).toInt(),
+            slashed.hasCaptured(3) ? slashed.captured(3).toInt() : 1);
+        if (!date.isValid())
+            return std::nullopt;
+        QTime time(0, 0);
+        if (slashed.hasCaptured(4)) {
+            time = QTime::fromString(slashed.captured(4), Qt::ISODate);
+            if (!time.isValid())
+                return std::nullopt;
+        }
+        return QDateTime(date, time);
+    }
+    const QDateTime parsed = QDateTime::fromString(value.trimmed(), Qt::ISODate);
     if (!parsed.isValid())
         return std::nullopt;
     return parsed;
