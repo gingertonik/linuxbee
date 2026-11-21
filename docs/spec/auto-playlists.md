@@ -23,8 +23,9 @@ default) or albums; "selected by" random (the default), highest or lowest
 rating, most or least recently played, most or least often played, most or
 least recently added; an option to filter out duplicates, off by default;
 automatic refreshing, on by default. How ties are broken, how a limit in
-minutes treats the track that does not fit, and how a duplicate is decided
-are not documented; those rules are linuxBee's. MusicBee's own file for
+minutes treats the track that does not fit, and which duplicate is kept
+are not documented; those rules are linuxBee's. What counts as a duplicate
+is (A-DUP). MusicBee's own file for
 auto-playlists has its parts named in public (W-API) but not the codes
 for fields and comparisons; it is not read.
 
@@ -47,10 +48,18 @@ order the tracks were given in.
 ### A-DUP
 
 With `filterDuplicates`, a candidate is dropped when an earlier candidate
-has the same artist, title and album. "The same" compares the track's
-Artist values joined by `; `, its first Title and its first Album, each
-folded (S-FOLD) and trimmed. The same song on two albums is two tracks
-(as MusicBee does; the owner, from memory, 2026-11-14).
+has the same artist and title. W-AP labels the option "filter out
+duplicates when the same track is repeated on multiple albums" and says
+the files "have the same artist and title"; the album does not count (the
+owner's ruling of 2026-11-20, which replaces the album rule of
+2026-11-14). "The same" compares the track's Artist values joined by `; `,
+in their order, and its first Title, each folded (S-FOLD) and trimmed. A
+track whose title is blank (none, empty or white space) is never a
+duplicate (linuxBee's own).
+
+Which one is kept: W-AP says the duplicate manager's hierarchy decides, and
+no public page describes that hierarchy. linuxBee keeps the earliest
+candidate in the order the tracks were given, before the selection order.
 
 ### A-SELECT
 
@@ -131,5 +140,5 @@ track.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | A-LIMIT | With "limit to 60 minutes", is a track that would pass 60 skipped and a shorter one tried? linuxBee stops. |
-| A-DUP | Settled 2026-11-14 (the owner, from memory): artist, title and album. |
+| A-DUP | Settled 2026-11-20 (the owner, on W-AP): artist and title. Which copy MusicBee keeps (the duplicate manager's hierarchy) is open; linuxBee keeps the first given. |
 | A-SELECT | Under "most recently played", where do never-played tracks go? linuxBee: last. |
