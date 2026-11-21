@@ -9,7 +9,7 @@
 namespace linuxbee::ui {
 
 void installLibraryPreferences(ToolsShell *tools, BackgroundShell *background, QSettings *settings,
-    std::function<QString(QWidget *parent)> chooseFolder)
+    std::function<QString(QWidget *parent)> chooseFolder, std::function<void()>)
 {
     // LP-INSTALL: each page made is over these settings, has this chooser, and
     // tells the background shell when it stored something (BG-RELOAD).

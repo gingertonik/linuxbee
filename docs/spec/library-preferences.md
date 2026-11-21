@@ -31,6 +31,7 @@ The page's title is `Library`. Its widgets, by object name:
 | `removeFolderButton` | button | enabled only while a row is the current one |
 | `sectionCombo` | combo box, not editable | the library's sections (`Library::categories()`, in that order) |
 | `checkOnStartupBox` | check box | BG-STARTUP |
+| `ignoreAccentsBox` | check box, "Ignore accents when searching" (linuxBee's own words) | S-FOLD, SH-SEARCH |
 
 ## LP-LOAD
 
@@ -42,6 +43,7 @@ group `library`:
 | `monitored` | the folders, each tidied (`QDir::cleanPath`), in the stored order. Left out: an empty entry, a path that is not absolute, a folder already shown |
 | `monitoredCategory` | the section; `Inbox` when missing or not a section |
 | `checkOnStartup` | checked when the stored text is `true` (in any case of letters) or `1`; not checked otherwise |
+| `searchIgnoresAccents` | checked unless the stored text is `false` (in any case of letters) or `0`: checked when missing |
 
 Values are read as a later run of the program finds them, which is as
 text: a single folder is one plain text, true is the text `true`.
@@ -78,18 +80,18 @@ when the answer of `isModified()` changes.
 ## LP-APPLY
 
 `apply()` never refuses. When the page is not modified it does nothing.
-Otherwise it stores `monitored` (a list), `monitoredCategory` and
-`checkOnStartup` (a truth value), after which the page is not modified,
+Otherwise it stores `monitored` (a list), `monitoredCategory`,
+`checkOnStartup` and `searchIgnoresAccents` (truth values), after which the page is not modified,
 and then calls the `stored` hook once. Other keys of the group are left
 alone. Editing alone stores nothing.
 
 ## LP-INSTALL
 
-`installLibraryPreferences(tools, background, settings, chooseFolder)`
-adds a page factory to the tools shell (tools-shell.md, TS-PREFERENCES).
+`installLibraryPreferences(tools, background, settings, chooseFolder,
+searchStored)` (the last two may be left out) adds a page factory to the tools shell (tools-shell.md, TS-PREFERENCES).
 Each page it makes is over those settings, has that `chooseFolder`, and
 has a `stored` hook that calls the background shell's `reload()`
-(BG-RELOAD). So applying the page changes what is watched at once, with
+(BG-RELOAD), then calls `searchStored` when one was given. So applying the page changes what is watched at once, with
 the dialog still open, and a folder that was added is scanned at once.
 
 ## LP-MAIN
@@ -97,7 +99,9 @@ the dialog still open, and a folder that was added is scanned at once.
 `src/app/main.cpp` additionally:
 
 - calls `installLibraryPreferences` with the default chooser, after the
-  background shell exists;
+  background shell exists, and with a `searchStored` that calls the
+  library shell's `readSearchSettings()` (SH-SEARCH), so the box takes
+  effect at once;
 - understands `--pages` (added to the usage line): after everything has
   been created, and without showing the window, it prints the title of
   every preferences page, one per line in order, and ends with status 0.
