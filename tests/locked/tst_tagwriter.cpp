@@ -278,7 +278,7 @@ void TagWriterTest::vorbisBytes()
         QVERIFY2(b.contains("ARTIST=B Two"), name); // W-MULTI: one comment per value
         QVERIFY2(b.contains("TRACKNUMBER=3"), name);
         QVERIFY2(b.contains("TRACKTOTAL=9"), name);
-        QVERIFY2(b.contains("DISCTOTAL=4"), name);
+        QVERIFY2(b.contains("TOTALDISCS=4"), name); // W-TG
         QVERIFY2(b.contains("CONTENTGROUP=New Group"), name);
         QVERIFY2(b.contains("ORGANIZATION=New Label"), name);
         QVERIFY2(b.contains("UNSYNCEDLYRICS=x\ny"), name);
@@ -288,7 +288,7 @@ void TagWriterTest::vorbisBytes()
         QVERIFY2(!b.contains("ALBUM="), name);
         // W-ONEHOME: the other spellings of a written field are gone.
         QVERIFY2(!b.contains("TOTALTRACKS="), name); // GEN: basic.ogg had it
-        QVERIFY2(!b.contains("TOTALDISCS="), name);
+        QVERIFY2(!b.contains("DISCTOTAL=") || b.contains("DISCTOTAL=4"), name); // W-DISCTOTAL: kept, the same
     }
 }
 

@@ -272,7 +272,9 @@ file was seen with either.
 
 Every text property that no catalogue field claimed goes to `other` under
 its upper-cased key, values in file order, empty values dropped. This
-includes the losing key when two keys feed one field.
+includes the losing key when two keys feed one field. When DISCTOTAL and TOTALDISCS hold the same
+values they are one tag, and neither goes to `other` (tag-writing.md, W-DISCTOTAL: linuxBee keeps them
+equal); when they differ, TOTALDISCS goes to `other` as the losing key.
 
 ### R-UNSUPPORTED
 
