@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QString>
 #include <QStringList>
 
@@ -23,6 +24,9 @@ struct TemplateOptions {
     // renders as "Unknown <field name>". Fields inside function arguments
     // are never replaced. See docs/spec/templates.md, T-BLANK.
     bool unknownForBlank = false;
+    // T-BLANK: the text a blank top-level field gives instead, by field name (names ignore
+    // case). Comes before unknownForBlank. Empty by default.
+    QHash<QString, QString> blankAs;
     QStringList ignoreWords = { QStringLiteral("The") };
     QString multiValueSeparator = QStringLiteral("; ");
 };

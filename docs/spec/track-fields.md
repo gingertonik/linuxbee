@@ -77,6 +77,9 @@ A catalogue field gives its values joined with `"; "`, exactly as
 
 Disc 1, track 11 is `01-11` (W-H).
 
+The field itself is blank with no track number; when organising, a blank
+Disc-Track# in the naming template is written `#` (paths.md, P-PLACEHOLDER).
+
 ### F-YEAR
 
 The four-digit year is the first run of exactly four digits in the first

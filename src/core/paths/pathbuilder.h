@@ -27,6 +27,10 @@ struct PathRules {
     // (Status::MissingTags). When false, the field renders as "Unknown <name>".
     bool skipWhenTagsMissing = true;
 
+    // P-PLACEHOLDER: a blank top-level field named here is written as its text, in either
+    // way of skipWhenTagsMissing, and never counts as missing. By default Disc-Track# is `#`.
+    QHash<QString, QString> blankAs = { { QStringLiteral("Disc-Track#"), QStringLiteral("#") } };
+
     // Ignore words and the multi-value separator for the template.
     // unknownForBlank is set from skipWhenTagsMissing and is ignored here.
     TemplateOptions templateOptions;

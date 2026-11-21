@@ -20,6 +20,14 @@ QString fieldText(const QString &name, const EvalContext &context, bool topLevel
         out += QLatin1Char('>');
         return out;
     }
+    if (topLevel && value->trimmed().isEmpty()) {
+        // T-BLANK: a blank field named in blankAs (names ignore case) gives its text.
+        for (auto it = context.options.blankAs.constBegin();
+            it != context.options.blankAs.constEnd(); ++it) {
+            if (it.key().compare(name, Qt::CaseInsensitive) == 0)
+                return it.value();
+        }
+    }
     if (value->isEmpty() && topLevel && context.options.unknownForBlank)
         return QStringLiteral("Unknown ") + name;
     return *value;

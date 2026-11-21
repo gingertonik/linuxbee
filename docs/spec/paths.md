@@ -70,10 +70,22 @@ On any status other than `Ok`, `relativePath` is empty.
   empty or only white space. A field the source does not know is not blank;
   it prints as `<Name>` (templates spec, T-UNKNOWN) and is then cleaned like
   any other text.
-- `missingFields` lists the blank top-level fields in template order.
+- `missingFields` lists the blank top-level fields in template order,
+  except one named in `PathRules::blankAs` (P-PLACEHOLDER).
 - A field inside a function argument never counts. This is what makes the
   documented idiom `$IsNull(<Album>,,<Album>\)` work: a blank album simply
   leaves its folder out (W-T).
+
+### P-PLACEHOLDER
+
+- `PathRules::blankAs` names fields whose blank top-level value is written
+  as a text of its own (templates.md, T-BLANK), whatever
+  `skipWhenTagsMissing` says, and such a field never counts as missing. By
+  default it holds one entry: `Disc-Track#` is `#`. So a track with no
+  number is named `Adele/21/# Someone like You.mp3`, as W-H shows, and is
+  not refused for it. W-H drops the field with `$IsNull(<Disc-Track#>,,...)`:
+  inside a function the field is still blank.
+- A caller that empties `blankAs` has the rule of P-MISSING alone.
 
 ## 3. Separators and the value filter
 
