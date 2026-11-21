@@ -256,8 +256,8 @@ void TemplateTest::sortingAndGrouping_data()
     row("sort", s(u"$Sort(<Artist>)"), s(u"Beatles, The"));               // F-C
     row("sort-no-ignore-word", s(u"$Sort(<Title>)"), s(u"One Two Three")); // W-F
     row("removesortwords", s(u"$RemoveSortWords(<Artist>)"), s(u"Beatles")); // F-C
-    row("group-3", s(u"$Group(<Album Artist>,3)"), s(u"DEF"));            // F-C
-    row("group-4", s(u"$Group(<Album Artist>,4)"), s(u"ABCD"));           // F-C
+    row("group-3", s(u"$Group(<Album Artist>,3)"), s(u"DEA"));            // W-F
+    row("group-4", s(u"$Group(<Album Artist>,4)"), s(u"DEAF"));           // W-F
     row("group-non-letter", s(u"$Group(1999,3)"), s(u"#"));               // T-GROUP
 }
 
