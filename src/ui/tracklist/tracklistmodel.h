@@ -44,6 +44,9 @@ public:
     void upsertTracks(const QList<LibraryTrack> &tracks); // add, or replace by id
     void removeTracks(const QList<qint64> &ids);
     void setFilter(const SearchQuery &query);
+    // T-MODEL "Accents": true by default.
+    bool searchIgnoresAccents() const;
+    void setSearchIgnoresAccents(bool on);
 
     int totalCount() const; // before the filter
     bool searchPrepared() const; // T-MODEL "Prepared ahead": every track's search value is made
