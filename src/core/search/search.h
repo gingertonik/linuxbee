@@ -12,12 +12,15 @@ namespace linuxbee {
 
 // S-FOLD: lower case, accents removed. "Beyoncé" and "BEYONCE" fold alike.
 QString foldForSearch(const QString &text);
+// S-FOLD, either way: ignoring accents as above, or heeding them (NFKC, lower case).
+QString foldForSearch(const QString &text, bool ignoreAccents);
 
 // S-FIELDS: the fields a plain word is looked for in.
 QStringList defaultSearchFields();
 
 struct SearchOptions {
     QStringList fields = defaultSearchFields();
+    bool ignoreAccents = true; // S-FOLD: false heeds accents (still not case)
 };
 
 // S-CACHE: what one track's fields fold to, remembered between matches.
@@ -29,6 +32,7 @@ struct SearchCache {
         QString folded;
     };
     QHash<QString, Entry> fields; // by the field's name in lower case
+    bool accentsHeeded = false; // the way the values here are folded (S-CACHE)
     // For a term with no field: the folded values of the search fields the track knows,
     // in the order of joinedFor, each from the next by U+001F. Made once for that list.
     bool joinedMade = false;
@@ -55,10 +59,13 @@ public:
     bool matches(const TagSource &track, const SearchOptions &options, SearchCache *cache) const;
     // S-CANONICAL: the query written out in full, for showing and testing.
     QString canonical() const;
+    // S-CANONICAL: alike when every term is alike, both ways of folding.
+    bool operator==(const SearchQuery &other) const;
 
     struct Term {
         QString field; // folded; empty: any of SearchOptions::fields
-        QString text; // folded
+        QString text; // folded, accents ignored
+        QString textKept; // folded, accents heeded
         bool negated = false;
     };
     // A track matches when, in every group, at least one term matches.

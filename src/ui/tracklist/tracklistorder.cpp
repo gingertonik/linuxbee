@@ -56,7 +56,7 @@ int TrackListModel::Private::lowerBound(const QList<int> &list, const Place &pla
 
 bool TrackListModel::Private::accepts(const LibraryTrack &track, SearchCache *cache) const
 {
-    return filter.isEmpty() || filter.matches(LibraryFieldSource(track), { }, cache);
+    return filter.isEmpty() || filter.matches(LibraryFieldSource(track), options, cache);
 }
 
 void TrackListModel::Private::prepareAll()

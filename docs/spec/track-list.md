@@ -175,6 +175,16 @@ every track's value is made. The cost: every track's folded values are
 held from the start rather than from the first keystroke (about 23 MB of
 text for 17,000 tracks).
 
+**Accents.** `searchIgnoresAccents()` is true by default (S-FOLD).
+`setSearchIgnoresAccents(on)` with the value it has does nothing. With the
+other value it folds nothing inside the call and leaves the rows as they
+are; every track is folded again the new way in the pieces of "Prepared
+ahead" (never the whole list in one pass of the event loop), and when the
+last piece is done the rows are worked out again for the filter in force,
+folding nothing more (no filter: no rows to work out, no signal). A filter
+set in between answers the new way. `setFilter` changes nothing only for a
+query alike (`==`, S-CANONICAL) to the one in force.
+
 **T-ROWS: one track, one row.** A change of a few tracks must not cost
 the whole list. So the model also keeps, for each track, the values of
 the sort keys in force, prepared (T-PREPARED), and:

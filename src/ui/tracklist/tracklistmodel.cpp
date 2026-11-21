@@ -9,11 +9,6 @@ namespace linuxbee::ui {
 
 namespace {
 
-bool madeForDefault(const SearchCache &cache, const QStringList &fields)
-{
-    return cache.joinedMade && cache.joinedFor == fields;
-}
-
 // Numbers, durations and sizes line up on the right; text on the left. Both
 // are vertically centred.
 int alignmentFor(const QString &field)
@@ -34,7 +29,15 @@ TrackListModel::TrackListModel(QObject *parent)
     d->setSortFields(defaultSort());
     d->timer = new QTimer(this);
     d->timer->setInterval(0);
-    connect(d->timer, &QTimer::timeout, this, [this]() { d->prepareSome(); });
+    connect(d->timer, &QTimer::timeout, this, [this]() {
+        if (!d->prepareSome())
+            return;
+        // T-MODEL "Accents": every track is folded the new way; the rows follow, folding nothing.
+        beginResetModel();
+        d->refilter();
+        endResetModel();
+        emit summaryChanged();
+    });
 }
 
 void TrackListModel::Private::enqueue(int slot)
@@ -44,34 +47,38 @@ void TrackListModel::Private::enqueue(int slot)
         timer->start();
 }
 
-void TrackListModel::Private::prepareSome()
+bool TrackListModel::Private::prepareSome()
 {
-    const QStringList fields = defaultSearchFields();
+    const QStringList &fields = options.fields;
     int done = 0;
     while (todoAt < todo.size() && done < kPiece) {
         const int slot = todo.at(todoAt++);
         if (slot >= held.size() || !held.at(slot).live)
             continue;
         Entry &entry = held[slot];
-        if (madeForDefault(entry.cache, fields))
+        if (madeFor(entry.cache, fields))
             continue;
-        prepareSearch(LibraryFieldSource(entry.track), { }, &entry.cache);
+        prepareSearch(LibraryFieldSource(entry.track), options, &entry.cache);
         ++done;
     }
     if (todoAt >= todo.size()) {
         todo.clear();
         todoAt = 0;
         timer->stop();
+        if (refilterPending) {
+            refilterPending = false;
+            return !filter.isEmpty();
+        }
     }
+    return false;
 }
 
 bool TrackListModel::Private::allPrepared() const
 {
-    const QStringList fields = defaultSearchFields();
+    const QStringList &fields = options.fields;
     for (qsizetype i = todoAt; i < todo.size(); ++i) {
         const int slot = todo.at(i);
-        if (slot < held.size() && held.at(slot).live
-            && !madeForDefault(held.at(slot).cache, fields))
+        if (slot < held.size() && held.at(slot).live && !madeFor(held.at(slot).cache, fields))
             return false;
     }
     return true;
@@ -173,6 +180,7 @@ void TrackListModel::setTracks(const QList<LibraryTrack> &tracks)
     d->todo.clear();
     d->todoAt = 0;
     d->timer->stop();
+    d->refilterPending = false; // reorder() below works the rows out the way now in force
     for (const LibraryTrack &track : tracks)
         d->put(track, false);
     d->reorder();
@@ -400,13 +408,40 @@ void TrackListModel::removeTracks(const QList<qint64> &ids)
 
 void TrackListModel::setFilter(const SearchQuery &query)
 {
-    if (query.canonical() == d->filter.canonical())
+    if (query == d->filter)
         return;
     beginResetModel();
     d->filter = query;
     d->refilter(); // the kept order stays: a keystroke sorts nothing
     endResetModel();
     emit summaryChanged();
+}
+
+bool TrackListModel::searchIgnoresAccents() const
+{
+    return d->options.ignoreAccents;
+}
+
+void TrackListModel::setSearchIgnoresAccents(bool on)
+{
+    // T-MODEL "Accents": nothing is folded and no row changes in this call. Every track is
+    // queued to be folded again in the pieces of "Prepared ahead"; the last piece works the
+    // rows out for the filter in force.
+    if (on == d->options.ignoreAccents)
+        return;
+    d->options.ignoreAccents = on;
+    d->todo.clear();
+    d->todoAt = 0;
+    d->todo.reserve(d->held.size());
+    for (int slot = 0; slot < d->held.size(); ++slot) {
+        if (d->held.at(slot).live)
+            d->todo.append(slot);
+    }
+    d->refilterPending = !d->todo.isEmpty();
+    if (d->refilterPending)
+        d->timer->start();
+    else
+        d->timer->stop();
 }
 
 int TrackListModel::totalCount() const

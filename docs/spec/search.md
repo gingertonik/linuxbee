@@ -32,6 +32,14 @@ ligature folds to `fi`. U+001F (the unit separator) becomes a space, so
 that no folded value and no folded term holds it (S-CACHE); a broken tag
 may hold one. Nothing else is changed; spaces and punctuation stay.
 
+**Accents heeded.** With `SearchOptions::ignoreAccents` false (it is true
+by default), a text folds by compatibility composition (NFKC), then lower
+case, U+001F becoming a space as above: case is still ignored and accents
+count, so `Beyoncé` and `BEYONCÉ` fold alike and `beyonce` does not, and
+a decomposed `é` is the composed one. Ligatures and wide letters fold as
+before (`ﬁ` to `fi`). `foldForSearch(text, ignoreAccents)` folds either
+way; `foldForSearch(text)` ignores accents.
+
 ## S-FIELDS
 
 A term with no field name is looked for in each field of
@@ -54,6 +62,9 @@ does not say which).
 ## S-PARSE
 
 The text is cut into tokens at white space, except inside double quotes.
+Each term's text is folded both ways (S-FOLD): `text` with accents
+ignored, `textKept` with them heeded. A field's name is folded with
+accents ignored, always. A match takes the form its options ask for.
 
 - A token is the characters up to the next white space. A `"` opens a
   quoted part that runs to the next `"`, or to the end of the text if there
@@ -130,6 +141,10 @@ with another list makes `joined` again, from the fields the cache holds
 they are folded, so a field named after it is not folded again. Each
 value is folded once and counted once, joined or not.
 
+A cache holds values folded one way: `accentsHeeded` says which. A match
+or `prepareSearch` the other way empties it first, then folds that way, so
+the answer is always the one asked for; each value is counted again.
+
 `prepareSearch(track, options, &cache)` makes `joined` for `options.fields`
 as a term with no field would, with no query: what the cache holds is not
 folded again, and a cache already made for that list is left as it is.
@@ -147,7 +162,10 @@ quotes, with `field:` before it if it has one (the name in double quotes
 too when it contains a space) and `-` before that if it is negated; the terms of a group joined by ` OR `
 (a `+` is written so too); the groups joined by one
 space. An empty query is an empty text. Parsing the canonical text gives
-the same query.
+the same query, with accents ignored: the canonical text is written in
+that form, so `beyonce` and `beyoncé` have the same one. Two queries are
+alike (`==`) when their groups and terms are, each term's field, both of
+its texts and whether it is negated.
 
 (A text that itself contains a double quote cannot be written this way
 and is not expected to survive the round trip.)
