@@ -97,7 +97,12 @@ MPEG-4). Removing a field that is not there is no change.
 The key each field is written under. TagLib turns the key into the frame,
 comment or atom for the format (TL).
 
-| Field | ID3v2 (MP3, WAV) | Vorbis comment (FLAC, Ogg, Opus) | MPEG-4, APEv2 (WavPack) |
+A Speex file (`.spx`) carries Vorbis comments as Ogg Vorbis and Opus do,
+and is written with their keys (the owner's ruling of 2026-11-20, N8,
+names Speex). A scan does not take `.spx` files into the library
+(tag-reading.md); the rule reaches them where tags are written alone.
+
+| Field | ID3v2 (MP3, WAV) | Vorbis comment (FLAC, Ogg, Opus, Speex) | MPEG-4, APEv2 (WavPack) |
 |---|---|---|---|
 | Year | DATE | DATE | DATE |
 | Track#, Track Count | TRACKNUMBER, as `n/total` | TRACKNUMBER and TRACKTOTAL | TRACKNUMBER, as `n/total` |

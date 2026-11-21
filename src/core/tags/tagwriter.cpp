@@ -53,14 +53,14 @@ namespace {
 
 using tags::KeyFamily;
 
-// W-TABLE: the family decides the keys. MP3 and WAV carry ID3v2; FLAC, Ogg and
-// Opus carry Vorbis comments; MPEG-4 and WavPack carry atoms and APEv2 items.
+// W-TABLE: the family decides the keys. MP3 and WAV carry ID3v2; FLAC, Ogg, Opus
+// and Speex carry Vorbis comments; MPEG-4 and WavPack carry atoms and APEv2 items.
 KeyFamily familyOf(const QString &format)
 {
     if (format == QLatin1String("mp3") || format == QLatin1String("wav"))
         return KeyFamily::Id3v2;
     if (format == QLatin1String("flac") || format == QLatin1String("ogg")
-        || format == QLatin1String("opus"))
+        || format == QLatin1String("opus") || format == QLatin1String("spx"))
         return KeyFamily::Vorbis;
     return KeyFamily::Mp4Ape;
 }
