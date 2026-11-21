@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <random>
 #include <set>
-#include <tuple>
 #include <utility>
 
 #include "rules/compiledrules.h"
@@ -118,22 +117,24 @@ QString firstValue(const LibraryTrack &track, const QString &field)
     return values.isEmpty() ? QString() : values.first();
 }
 
-// A-DUP: the artist values joined by "; ", the first title and the first album, all folded.
-std::tuple<QString, QString, QString> duplicateKey(const LibraryTrack &track)
+// A-DUP: the artist values joined by "; " and the first title, both folded.
+// The album does not count.
+std::pair<QString, QString> duplicateKey(const LibraryTrack &track)
 {
     const QStringList artists = track.tags.fields.value(QStringLiteral("Artist"));
     return { foldedText(artists.join(QStringLiteral("; "))),
-        foldedText(firstValue(track, QStringLiteral("Title"))),
-        foldedText(firstValue(track, QStringLiteral("Album"))) };
+        foldedText(firstValue(track, QStringLiteral("Title"))) };
 }
 
-// A-DUP: the first candidate in the order the tracks were given is kept.
+// A-DUP: the first candidate in the order the tracks were given is kept. A track with a blank
+// title is never a duplicate, so it is kept and does not stand in for another track.
 void removeDuplicates(QList<const LibraryTrack *> *candidates)
 {
-    std::set<std::tuple<QString, QString, QString>> seen;
+    std::set<std::pair<QString, QString>> seen;
     QList<const LibraryTrack *> kept;
     for (const LibraryTrack *track : *candidates) {
-        if (seen.insert(duplicateKey(*track)).second)
+        const auto key = duplicateKey(*track);
+        if (key.second.isEmpty() || seen.insert(key).second)
             kept.append(track);
     }
     *candidates = kept;
