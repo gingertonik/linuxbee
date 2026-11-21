@@ -51,6 +51,7 @@ settings and the library file may still change.
 - **Organise and `linuxbeectl convert --template` no longer refuse a file with no track number.** A blank `Disc-Track#` in the naming template is now written `#` (as MusicBee does, `Adele/21/# Someone like You.mp3`), where such a file was refused for a missing tag or named `Unknown Disc-Track#`. A caller can change this with `PathRules::blankAs`; other blank fields behave as before.
 - **Queue Next now places the tracks after the earlier ones.** Queue Next twice put the second batch in front of the first; MusicBee puts it after any others added with the same command. A track waits from its Queue Next until it first plays, and a new Queue Next goes after the waiting ones that directly follow the playing track (under shuffle too). Tracks added with Queue Last do not wait this way.
 - **An auto-playlist with "filter out duplicates" on now compares artist and title, as MusicBee's option says.** The album no longer counts, so the same song on two albums appears once. A track with no title is never a duplicate.
+- **The ignore words ("The" by default) now apply to Title, Artist, Album, Album Artist and Display Artist only,** as MusicBee's Sorting/Grouping Preferences say ("ignored when sorting by title, artist, or album"). They were dropped for every text field, so a Genre of `The Zen` sorted under Z; every other text field now sorts as written.
 
 ## 0.8.0 (2026-11-18)
 
