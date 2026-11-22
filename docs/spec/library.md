@@ -488,6 +488,32 @@ Known and left:
 - A track at whose path a link now lies is not followed: something
   is at its path, and the row stays on the link, as before this rule.
 
+### L-LOOKIN
+
+What a scan says of a file that is not there, and of a folder it cannot
+look in (fix-d; the re-probe of row 2, N4, and the library audit, F4 to
+F6).
+
+- **Gone during the looking.** The tracks whose files have gone are
+  found twice: before the files are looked at (L-FOLLOW needs them) and
+  again when the looking ends, uncancelled. A track whose file went in
+  between is in `nowMissing` too, in the last part. A file counted
+  `unchanged` before it went is counted there as well: each count says
+  what a file was when it was looked at.
+- **Not there is not "not music".** A file listed and gone before it
+  was looked at is in no count. Only a file that is there and cannot be
+  read as audio is in `notAudio`.
+- **Cannot look is not gone.** A track whose file cannot be looked at
+  for any reason but "no such file" (no permission on a folder above
+  it, a stale network mount, an I/O error) is left as it is: it is not
+  marked missing. The nearest folder above it that can be seen is in
+  `cannotLookIn`, each folder once, ascending. A folder that cannot be
+  looked in and holds no known track is not named: nothing of it is
+  known.
+- **Held by now.** A `fresh` file whose path the library holds by the
+  time it is stored (another writer stored it meanwhile) is left alone
+  and counted in `passedOver`.
+
 ### L-NAMES
 
 A file or folder whose name is not valid UTF-8 cannot be opened by
@@ -1054,6 +1080,19 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
   the result line and before any line about names:
   `followed N files that were moved`, and for one
   `followed 1 file that was moved`. Nothing when it followed none.
+  Then, when there are folders it could not look in (L-LOOKIN), on
+  standard output:
+
+  ```
+  could not look in N folders; the tracks in them are left as they are:
+    FOLDER
+  ```
+
+  with `could not look in 1 folder; the tracks in it are left as they
+  are:` for one. Then, when it passed something over (L-PARTS):
+  `passed over N files the library had changed meanwhile; the next
+  scan looks again` (`1 file` for one). The exit status does not
+  change.
 - A scan that could not be stored (L-FAILED) prints no result line. On
   standard error: `linuxbeectl: the scan was not stored: ` and the
   database's words. Exit 3.
