@@ -275,6 +275,10 @@ Nothing else is done: the selection and the view stay.
 
 ## SH-REFUSED: every other refusal is said too
 
+A failed answer (L-READFAIL 3) is said as "The library could not be
+read" (L-WORDS), and a command's own line that says "the library could
+not be read" is not added to. A refused change is said as below.
+
 (Found while reading for this: nothing in the window listened to the
 library's `failed` except the commands of SH-FAILED and Organise, for
 the length of their own call. A play that could not be counted, files
