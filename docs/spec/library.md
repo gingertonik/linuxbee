@@ -786,9 +786,14 @@ there".
    `recordPlays`, `setStatistics`, `recordMoves`, `applyScan` and
    `addFile`. (`expireDeleted` at the opening stays unsaid, as
    L-DELETED has it: the opening is not refused.)
-3. **An answer** (`count`, `categoryCounts`, `tracks`, `track`,
-   `trackByPath`) is the next package's (R-2, R-3). Until then those
-   keep their old readers.
+3. **An answer.** `readCount()` and `readTracks(category)` give the
+   count and the list as a `LibraryRead`, and emit `failed` once when
+   they fail. The list is all or nothing: a list that fails part way
+   gives no rows. The command line answers with them (L-CLI): `count`,
+   `list` and `import` print nothing on standard output, the words on
+   standard error, and exit 3; `import` plans and writes nothing. The
+   window's answers (`categoryCounts`, `tracks`, `track`,
+   `trackByPath`) are R-3's, and keep their old readers until then.
 4. **The scan's start.** `readScanKnown()` gives what the library
    knows for a scan, as a `LibraryRead<ScanKnown>`, and emits `failed`
    once when it fails. A scan whose start cannot be read looks at no
@@ -947,6 +952,10 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
 - A scan that could not be stored (L-FAILED) prints no result line. On
   standard error: `linuxbeectl: the scan was not stored: ` and the
   database's words. Exit 3.
+- A library that opens but whose tracks cannot be read (L-READFAIL 3):
+  `count`, `list` and `import` print nothing on standard output. On
+  standard error: `linuxbeectl: the library could not be read: ` and
+  the database's words. Exit 3. `import --apply` changes nothing.
 - `list` prints one line per track in ascending order of path: the path,
   or with `--format` the template evaluated on the track's
   `LibraryFieldSource`.
