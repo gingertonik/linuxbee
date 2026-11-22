@@ -117,8 +117,26 @@ void ScanRunner::Private::begin()
 void ScanRunner::Private::startLooking()
 {
     // SR-THREADS: what the library knows is taken here, on its own thread.
-    const ScanKnown known = library->scanKnown();
+    const LibraryRead<ScanKnown> read = library->readScanKnown();
     const quint64 mine = serial;
+    if (read.failed()) {
+        // SR-REFUSED, L-READFAIL 4: what the library knows cannot be read (it has said `failed`
+        // once). The scan looks at no file and ends from the event loop, as a refused scan does,
+        // with the words; it is not cancelled.
+        const QString words = read.words();
+        QMetaObject::invokeMethod(
+            q,
+            [this, mine, words] {
+                if (gone || mine != serial)
+                    return;
+                ScanReport refusedReport;
+                refusedReport.refused = words;
+                end(refusedReport);
+            },
+            Qt::QueuedConnection);
+        return;
+    }
+    const ScanKnown known = read.value();
     const std::shared_ptr<Shared> state = shared;
     const auto hook = hooks.looking;
     const QStringList folders = current.folders;

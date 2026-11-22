@@ -132,6 +132,13 @@ When the library refuses a part (`ScanReport::refused` is not empty):
 
 What was not stored is found by the next scan.
 
+**A scan whose start cannot be read** (L-READFAIL 4): what the library
+knows cannot be read (`readScanKnown` failed). The scan looks at no
+file and gives the library nothing. It ends as a refused scan does:
+`finished` with an empty report whose `refused` is the database's
+words, not `cancelled`. The library has said `failed` once. Only that
+scan ends; one asked for meanwhile begins as ever.
+
 ## SR-SHELL
 
 The library shell has one runner, `LibraryShell::scanner()`, and "Scan

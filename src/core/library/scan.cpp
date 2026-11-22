@@ -313,6 +313,15 @@ ScanKnown Library::scanKnown() const
     return d->store.scanKnown();
 }
 
+// L-READFAIL 4: a failure is said once, here; the scan whose start it is looks at no file.
+LibraryRead<ScanKnown> Library::readScanKnown()
+{
+    LibraryRead<ScanKnown> read = d->store.readScanKnown();
+    if (read.failed())
+        emit failed(read.words());
+    return read;
+}
+
 namespace {
 
 // L-WAIT: the storing of a scan nobody asked for waits the quick wait, and the connection goes
@@ -347,10 +356,11 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     std::optional<QuickWait> quick;
     if (options.nobodyWaits)
         quick.emplace(d->store, d->quickWait, d->writeWait);
-    const auto refuse = [this, &quick]() {
-        const QString why = d->store.lastError().isEmpty()
-            ? QStringLiteral("the database refused the change")
-            : d->store.lastError();
+    // L-READFAIL: a look the storing could not make refuses it too; its words are passed in.
+    const auto refuse = [this, &quick](const QString &words = QString()) {
+        const QString why = !words.isEmpty() ? words
+            : d->store.lastError().isEmpty() ? QStringLiteral("the database refused the change")
+                                             : d->store.lastError();
         d->store.rollbackBatch();
         quick.reset(); // back to the write wait before the signal goes out
         ScanReport refused;
@@ -362,8 +372,9 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         return refuse();
     // L-DELETED: every storing removes the old deleted rows, with the scan's time, in its own
     // change: a refusal here refuses the storing.
-    if (expireDeletedRows(d->store, options.now) < 0)
-        return refuse();
+    QString expireWords;
+    if (expireDeletedRows(d->store, options.now, &expireWords) < 0)
+        return refuse(expireWords);
 
     // L-PARTS: a finding is acted on only while the library still holds the
     // track as it was when it was looked at. The four values are asked for by
@@ -387,7 +398,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         if (findings.judged.contains(id))
             toAsk.append(id);
     }
-    const QHash<qint64, ScanFindings::Judged> held = d->store.heldById(toAsk);
+    const auto heldRead = d->store.readHeldById(toAsk);
+    if (heldRead.failed())
+        return refuse(heldRead.words());
+    const QHash<qint64, ScanFindings::Judged> &held = heldRead.value();
     QSet<qint64> passed;
     auto stillFits = [&findings, &held, &passed](qint64 id) {
         const auto was = findings.judged.constFind(id);
@@ -415,11 +429,17 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // L-PARTS: a file the library holds by now is left alone.
     for (const LibraryTrack &reading : findings.fresh) {
         const QString clean = QDir::cleanPath(reading.path);
-        if (d->store.byPath(clean))
+        const auto holder = d->store.readByPath(clean);
+        if (holder.failed())
+            return refuse(holder.words());
+        if (holder.value())
             continue;
         // L-DELETED: a file at the path of a deleted track is that track's: it comes back, read
         // again, with its id, its section, its date added and its statistics.
-        if (const qint64 row = d->store.deletedIdAt(clean); row > 0) {
+        const auto deletedAt = d->store.readDeletedIdAt(clean);
+        if (deletedAt.failed())
+            return refuse(deletedAt.words());
+        if (const qint64 row = deletedAt.value(); row > 0) {
             if (d->store.restoreDeleted(row, reading))
                 broughtBack.append(row);
             else if (!d->store.lastError().isEmpty())
@@ -450,7 +470,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         }
         bool asHeld = false;
         if (again.onlyTheReader && !again.wasMissing) {
-            const std::optional<LibraryTrack> held = d->store.byId(again.id);
+            const auto heldNow = d->store.readById(again.id);
+            if (heldNow.failed())
+                return refuse(heldNow.words());
+            const std::optional<LibraryTrack> &held = heldNow.value();
             asHeld = held && held->tags.fields == again.reading.tags.fields
                 && held->pictureCount == again.reading.pictureCount
                 && sameSound(held->tags.audio, again.reading.tags.audio);
@@ -474,8 +497,13 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     // L-DELETED: a held-back file at the path of a deleted track is that track's. It is brought
     // back below, and claims no row: a deleted track is not followed.
     QList<qint64> deletedHere(heldCount, 0);
-    for (qsizetype i = 0; i < heldCount; ++i)
-        deletedHere[i] = d->store.deletedIdAt(libraryPath(findings.maybeMoved.at(i).reading.path));
+    for (qsizetype i = 0; i < heldCount; ++i) {
+        const auto deletedAt
+            = d->store.readDeletedIdAt(libraryPath(findings.maybeMoved.at(i).reading.path));
+        if (deletedAt.failed())
+            return refuse(deletedAt.words());
+        deletedHere[i] = deletedAt.value();
+    }
     for (qsizetype i = 0; i < heldCount; ++i) {
         if (deletedHere.at(i) > 0)
             continue;
@@ -487,7 +515,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
             // moved away from a file that is there.
             if (QFileInfo::exists(findings.judged.value(row).path))
                 continue;
-            const std::optional<LibraryTrack> stored = d->store.byId(row);
+            const auto storedRead = d->store.readById(row);
+            if (storedRead.failed())
+                return refuse(storedRead.words());
+            const std::optional<LibraryTrack> &stored = storedRead.value();
             if (stored && stored->tags.fields == maybe.reading.tags.fields
                 && stored->pictureCount == maybe.reading.pictureCount
                 && sameSound(stored->tags.audio, maybe.reading.tags.audio)) {
@@ -500,7 +531,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     for (qsizetype i = 0; i < heldCount; ++i) {
         const LibraryTrack &reading = findings.maybeMoved.at(i).reading;
         // L-PARTS: a file the library holds by now is left alone.
-        if (d->store.byPath(libraryPath(reading.path)))
+        const auto holder = d->store.readByPath(libraryPath(reading.path));
+        if (holder.failed())
+            return refuse(holder.words());
+        if (holder.value())
             continue;
         if (deletedHere.at(i) > 0) {
             if (d->store.restoreDeleted(deletedHere.at(i), reading))
@@ -576,7 +610,14 @@ ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
     // L-PARTS: a scan is the two steps, the looking and then the storing.
     ScanFindOptions find;
     find.progress = options.progress;
-    return applyScan(findForScan(folders, scanKnown(), find), options);
+    // L-READFAIL 4: what the library knows cannot be read, so no file is looked at.
+    const LibraryRead<ScanKnown> known = readScanKnown();
+    if (known.failed()) {
+        ScanReport refused;
+        refused.refused = known.words();
+        return refused;
+    }
+    return applyScan(findForScan(folders, known.value(), find), options);
 }
 
 qint64 Library::addFile(const QString &path, const QString &category, const QDateTime &now)
@@ -586,7 +627,12 @@ qint64 Library::addFile(const QString &path, const QString &category, const QDat
     if (!now.isValid() || !categories().contains(category))
         return 0;
     const QString clean = libraryPath(path);
-    const std::optional<LibraryTrack> known = d->store.byPath(clean);
+    const auto knownRead = d->store.readByPath(clean);
+    if (knownRead.failed()) {
+        emit failed(knownRead.words()); // L-READFAIL
+        return 0;
+    }
+    const std::optional<LibraryTrack> &known = knownRead.value();
     if (known)
         return known->id; // L-ADD: the file is in already; nothing changes
     if (!QFileInfo::exists(clean))
@@ -596,7 +642,12 @@ qint64 Library::addFile(const QString &path, const QString &category, const QDat
         return 0;
     // L-DELETED: the file of a deleted track brings that track back, as it was: the section given
     // is not used. No second row is made for the path.
-    if (const qint64 row = d->store.deletedIdAt(clean); row > 0) {
+    const auto deletedAt = d->store.readDeletedIdAt(clean);
+    if (deletedAt.failed()) {
+        emit failed(deletedAt.words()); // L-READFAIL
+        return 0;
+    }
+    if (const qint64 row = deletedAt.value(); row > 0) {
         if (!d->store.restoreDeleted(row, track)) {
             if (const QString why = d->store.lastError(); !why.isEmpty())
                 emit failed(why); // L-FAILED

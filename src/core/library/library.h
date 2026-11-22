@@ -13,6 +13,7 @@
 #include <optional>
 
 #include "fields/trackfields.h"
+#include "library/libraryread.h"
 #include "tags/tagreader.h"
 
 // The library: which files the user has, what their tags say, and what only
@@ -191,6 +192,9 @@ public:
     ScanReport scan(const QStringList &folders, const ScanOptions &options);
     // L-PARTS: the two steps of a scan, apart.
     ScanKnown scanKnown() const;
+    // L-READFAIL 4: what the library knows for a scan, or that it could not be read. A failure
+    // is said once, as `failed`, before this returns; the caller looks at no file then.
+    LibraryRead<ScanKnown> readScanKnown();
     ScanReport applyScan(const ScanFindings &findings, const ScanOptions &options);
     // L-ADD: one file. Returns its id, or 0 when it is not a readable music file.
     qint64 addFile(const QString &path, const QString &category, const QDateTime &now);

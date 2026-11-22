@@ -760,34 +760,88 @@ QMap<QString, int> Store::categoryCounts() const
     return counts;
 }
 
-std::optional<LibraryTrack> Store::byId(qint64 id) const
+// L-READFAIL: the answer of a read that could not be made, or ended in an error part way: Qt's
+// SQLite driver gives a row's failure at next(), which returns false as at the end of the rows,
+// so the end of the rows is checked as well as the start.
+static bool endedInError(const QSqlQuery &query)
 {
-    d->lastReadError.clear();
+    return query.lastError().isValid();
+}
+
+LibraryRead<std::optional<LibraryTrack>> Store::readById(qint64 id) const
+{
+    using Read = LibraryRead<std::optional<LibraryTrack>>;
     if (!d->opened)
-        return std::nullopt;
+        return Read::failure(QStringLiteral("the library is not open"));
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(
         QStringLiteral("%1 WHERE id = :id AND deleted_secs < 0").arg(QLatin1String(kSelectTrack)));
     query.bindValue(QStringLiteral(":id"), id);
-    if (!query.exec()) {
-        d->lastReadError = readWords(query);
-        return std::nullopt;
+    if (!query.exec())
+        return Read::failure(readWords(query));
+    if (!query.next()) {
+        if (endedInError(query))
+            return Read::failure(readWords(query));
+        return Read::ok(std::nullopt);
     }
-    if (!query.next())
-        return std::nullopt;
-    return rowFromRead(query);
+    return Read::ok(rowFromRead(query));
 }
 
-ScanKnown Store::scanKnown() const
+LibraryRead<std::optional<LibraryTrack>> Store::readByPath(const QString &path) const
 {
-    ScanKnown known;
+    using Read = LibraryRead<std::optional<LibraryTrack>>;
     if (!d->opened)
-        return known;
+        return Read::failure(QStringLiteral("the library is not open"));
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    query.prepare(QStringLiteral("%1 WHERE path = :path AND deleted_secs < 0")
+            .arg(QLatin1String(kSelectTrack)));
+    query.bindValue(QStringLiteral(":path"), path);
+    if (!query.exec())
+        return Read::failure(readWords(query));
+    if (!query.next()) {
+        if (endedInError(query))
+            return Read::failure(readWords(query));
+        return Read::ok(std::nullopt);
+    }
+    return Read::ok(rowFromRead(query));
+}
+
+LibraryRead<QList<LibraryTrack>> Store::readAll(const QString &category) const
+{
+    using Read = LibraryRead<QList<LibraryTrack>>;
+    if (!d->opened)
+        return Read::failure(QStringLiteral("the library is not open"));
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    if (category.isEmpty()) {
+        query.prepare(QStringLiteral("%1 WHERE deleted_secs < 0 ORDER BY path")
+                .arg(QLatin1String(kSelectTrack)));
+    } else {
+        query.prepare(
+            QStringLiteral("%1 WHERE category = :category AND deleted_secs < 0 ORDER BY path")
+                .arg(QLatin1String(kSelectTrack)));
+        query.bindValue(QStringLiteral(":category"), category);
+    }
+    if (!query.exec())
+        return Read::failure(readWords(query));
+    QList<LibraryTrack> list;
+    while (query.next())
+        list.append(rowFromRead(query));
+    if (endedInError(query))
+        return Read::failure(readWords(query));
+    return Read::ok(std::move(list));
+}
+
+LibraryRead<ScanKnown> Store::readScanKnown() const
+{
+    using Read = LibraryRead<ScanKnown>;
+    if (!d->opened)
+        return Read::failure(QStringLiteral("the library is not open"));
     QSqlQuery query(QSqlDatabase::database(d->connection));
     if (!query.exec(QStringLiteral(
             "SELECT id, path, size_bytes, modified_secs, missing, reader FROM tracks "
             "WHERE deleted_secs < 0")))
-        return known;
+        return Read::failure(readWords(query));
+    ScanKnown known;
     while (query.next()) {
         ScanKnown::Entry entry;
         entry.id = query.value(0).toLongLong();
@@ -797,14 +851,17 @@ ScanKnown Store::scanKnown() const
         entry.reader = query.value(5).toInt();
         known.byPath.insert(query.value(1).toString(), entry);
     }
-    return known;
+    if (endedInError(query))
+        return Read::failure(readWords(query));
+    return Read::ok(std::move(known));
 }
 
-QHash<qint64, ScanFindings::Judged> Store::heldById(const QList<qint64> &ids) const
+LibraryRead<QHash<qint64, ScanFindings::Judged>> Store::readHeldById(const QList<qint64> &ids) const
 {
-    QHash<qint64, ScanFindings::Judged> held;
+    using Read = LibraryRead<QHash<qint64, ScanFindings::Judged>>;
     if (!d->opened)
-        return held;
+        return Read::failure(QStringLiteral("the library is not open"));
+    QHash<qint64, ScanFindings::Judged> held;
     // SQLite refuses an expression tree deeper than 1000, and the ids are an
     // OR chain, so a long list is asked for in pieces.
     constexpr qsizetype kPiece = 400;
@@ -817,7 +874,7 @@ QHash<qint64, ScanFindings::Judged> Store::heldById(const QList<qint64> &ids) co
                 .arg(placeholders.condition));
         bindIds(&query, placeholders.names, piece);
         if (!query.exec())
-            continue;
+            return Read::failure(readWords(query));
         while (query.next()) {
             ScanFindings::Judged entry;
             entry.path = query.value(1).toString();
@@ -826,48 +883,42 @@ QHash<qint64, ScanFindings::Judged> Store::heldById(const QList<qint64> &ids) co
             entry.missing = query.value(4).toBool();
             held.insert(query.value(0).toLongLong(), entry);
         }
+        if (endedInError(query))
+            return Read::failure(readWords(query));
     }
-    return held;
+    return Read::ok(std::move(held));
+}
+
+// The plain readers stay for the answers (L-READFAIL 3, until R-2 and R-3): each is its typed
+// reader with a failure read as nothing. byId and byPath keep the words in lastReadError.
+std::optional<LibraryTrack> Store::byId(qint64 id) const
+{
+    const auto read = readById(id);
+    d->lastReadError = read.failed() ? read.words() : QString();
+    if (read.failed())
+        return std::nullopt;
+    return read.value();
+}
+
+ScanKnown Store::scanKnown() const
+{
+    const auto read = readScanKnown();
+    return read.failed() ? ScanKnown() : read.value();
 }
 
 std::optional<LibraryTrack> Store::byPath(const QString &path) const
 {
-    d->lastReadError.clear();
-    if (!d->opened)
+    const auto read = readByPath(path);
+    d->lastReadError = read.failed() ? read.words() : QString();
+    if (read.failed())
         return std::nullopt;
-    QSqlQuery query(QSqlDatabase::database(d->connection));
-    query.prepare(QStringLiteral("%1 WHERE path = :path AND deleted_secs < 0")
-            .arg(QLatin1String(kSelectTrack)));
-    query.bindValue(QStringLiteral(":path"), path);
-    if (!query.exec()) {
-        d->lastReadError = readWords(query);
-        return std::nullopt;
-    }
-    if (!query.next())
-        return std::nullopt;
-    return rowFromRead(query);
+    return read.value();
 }
 
 QList<LibraryTrack> Store::all(const QString &category) const
 {
-    QList<LibraryTrack> list;
-    if (!d->opened)
-        return list;
-    QSqlQuery query(QSqlDatabase::database(d->connection));
-    if (category.isEmpty()) {
-        query.prepare(QStringLiteral("%1 WHERE deleted_secs < 0 ORDER BY path")
-                .arg(QLatin1String(kSelectTrack)));
-    } else {
-        query.prepare(
-            QStringLiteral("%1 WHERE category = :category AND deleted_secs < 0 ORDER BY path")
-                .arg(QLatin1String(kSelectTrack)));
-        query.bindValue(QStringLiteral(":category"), category);
-    }
-    if (!query.exec())
-        return list;
-    while (query.next())
-        list.append(rowFromRead(query));
-    return list;
+    const auto read = readAll(category);
+    return read.failed() ? QList<LibraryTrack>() : read.value();
 }
 
 bool Store::beginBatch()
@@ -1206,20 +1257,23 @@ QList<qint64> Store::markDeleted(const QList<qint64> &ids, qint64 whenSecs)
 }
 
 // L-DELETED: the deleted rows old enough to be looked at for removal.
-QList<std::pair<qint64, QString>> Store::deletedUntil(qint64 cutoffSecs) const
+LibraryRead<QList<std::pair<qint64, QString>>> Store::readDeletedUntil(qint64 cutoffSecs) const
 {
-    QList<std::pair<qint64, QString>> rows;
+    using Read = LibraryRead<QList<std::pair<qint64, QString>>>;
     if (!d->opened)
-        return rows;
+        return Read::failure(QStringLiteral("the library is not open"));
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("SELECT id, path FROM tracks WHERE deleted_secs >= 0 "
                                  "AND deleted_secs <= :cutoff ORDER BY id"));
     query.bindValue(QStringLiteral(":cutoff"), cutoffSecs);
     if (!query.exec())
-        return rows;
+        return Read::failure(readWords(query));
+    QList<std::pair<qint64, QString>> rows;
     while (query.next())
         rows.append({ query.value(0).toLongLong(), query.value(1).toString() });
-    return rows;
+    if (endedInError(query))
+        return Read::failure(readWords(query));
+    return Read::ok(std::move(rows));
 }
 
 // L-DELETED: as removeIds, for deleted rows only.
@@ -1270,16 +1324,22 @@ QList<qint64> Store::removeDeleted(const QList<qint64> &ids)
     return gone;
 }
 
-qint64 Store::deletedIdAt(const QString &path) const
+LibraryRead<qint64> Store::readDeletedIdAt(const QString &path) const
 {
+    using Read = LibraryRead<qint64>;
     if (!d->opened)
-        return 0;
+        return Read::failure(QStringLiteral("the library is not open"));
     QSqlQuery query(QSqlDatabase::database(d->connection));
     query.prepare(QStringLiteral("SELECT id FROM tracks WHERE path = :path AND deleted_secs >= 0"));
     query.bindValue(QStringLiteral(":path"), path);
-    if (!query.exec() || !query.next())
-        return 0;
-    return query.value(0).toLongLong();
+    if (!query.exec())
+        return Read::failure(readWords(query));
+    if (!query.next()) {
+        if (endedInError(query))
+            return Read::failure(readWords(query));
+        return Read::ok(0);
+    }
+    return Read::ok(query.value(0).toLongLong());
 }
 
 // L-DELETED: the file is back at the deleted track's path, and is read as updateReading reads it.
