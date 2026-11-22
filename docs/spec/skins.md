@@ -12,17 +12,21 @@ This document is the contract for `src/core/skin/skin.h`,
 
 ## Sources
 
-**Seen** means: read in the 38 plain skins a MusicBee 3 install puts in
-its `Skins` folder (their shapes only; none is copied). **Inferred**
-means worked out from that and from the wiki, not confirmed in the
-running program.
+The sources are community-published only (the owner's ruling of
+2026-11-20): the wiki, the forum, and one community skin. No skin
+bundled with MusicBee, no compiled `.xmlc` file and nothing of an
+install is read. **Inferred** means worked out from these, not
+confirmed in the running program.
 
 | Tag | Source |
 |---|---|
 | W-SE | MusicBee wiki, "Skinning Elements" (about 410 element names with what each accepts and where it applies; matches version 2.3): https://musicbee.fandom.com/wiki/Skinning_Elements |
 | W-SG | MusicBee wiki, "Skinning Guide": a skin is lines of `<element id="..." bg="r,g,b" bg2="..." fg="..." bdr="..." />`; bg is the background, bg2 a gradient's second colour, fg usually the text, bdr the border: https://musicbee.fandom.com/wiki/Skinning_Guide |
-| F-DEP | MusicBee forum, "dependent skins" (v3.1): `<root dependsOn="Other.xmlc">` lays a small skin over another in the same folder; a compiled `.xmlc` skin's own images cannot be overridden. Seen: 29 of the 38 skins are such overlays on a compiled skin. |
-| SEEN | Seen: a `<variables>` block of lines `name = "r,g,b"`, and those names used as colour values; `fg2`; colours of four numbers; the sections `<colours id="Default">`, `<settings>` and `<images id="Default">` around the elements; values between the tags (`true`, a number, a picture as base64). 176 element names are in the files and not on the wiki page. |
+| F-DEP | MusicBee forum, "Dependent skins" (topic 2797, 2011): `<root dependsOn="...">` lays a small skin over another; the example puts its element in `<colours id="Default">`. https://getmusicbee.com/forum/index.php?topic=2797.0 |
+| F-MOD | MusicBee forum, "How to make modifications to a skin that you like" (topic 29815, hiccup, 2019, edited 2023): a small `.xml` skin with `dependsOn` an `.xmlc` skin overrides each element it names ("Any element specified in your xml file will override"); "elements under <colours> are defined by RGB values, elements under <images> are defined by base64 encoded images". https://getmusicbee.com/forum/index.php?topic=29815.0 |
+| F-VAR | MusicBee forum, topic 23605 (redwing, 2017): "the variables section", lines such as `theme = "93,7,42"`. https://getmusicbee.com/forum/index.php?topic=23605.0 |
+| F-FLAT | MusicBee forum, the skin FlatUI (topic 18475, 2016-2017): "on top you will find the variables section"; an alpha value is accepted on some attributes (the developer, 2017-05-15). https://getmusicbee.com/forum/index.php?topic=18475.0 |
+| C-KRY | The community skin "Kryptonite Dark" 1.2 by Ingo_Igel (forum topic 35252; https://github.com/Ingo-Igel/Kryptonite_Dark, commit 8c40bf7; Unlicense). Read for its shapes; none of it is copied. It shows: the element `<variables>` with lines `name="r,g,b"`; the sections `<colours id="Default">`, `<settings>` (elements holding text, such as `true`) and `<images id="Default">`; `bg2` and `fg2`; and colours of four numbers with the alpha first: `gray_3="43,43,43"` beside `"128,43,43,43"`, the same grey half clear. |
 | SK-… | A linuxBee decision. Which element colours which part of linuxBee is always one (inferred from the element's name and W-SE's description). |
 
 Checked again on 2026-11-20. Each wiki page, the MusicBee version it says it
@@ -38,8 +42,11 @@ describes, and when it was last edited: "Skinning Elements" (2.3.5139;
   closed. (A compiled `.xmlc` skin is not text and so is not ok.)
 - `dependsOn`: the root's attribute of that name, trimmed.
 - **A colour** is three or four whole numbers from 0 to 255 separated by
-  commas, spaces allowed around each: red, green, blue, and alpha (255
-  when there are three).
+  commas, spaces allowed around each: red, green and blue (the alpha
+  255); or, of four, alpha, red, green and blue (C-KRY). (Until 0.9 the
+  fourth number was read as the alpha: a skin's half-clear grey
+  `128,43,43,43` came out red. No colour was ever stored by linuxBee,
+  so nothing it saved is read differently.)
 - `variables`: in the text of every `variables` element, each line of
   the shape `NAME = "VALUE"` (spaces and tabs allowed at both ends and
   around `=`; NAME made of letters, digits, `_` and `-`) whose value is a
@@ -102,15 +109,16 @@ skin that is not ok the answer is empty.
 | `tabSelected` | `Controls.TabHeader.Highlight` bg |
 | `tabSelectedText` | `Controls.TabHeader.Highlight` fg |
 
-`skinColourText(colour)` is `r,g,b`, or `r,g,b,a` when the alpha is not
-255.
+`skinColourText(colour)` is the colour as a skin writes it: `r,g,b`, or
+`a,r,g,b` when the alpha is not 255. Read again, it is the same colour.
 
 ## SK-SHEET: the style sheet
 
 `skinStyleSheet(colours)` gives these lines, each only when every name it
 uses is there, in this order, joined by line feeds, with no line feed at
 the end. A colour is written `rgb(r,g,b)`, or `rgba(r,g,b,a)` when its
-alpha is not 255.
+alpha is not 255: Qt's order, alpha last, whatever order the skin
+used.
 
 | Needs | Line |
 |---|---|
@@ -285,9 +293,8 @@ the data folder and the default hooks. Starting makes no folder.
 - A list of skins in the View menu itself, a skin chooser in the
   preferences, `Random Skin` and `Skin Window Borders` (the owner's
   menu, seen): choosing is a question in a dialog (SC-CHOOSE).
-- Compiled skins (`.xmlc`), and so the base of most of the skins a
-  MusicBee install ships (F-DEP): of those, only what the small file on
-  top says is used.
+- Compiled skins (`.xmlc`), and so the base of any skin laid over one
+  (F-MOD): of those, only what a small `.xml` over it says is used.
 - The skins' pictures and icons, and their numbers and switches
   (margins, gaps, which buttons are drawn): they are read (`text`) and
   not used.
@@ -306,6 +313,5 @@ the data folder and the default hooks. Starting makes no folder.
 | Rule | Question for someone with MusicBee |
 |---|---|
 | SK-READ | Whether an element given twice in one skin adds to the first or replaces it whole. |
-| SK-READ | Whether the fourth number of a colour is its alpha. |
-| SK-COLOURS | For each name, whether the element chosen is the one that colours that part in MusicBee: judged by eye, one of the nine complete skins beside the same skin in linuxBee. |
+| SK-COLOURS | For each name, whether the element chosen is the one that colours that part in MusicBee: judged by eye, a complete community skin beside the same skin in linuxBee. |
 | SK-APPLY | Whether a dependent skin's base may itself depend on another. |

@@ -13,7 +13,8 @@ QString quoted(const QString &text)
 }
 
 // SK-READ, "A colour": three or four whole numbers from 0 to 255 separated by
-// commas, spaces allowed around each. The fourth is the alpha.
+// commas, spaces allowed around each. Four numbers put the alpha first (C-KRY):
+// alpha, red, green, blue. Three are red, green, blue and opaque.
 std::optional<SkinColour> parseColour(const QString &text)
 {
     const QStringList parts = text.split(QLatin1Char(','));
@@ -34,6 +35,8 @@ std::optional<SkinColour> parseColour(const QString &text)
             return std::nullopt;
         numbers[i] = value;
     }
+    if (parts.size() == 4)
+        return SkinColour { numbers[1], numbers[2], numbers[3], numbers[0] };
     return SkinColour { numbers[0], numbers[1], numbers[2], numbers[3] };
 }
 
@@ -294,8 +297,13 @@ const QList<SheetLine> &sheetLines()
 // A colour as the sheet writes it: rgb(r,g,b), or rgba(r,g,b,a) with an alpha.
 QString sheetColour(const SkinColour &colour)
 {
-    const QString prefix = colour.a == 255 ? QStringLiteral("rgb(") : QStringLiteral("rgba(");
-    return prefix + skinColourText(colour) + QLatin1Char(')');
+    if (colour.a == 255)
+        return QStringLiteral("rgb(%1,%2,%3)").arg(colour.r).arg(colour.g).arg(colour.b);
+    return QStringLiteral("rgba(%1,%2,%3,%4)")
+        .arg(colour.r)
+        .arg(colour.g)
+        .arg(colour.b)
+        .arg(colour.a);
 }
 
 }
@@ -322,10 +330,10 @@ QMap<QString, SkinColour> skinColours(const Skin &skin)
 
 QString skinColourText(const SkinColour &colour)
 {
-    QString text = QStringLiteral("%1,%2,%3").arg(colour.r).arg(colour.g).arg(colour.b);
-    if (colour.a != 255)
-        text += QStringLiteral(",%1").arg(colour.a);
-    return text;
+    // The skin's own order: r,g,b, or a,r,g,b when the alpha is not 255.
+    if (colour.a == 255)
+        return QStringLiteral("%1,%2,%3").arg(colour.r).arg(colour.g).arg(colour.b);
+    return QStringLiteral("%1,%2,%3,%4").arg(colour.a).arg(colour.r).arg(colour.g).arg(colour.b);
 }
 
 QString skinStyleSheet(const QMap<QString, SkinColour> &colours)
