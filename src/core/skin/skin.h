@@ -49,7 +49,7 @@ Skin layeredSkin(const Skin &base, const Skin &top);
 // SK-COLOURS: linuxBee's colour names the skin has a value for.
 QMap<QString, SkinColour> skinColours(const Skin &skin);
 
-// "r,g,b", or "r,g,b,a" when a is not 255.
+// "r,g,b", or "a,r,g,b" when a is not 255 (alpha first, SK-1).
 QString skinColourText(const SkinColour &colour);
 
 // SK-SHEET: the Qt style sheet for those colours. Empty for none.

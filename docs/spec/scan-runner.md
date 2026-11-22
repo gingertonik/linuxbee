@@ -59,7 +59,11 @@ not looked at). It is there for tests, and to slow a scan down by hand.
   before within one scan, and, for a scan that was not stopped, a last
   time with `done` equal to `total` before `finished`. The runner emits that last one itself when the looking did not report
   it. It need not be
-  emitted for every file.
+  emitted for every file. It counts the files looked at, not the
+  parts stored, so the bar can read `done` equal to `total` while the
+  last parts are still being stored, one a turn (fix-s33); `finished`
+  comes after the last of them. (Road row 32 may make it count what
+  is stored.)
 
 ## SR-TURN
 
@@ -97,6 +101,10 @@ stopped scan had already handed over stays stored; it ends with
 `finished` and a report whose `cancelled` is true. The forgotten ones
 get no signal. `idle()` follows. With nothing running, `cancel()` does
 nothing.
+
+A slot on one of the runner's own signals must not delete the runner:
+it is still inside its own code then, and the delete is a
+use-after-free. Use `deleteLater()`. Nothing in `src/` does it.
 
 - A scan that `cancel()` reached before its `finished` was emitted
   reports `cancelled`, even when the looking had ended and everything
