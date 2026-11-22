@@ -1,7 +1,9 @@
 # Fixtures for the skin tests
 
-All four files are invented for linuxBee, in the shape MusicBee's plain
-skins have. None is a copy of a published skin.
+All four files are invented for linuxBee, in the shape the sources of
+docs/spec/skins.md show (the wiki, the forum's examples, and the
+community skin C-KRY). None is a copy of a published skin. A colour of
+four numbers is written alpha first, as C-KRY writes it.
 
 - `Plain Grey.xml`: a complete skin, with a variables block, the three
   sections, and some values that cannot be read.

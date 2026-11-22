@@ -153,7 +153,7 @@ void SkinsTest::readingOddFiles()
     QCOMPARE(a.elements.value(s(u"A")).fg, std::optional<SkinColour>(c(0, 0, 0, 0)));
     QCOMPARE(a.elements.value(s(u"A")).bdr, std::optional<SkinColour>(c(4, 5, 6))); // a variable defined further down
     QCOMPARE(a.variables.keys(), QStringList({ s(u"A-b_1"), s(u"later") }));
-    QCOMPARE(a.variables.value(s(u"A-b_1")), c(7, 8, 9, 10));
+    QCOMPARE(a.variables.value(s(u"A-b_1")), c(8, 9, 10, 7)); // (fix-sk1) alpha first, C-KRY
     const SkinElement t = a.elements.value(s(u"T"));
     QCOMPARE(t.text, s(u"second")); // an empty text does not replace
     QCOMPARE(t.bg, std::optional<SkinColour>(c(9, 9, 9)));
@@ -230,7 +230,7 @@ void SkinsTest::colours()
     QCOMPARE(got.value(s(u"playerText")), c(7, 7, 7));
     QCOMPARE(got.size(), 5);
     QCOMPARE(skinColourText(c(1, 22, 255)), s(u"1,22,255"));
-    QCOMPARE(skinColourText(c(1, 22, 255, 0)), s(u"1,22,255,0"));
+    QCOMPARE(skinColourText(c(1, 22, 255, 0)), s(u"0,1,22,255")); // (fix-sk1) alpha first, C-KRY
     QCOMPARE(skinColours(Skin()).size(), 0);
 }
 
