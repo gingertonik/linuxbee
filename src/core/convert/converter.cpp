@@ -243,7 +243,7 @@ std::optional<ConvertResult> resolveExisting(
         }
         {
             const QString error = convert::copyTags(
-                source.tags, destination, job.copyPictures, job.tagOptions, &result.warnings);
+                source.tags, destination, job.copyPictures, job.tagOptions, &result.warnings, true);
             if (!error.isEmpty()) {
                 result.status = ConvertResult::Status::Failed;
                 result.message = error;
