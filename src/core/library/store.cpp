@@ -680,6 +680,23 @@ bool openAndCheckSchema(
     return true;
 }
 
+// L-READ "Its words" (fix-d2): a failure with code 14 (SQLITE_CANTOPEN) on a disk mounted
+// read-only is the database failing to make the -shm file it needs. Sets the sentence and returns
+// true then; any other failure is left to the caller's words.
+bool saysReadOnlyDisk(const QSqlError &failure, const QString &databasePath, QString *error)
+{
+    if (codeOf(failure) != 14)
+        return false;
+    struct statvfs disk;
+    if (::statvfs(QFile::encodeName(databasePath).constData(), &disk) != 0
+        || !(disk.f_flag & ST_RDONLY))
+        return false;
+    setError(error,
+        QStringLiteral("the library cannot be read here: the disk it is on is mounted read-only, "
+                       "and the database needs its side files (-wal, -shm) beside it"));
+    return true;
+}
+
 // L-READ: opens the file through the database's read-only mode and checks what it holds. Nothing
 // is written: no step, no copy, no write-ahead-log switch, no write lock.
 bool openToReadAndCheck(const QString &databasePath, const QString &connection, QString *error)
@@ -695,12 +712,15 @@ bool openToReadAndCheck(const QString &databasePath, const QString &connection, 
     // L-WAIT: the same five seconds a writing command waits for the write lock.
     database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY;QSQLITE_BUSY_TIMEOUT=5000"));
     if (!database.open()) {
-        setError(error, wordsFor(database.lastError()));
+        if (!saysReadOnlyDisk(database.lastError(), databasePath, error))
+            setError(error, wordsFor(database.lastError()));
         return false;
     }
     QSqlQuery version(database);
     if (!version.exec(QStringLiteral("PRAGMA user_version")) || !version.next()) {
         const QSqlError failure = version.lastError();
+        if (saysReadOnlyDisk(failure, databasePath, error))
+            return false;
         // L-WORDS, L-READ: chosen by the database's result code, never by a word of its text.
         switch (codeOf(failure)) {
         case 5: // SQLITE_BUSY: L-READ "The wait", still held after the five seconds
@@ -731,6 +751,8 @@ bool openToReadAndCheck(const QString &databasePath, const QString &connection, 
     if (!tables.exec(QStringLiteral("SELECT count(*) FROM sqlite_master "
                                     "WHERE type = 'table' AND name = 'tracks'"))
         || !tables.next()) {
+        if (saysReadOnlyDisk(tables.lastError(), databasePath, error))
+            return false;
         setError(error,
             QStringLiteral("That file is not a linuxBee library: %1").arg(readWords(tables)));
         return false;
