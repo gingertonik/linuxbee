@@ -23,6 +23,7 @@
 
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 namespace linuxbee::library {
@@ -588,7 +589,28 @@ bool openAndCheckSchema(
     const QString &databasePath, const QString &connection, QString *error, SchemaStep *step)
 {
     // L-OPEN: a library file that exists and cannot be written to does not open for writing. It is
-    // refused before SQLite opens it, so nothing is made beside it.
+    // refused before SQLite opens it, so nothing is made beside it. L-WORDS (fix-70d): the
+    // sentence says where the fault is, in this order: a disk mounted read-only, a folder that
+    // cannot be written to around a file that can, then the file's own mode.
+    if (const QFileInfo existing(databasePath);
+        !databasePath.isEmpty() && databasePath != QLatin1String(":memory:") && existing.exists()) {
+        struct statvfs disk;
+        if (::statvfs(QFile::encodeName(databasePath).constData(), &disk) == 0
+            && (disk.f_flag & ST_RDONLY)) {
+            setError(error,
+                QStringLiteral("The library cannot be written to: %1 (the disk it is on is mounted "
+                               "read-only)")
+                    .arg(databasePath));
+            return false;
+        }
+        if (existing.isWritable() && !QFileInfo(existing.absolutePath()).isWritable()) {
+            setError(error,
+                QStringLiteral("The library cannot be written to: %1 (its folder cannot be written "
+                               "to, and the database needs its side files (-wal, -shm) beside it)")
+                    .arg(databasePath));
+            return false;
+        }
+    }
     if (const QFileInfo existing(databasePath); !databasePath.isEmpty()
         && databasePath != QLatin1String(":memory:") && existing.exists()
         && !existing.isWritable()) {

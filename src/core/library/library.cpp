@@ -145,8 +145,10 @@ void Library::Private::answered(bool failed, const QString &words, bool whole)
 {
     if (failed) {
         ++failedAnswers;
-        if (!said.exchange(true))
+        if (!said.exchange(true)) {
+            emit owner->answerFailed(words);
             emit owner->failed(words);
+        }
         return;
     }
     if (whole)

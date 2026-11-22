@@ -272,6 +272,9 @@ signals:
     void tracksRemoved(const QList<qint64> &ids);
     void pathsMoved(const QHash<QString, QString> &oldToNew); // L-MOVED
     void failed(const QString &what); // L-FAILED
+    // L-FAILED (fix-70d): a failed answer that says `failed` says this straight before it, with the
+    // same words. A refused change says `failed` alone.
+    void answerFailed(const QString &words);
 
 private:
     Library();
