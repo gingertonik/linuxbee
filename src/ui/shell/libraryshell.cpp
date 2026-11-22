@@ -135,16 +135,8 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
     // SR-SHELL: the one runner. The shell connects to it here, before anyone
     // else can, so it hears every signal first.
     d->scanner = new ScanRunner(d->library, { }, this);
-    // SH-MESSAGE: a refusal that comes while the shell's scan runs is the scan's; one from
-    // before it began is not.
-    connect(d->scanner, &ScanRunner::started, this, [this] {
-        d->scanning = true;
-        d->scanRefused = false;
-    });
-    connect(d->library, &Library::failed, this, [this] {
-        if (d->scanning)
-            d->scanRefused = true;
-    });
+    // SH-MESSAGE: the scan was refused when its own report says so, not for any `failed`
+    // heard while it ran.
     connect(d->scanner, &ScanRunner::finished, this, [this](const ScanReport &report) {
         QString text = tr("Scan: %1 added, %2 updated, %3 missing, %4 not audio")
                            .arg(report.added.size())
@@ -153,15 +145,13 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
                            .arg(report.notAudio.size());
         if (report.cancelled)
             text += tr(" (stopped)");
-        if (d->scanRefused)
+        if (!report.refused.isEmpty())
             text += tr("; the library could not be changed, and what was not stored will be "
                        "found by the next scan");
         // L-READFAIL 4: what the library knows could not be read, so no file was looked at and
         // there is nothing for the next scan to find.
         if (report.startUnread)
             text = tr("Could not scan: the library could not be read");
-        d->scanning = false;
-        d->scanRefused = false;
         showMessage(text);
     });
 

@@ -82,6 +82,15 @@ When the runner's scan has ended (`finished`), and it added files, the message i
 `1 new file` or `N new files`: `Inbox: 2 new files`. A scan that added
 nothing says nothing.
 
+A scan that stored some parts and was then refused (its report has
+both `added` and `refused`) says so on the same line, from its own
+report: `Inbox: 2 new files; the library could not be changed, and the
+rest will be found by the next scan: ` and the report's words. The
+library's notice adds nothing to it (SH-REFUSED: the line says it
+already). A scan refused with nothing added says nothing itself; the
+notice says it, once (L-READFAIL 5 holds the repeats of an unreadable
+library).
+
 The window follows by itself: the library reports the new tracks and the
 library shell shows them (library-shell.md, SH-LIVE).
 

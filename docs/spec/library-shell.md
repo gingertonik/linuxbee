@@ -336,13 +336,14 @@ status bar and kept as `lastMessage()`:
 
 The numbers are what the library answered, not what was asked for.
 
-**A scan the library refused.** When the library emitted `failed`
-while the shell's scan was running, the scan's line is followed by
+**A scan the library refused.** When the scan's own report says it was
+refused (its report's `refused` is not empty; fix-75d: not any `failed`
+heard while it ran, which may be a play or a command), the scan's line is followed by
 `; the library could not be changed, and what was not stored will be
 found by the next scan` (after ` (stopped)`, when that is there). A
 part of a scan is stored whole or not at all (L-PARTS), so the next
-scan does find it. A refusal from before the scan began is not the
-scan's.
+scan does find it. A refusal of something else while it runs, or from
+before it began, is not the scan's.
 
 ## SH-PLAY
 

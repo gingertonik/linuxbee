@@ -68,12 +68,18 @@ BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackS
             const QString section = d->sections.front();
             d->sections.pop_front();
             // A scan that added files says how many, in its section. A scan that added
-            // nothing says nothing and leaves the last message as it was.
+            // nothing says nothing and leaves the last message as it was. A scan that
+            // added files and was then refused says so on the same line, from its own report.
             const int added = report.added.size();
-            if (added == 1)
-                d->showMessage(tr("%1: 1 new file").arg(section));
-            else if (added > 1)
-                d->showMessage(tr("%1: %2 new files").arg(section).arg(added));
+            if (added < 1)
+                return;
+            QString text = added == 1 ? tr("%1: 1 new file").arg(section)
+                                      : tr("%1: %2 new files").arg(section).arg(added);
+            if (!report.refused.isEmpty())
+                text += tr("; the library could not be changed, and the rest will be found by "
+                           "the next scan: %1")
+                            .arg(report.refused);
+            d->showMessage(text);
         });
 
     // BG-MONITOR: the stored folders, and the settle time when it is a number from 0
