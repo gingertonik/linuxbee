@@ -1,6 +1,7 @@
 #include "shell/scanrunner.h"
 
 #include <QMetaObject>
+#include <QTimer>
 
 #include <algorithm>
 #include <atomic>
@@ -9,7 +10,7 @@
 #include <memory>
 #include <thread>
 
-// SR-THREADS, SR-SCAN, SR-STOP. The looking runs on a thread of its own and
+// SR-THREADS, SR-SCAN, SR-STOP, SR-TURN. The looking runs on a thread of its own and
 // touches no library; everything that touches the library, and every signal,
 // happens on the runner's thread, reached by queued calls.
 namespace linuxbee::ui {
@@ -37,6 +38,13 @@ struct ScanRunner::Private {
         ScanOptions options;
     };
 
+    // SR-TURN: what the looking handed over, waiting to be stored one a turn.
+    struct Item {
+        quint64 forScan = 0;
+        bool last = false; // the looking's last findings, stored behind its parts
+        ScanFindings findings;
+    };
+
     ScanRunner *q = nullptr;
     Library *library = nullptr;
     ScanRunnerHooks hooks;
@@ -54,8 +62,13 @@ struct ScanRunner::Private {
     bool cancelAsked = false; // SR-STOP: cancel() was called for the scan under way
     int lastDone = 0;
     int lastTotal = 0;
+    std::deque<Item> handedOver; // SR-TURN: in the order handed over
+    QTimer storeTimer; // SR-TURN: single shot, 0 ms; stores one waiting item per firing
+    bool storing = false; // inside storeOne: the next timer is armed after it, not before
 
     void begin();
+    void wait(quint64 forScan, bool last, const ScanFindings &findings);
+    void storeOne();
     void startLooking();
     void onProgress(quint64 forScan, int done, int total);
     void onPart(quint64 forScan, const ScanFindings &part);
@@ -129,15 +142,43 @@ void ScanRunner::Private::startLooking()
         return true;
     };
     find.part = [=](const ScanFindings &part) {
-        QMetaObject::invokeMethod(runner, [=] { self->onPart(mine, part); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            runner, [=] { self->wait(mine, false, part); }, Qt::QueuedConnection);
     };
 
     looking = std::thread([=] {
         // No function of the library is called from here.
         const ScanFindings findings = findForScan(folders, known, find);
         QMetaObject::invokeMethod(
-            runner, [=] { self->onFound(mine, findings); }, Qt::QueuedConnection);
+            runner, [=] { self->wait(mine, true, findings); }, Qt::QueuedConnection);
     });
+}
+
+void ScanRunner::Private::wait(quint64 forScan, bool last, const ScanFindings &findings)
+{
+    // SR-TURN: nothing is stored from the queued call itself; it waits for its turn.
+    if (gone)
+        return;
+    handedOver.push_back({ forScan, last, findings });
+    if (!storing && !storeTimer.isActive())
+        storeTimer.start();
+}
+
+void ScanRunner::Private::storeOne()
+{
+    if (gone || handedOver.empty())
+        return;
+    Item item = std::move(handedOver.front());
+    handedOver.pop_front();
+    storing = true;
+    if (item.last)
+        onFound(item.forScan, item.findings);
+    else
+        onPart(item.forScan, item.findings);
+    storing = false;
+    // SR-TURN: the next one is armed after this store and its signals have gone out.
+    if (!gone && !handedOver.empty() && !storeTimer.isActive())
+        storeTimer.start();
 }
 
 void ScanRunner::Private::onProgress(quint64 forScan, int done, int total)
@@ -217,6 +258,9 @@ ScanRunner::ScanRunner(Library *library, ScanRunnerHooks hooks, QObject *parent)
     d->q = this;
     d->library = library;
     d->hooks = std::move(hooks);
+    d->storeTimer.setSingleShot(true);
+    d->storeTimer.setInterval(0);
+    connect(&d->storeTimer, &QTimer::timeout, this, [this] { d->storeOne(); });
 }
 
 ScanRunner::~ScanRunner()
@@ -224,6 +268,8 @@ ScanRunner::~ScanRunner()
     // SR-STOP: tell the looking to stop and wait for that thread before
     // anything is freed; nothing is stored or signalled from here on.
     d->gone = true;
+    d->storeTimer.stop();
+    d->handedOver.clear();
     if (d->shared)
         d->shared->stop = true;
     d->joinLooking();
