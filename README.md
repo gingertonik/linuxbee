@@ -69,8 +69,7 @@ not a release. Expect the commands, settings and library file to change.
 - Organise Files: naming templates, with a preview before anything moves.
   Convert with presets. `Delete Files` goes to the desktop trash, not for
   good.
-- Preferences, remembered sidebars, skin files. `settings import` carries your
-  MusicBee hotkeys and naming template over.
+- Preferences, remembered sidebars, skin files.
 - An MPRIS player on the session bus, so desktop media keys work.
 
 The whole list is in the [manual](docs/MANUAL.md).
@@ -135,9 +134,7 @@ The last line prints `Adele/21/Someone like You.mp3`. Settings live in
 `~/.config/linuxbee/linuxbee.ini`, the library in
 `~/.local/share/linuxbee/library.db`, playlists beside it. Builds up to 0.7
 kept them one folder deeper, and the first start of a newer build moves them
-up; the [manual](docs/MANUAL.md) has the rules. To carry over from
-a MusicBee 3 settings file: `linuxbeectl settings import FILE` prints what it
-would take, `--apply --to INI` writes it.
+up; the [manual](docs/MANUAL.md) has the rules.
 
 `linuxbeectl --help` lists every command.
 
@@ -149,8 +146,7 @@ run `linuxbeectl library import FILE --map OLD=NEW` to bring over the date added
 play counts, skip counts and last played (`--map` turns the Windows paths into
 yours). It shows what it would change and writes only with `--apply`. Ratings
 and Love live in your files' tags, so linuxBee already has them; the import
-checks that they agree. The settings file imports too: hotkeys and the naming
-template.
+checks that they agree.
 
 **Can it tag files that are hard-linked from a seeding folder?** No. A file with
 more than one name is not saved, because a save would replace one name and leave

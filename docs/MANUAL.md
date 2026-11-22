@@ -178,8 +178,6 @@ command-line tool, or both.
   use is stored as `appearance/skin` in `linuxbee.ini`. The colours are applied
   when the file is a plain `.xml` skin. `linuxbeectl skin show` lists the
   colours it takes.
-- `linuxbeectl settings import` carries the hotkeys and the organiser's
-  naming template over from a MusicBee settings file.
 
 ### Desktop integration
 
@@ -281,7 +279,6 @@ commands:
   path       Build a relative file path from a naming template.
   playlist   Show a playlist file, or convert one to another format.
   rules      Check a rule set, or test a track against it.
-  settings   Carry over hotkeys and the naming template from a MusicBee settings file.
   skin       Show the colours linuxBee takes from a MusicBee skin file.
   tags       Read the tags, pictures and audio properties of a music file.
   tagtool    Bulk tag tools: replace, case, remove, renumber, infer, copy, swap.
@@ -318,12 +315,6 @@ linuxBee closed, before the first start of a newer build.
 
 One program uses a profile at a time. A second start on the same profile is
 refused, with `already running` on standard error and status 5.
-
-To carry over the hotkeys and the organiser's naming template from a MusicBee 3
-settings file, close linuxBee and run `linuxbeectl settings import FILE`. Without
-other options it prints what it would carry over and writes nothing. Add
-`--apply --to INI` to write those settings into the settings file `INI`, which is
-made if it does not exist.
 
 ## Build
 

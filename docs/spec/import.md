@@ -217,7 +217,9 @@ been printed, the fourth line is not, and nothing was stored.
 - Playlists: the plan has them; storing them is not done yet.
 - A rating or Love held by the library apart from the file.
 - Tags, artwork, the equaliser and anything else in the file.
-- Reading MusicBee's own library, playlist or settings files.
+- Reading MusicBee's own library, playlist or settings files. For the
+  settings file this is for good (the owner's ruling of 2026-11-20):
+  there is no settings import.
 - Playlist folders: playlists come in flat.
 
 ## Open parity questions
