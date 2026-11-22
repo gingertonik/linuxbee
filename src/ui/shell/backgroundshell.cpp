@@ -112,7 +112,10 @@ BackgroundShell::BackgroundShell(MainWindow *window, Library *library, PlaybackS
     };
     mpris.describe = [library](const QString &path) {
         MprisService::Track track;
-        if (const auto known = library->trackByPath(path)) {
+        // L-READFAIL 3: a description that cannot be read is empty, as for an unknown path.
+        const auto look = library->readTrackByPath(path);
+        if (!look.failed() && look.value()) {
+            const auto &known = look.value();
             track.title = known->tags.first(QStringLiteral("Title"));
             track.artists = known->tags.fields.value(QStringLiteral("Artist"));
             track.album = known->tags.first(QStringLiteral("Album"));

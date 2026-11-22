@@ -28,6 +28,7 @@
 
 #include <cstdlib>
 #include <memory>
+#include <optional>
 
 namespace linuxbee::ui {
 
@@ -210,11 +211,19 @@ struct ToolsShell::Private {
 
     // TS-TAGS: one target per selected track, with the tags the library holds for it.
     // The tagging tools are given the same targets (TS-TOOLS).
-    QList<EditTarget> targetsFor(const QList<qint64> &ids)
+    // L-READFAIL 3: a track that cannot be looked up is not passed over: nothing is given, the
+    // status bar says why, and the caller opens nothing.
+    std::optional<QList<EditTarget>> targetsFor(const QList<qint64> &ids)
     {
         QList<EditTarget> targets;
         for (const qint64 id : ids) {
-            const std::optional<LibraryTrack> track = library->track(id);
+            const auto look = library->readTrack(id);
+            if (look.failed()) {
+                showMessage(QCoreApplication::translate("linuxbee::ui::ToolsShell",
+                    "Could not edit the tags: the library could not be read"));
+                return std::nullopt;
+            }
+            const std::optional<LibraryTrack> &track = look.value();
             if (!track)
                 continue;
             EditTarget target;
@@ -235,7 +244,10 @@ struct ToolsShell::Private {
         const QList<qint64> ids = selectedIds();
         if (ids.isEmpty())
             return;
-        TagEditorDialog dialog(targetsFor(ids), window);
+        const std::optional<QList<EditTarget>> targets = targetsFor(ids);
+        if (!targets)
+            return;
+        TagEditorDialog dialog(*targets, window);
         dialog.setSaver(saver());
         QObject::connect(&dialog, &TagEditorDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
@@ -262,7 +274,12 @@ struct ToolsShell::Private {
     // as its child.
     void tagTool(ToolPanel *panel, const QList<qint64> &ids)
     {
-        TagToolDialog dialog(panel, targetsFor(ids), settings, window);
+        const std::optional<QList<EditTarget>> targets = targetsFor(ids);
+        if (!targets) {
+            delete panel; // the dialog would have taken it as its child
+            return;
+        }
+        TagToolDialog dialog(panel, *targets, settings, window);
         dialog.setSaver(saver());
         QObject::connect(&dialog, &TagToolDialog::saved, owner,
             [this](const QList<qint64> &saved) { tagsSaved(saved); });
@@ -321,8 +338,17 @@ struct ToolsShell::Private {
         }
         const QString name = undo->name();
         const TagUndo::Outcome outcome = undo->undo();
+        // L-READFAIL 3: the files are back already, so Undo cannot be refused. It stops refreshing
+        // at the first look the library cannot make, and says the library was not brought up to
+        // date.
+        bool unread = false;
         for (const QString &path : outcome.restored) {
-            if (const std::optional<LibraryTrack> track = library->trackByPath(path))
+            const auto look = library->readTrackByPath(path);
+            if (look.failed()) {
+                unread = true;
+                break;
+            }
+            if (const std::optional<LibraryTrack> &track = look.value())
                 library->refresh(track->id);
         }
         const qsizetype put = outcome.restored.size();
@@ -332,6 +358,9 @@ struct ToolsShell::Private {
             : QCoreApplication::translate("linuxbee::ui::ToolsShell", "Undid %1: %2 files put back")
                   .arg(name)
                   .arg(put);
+        if (unread)
+            text += QCoreApplication::translate("linuxbee::ui::ToolsShell",
+                "; the library could not be read, so it shows the old tags until it can");
         // UN-SAME: files that are no longer the file that was edited were left as they are.
         if (outcome.changed.size() == 1)
             text += QCoreApplication::translate(

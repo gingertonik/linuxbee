@@ -120,9 +120,9 @@ void ScanRunner::Private::startLooking()
     const LibraryRead<ScanKnown> read = library->readScanKnown();
     const quint64 mine = serial;
     if (read.failed()) {
-        // SR-REFUSED, L-READFAIL 4: what the library knows cannot be read (it has said `failed`
-        // once). The scan looks at no file and ends from the event loop, as a refused scan does,
-        // with the words; it is not cancelled.
+        // SR-REFUSED, L-READFAIL 4: what the library knows cannot be read (it has said `failed`,
+        // once until a whole reading succeeds). The scan looks at no file and ends from the event
+        // loop, as a refused scan does, with the words; it is not cancelled.
         const QString words = read.words();
         QMetaObject::invokeMethod(
             q,
@@ -131,6 +131,7 @@ void ScanRunner::Private::startLooking()
                     return;
                 ScanReport refusedReport;
                 refusedReport.refused = words;
+                refusedReport.startUnread = true; // SR-REFUSED, L-READFAIL 4
                 end(refusedReport);
             },
             Qt::QueuedConnection);

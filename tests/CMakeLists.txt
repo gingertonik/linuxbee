@@ -15,6 +15,8 @@ foreach(test_source IN LISTS LINUXBEE_TEST_SOURCES)
   get_filename_component(test_name ${test_source} NAME_WE)
   add_executable(${test_name} ${test_source})
   target_link_libraries(${test_name} PRIVATE linuxbee_core Qt6::Test)
+  # L-READFAIL 3: the tests may call the library's old answers, which are marked deprecated.
+  target_compile_options(${test_name} PRIVATE -Wno-deprecated-declarations)
   if(test_name MATCHES "^tst_ui_")
     target_link_libraries(${test_name} PRIVATE linuxbee_ui)
   endif()

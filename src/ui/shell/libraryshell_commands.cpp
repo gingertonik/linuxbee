@@ -126,9 +126,17 @@ void LibraryShell::removeSelected()
             showMessage(tr("Could not remove from the playlist: %1").arg(problem));
             return;
         }
+        // L-READFAIL 3: a track that cannot be looked up is not "not in the library": the command
+        // refuses before it changes the playlist, and says so each time.
         QSet<QString> selected;
         for (const qint64 id : ids) {
-            if (const std::optional<LibraryTrack> track = d->library->track(id))
+            const auto look = d->library->readTrack(id);
+            if (look.failed()) {
+                showMessage(
+                    tr("Could not remove from the playlist: the library could not be read"));
+                return;
+            }
+            if (const std::optional<LibraryTrack> &track = look.value())
                 selected.insert(track->path);
         }
         const QStringList entries = d->playlists->tracks(playlist);
@@ -192,7 +200,14 @@ void LibraryShell::deleteSelected()
     QHash<QString, qint64> idOfPath; // clean absolute path, as moveFilesToTrash gives it back
     QHash<qint64, QString> pathOfId; // the path as the library held it
     for (const qint64 id : ids) {
-        const std::optional<LibraryTrack> track = d->library->track(id);
+        // L-READFAIL 3: a track that cannot be looked up is passed over by no one: nothing is
+        // asked, no file is touched, and the status bar says why, each time.
+        const auto look = d->library->readTrack(id);
+        if (look.failed()) {
+            showMessage(tr("Could not delete files: the library could not be read"));
+            return;
+        }
+        const std::optional<LibraryTrack> &track = look.value();
         if (!track)
             continue;
         paths.append(track->path);

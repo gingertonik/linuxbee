@@ -69,6 +69,10 @@ struct ScanReport {
     int passedOver = 0;
     // L-FAILED: why nothing was stored; empty when the scan was stored.
     QString refused;
+    // L-READFAIL 4: what the library knows for the scan could not be read, so no file was looked
+    // at and nothing was stored (`refused` has the database's words). False for every other scan,
+    // a refused storing included.
+    bool startUnread = false;
     // L-FOLLOW: tracks whose file another program moved; each is at its file's path now.
     QList<qint64> followed;
 };
@@ -191,28 +195,46 @@ public:
     // L-SCAN
     ScanReport scan(const QStringList &folders, const ScanOptions &options);
     // L-PARTS: the two steps of a scan, apart.
-    ScanKnown scanKnown() const;
+    // Tests only: a failure reads as nothing, and nothing is said (L-READFAIL 3).
+    [[deprecated("tests only: the program reads through readScanKnown")]] ScanKnown
+    scanKnown() const;
     // L-READFAIL 4: what the library knows for a scan, or that it could not be read. A failure
-    // is said once, as `failed`, before this returns; the caller looks at no file then.
+    // is said once (L-READFAIL 5) as `failed` before this returns; the caller looks at no file
+    // then. A success ends the silence.
     LibraryRead<ScanKnown> readScanKnown();
     ScanReport applyScan(const ScanFindings &findings, const ScanOptions &options);
     // L-ADD: one file. Returns its id, or 0 when it is not a readable music file.
     qint64 addFile(const QString &path, const QString &category, const QDateTime &now);
 
-    int count() const;
-    // L-READFAIL 3: the count, or that it could not be read; a failure is said once, as `failed`.
+    // L-READFAIL 3: the answers the program reads through. Each gives the value or that it could
+    // not be read. A failure is said once as `failed` (L-READFAIL 5) and counted in
+    // failedAnswers(); tracksRead() grows only on success.
     LibraryRead<int> readCount();
-    // L-COUNT: every section and how many tracks it holds; reads no track.
-    QMap<QString, int> categoryCounts() const;
+    // L-COUNT: every section and how many tracks it holds (0 for an empty one); reads no track.
+    LibraryRead<QMap<QString, int>> readCategoryCounts();
+    // In ascending order of path. An empty category means all. All or nothing.
+    LibraryRead<QList<LibraryTrack>> readTracks(const QString &category = { });
+    // The track with this id, or none (a success); a look that could not be made is a failure.
+    LibraryRead<std::optional<LibraryTrack>> readTrack(qint64 id);
+    LibraryRead<std::optional<LibraryTrack>> readTrackByPath(const QString &path);
+    // L-READFAIL 5: how many answers this object has been unable to read since it was opened,
+    // said or not.
+    qint64 failedAnswers() const;
     // L-COUNT: how many tracks this object has handed out since it was opened.
     qint64 tracksRead() const;
-    // In ascending order of path. An empty category means all.
-    QList<LibraryTrack> tracks(const QString &category = { }) const;
-    // L-READFAIL 3: the list, all or nothing, or that it could not be read; a failure is said
-    // once, as `failed`. tracksRead() grows only on success.
-    LibraryRead<QList<LibraryTrack>> readTracks(const QString &category = { });
-    std::optional<LibraryTrack> track(qint64 id) const;
-    std::optional<LibraryTrack> trackByPath(const QString &path) const;
+
+    // L-READFAIL 3: the old answers, kept for the tests. A failure reads as nothing, and nothing
+    // is said or counted. The program builds with warnings as errors, so it cannot call them.
+    [[deprecated("tests only: the program reads through readCount")]] int count() const;
+    [[deprecated("tests only: the program reads through readCategoryCounts")]] QMap<QString, int>
+    categoryCounts() const;
+    [[deprecated("tests only: the program reads through readTracks")]] QList<LibraryTrack> tracks(
+        const QString &category = { }) const;
+    [[deprecated("tests only: the program reads through readTrack")]] std::optional<LibraryTrack>
+    track(qint64 id) const;
+    [[deprecated(
+        "tests only: the program reads through readTrackByPath")]] std::optional<LibraryTrack>
+    trackByPath(const QString &path) const;
 
     // L-EDIT. Each returns how many tracks were changed.
     int remove(const QList<qint64> &ids);

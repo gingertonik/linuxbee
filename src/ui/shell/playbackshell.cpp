@@ -39,7 +39,10 @@ struct PlaybackShell::Private {
         if (kept && keptPath == path)
             return keptFactor;
         double factor = 1.0;
-        if (const auto track = library->trackByPath(path)) {
+        const auto look = library->readTrackByPath(path);
+        if (look.failed())
+            return 1.0; // L-READFAIL 3: unity, and not kept, so the next play looks again
+        if (const auto &track = look.value()) {
             GainOptions options;
             options.mode = gainMode;
             factor = gainFactor(gainFromTags(track->tags), options);
@@ -304,9 +307,11 @@ QString PlaybackShell::titleFor(const QString &path) const
 {
     // PS-TITLE: "Artist - Title", every artist joined as the tag reader joins
     // them; the title alone without an artist; empty without a title.
-    const auto track = d->library->trackByPath(path);
-    if (!track)
+    // L-READFAIL 3: a title that cannot be read is empty, as for a path the library does not know.
+    const auto look = d->library->readTrackByPath(path);
+    if (look.failed() || !look.value())
         return { };
+    const auto &track = look.value();
     const QString title = track->tags.first(QStringLiteral("Title"));
     if (title.isEmpty())
         return { };

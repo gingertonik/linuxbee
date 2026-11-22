@@ -137,6 +137,20 @@ int expireDeletedRows(library::Store &store, const QDateTime &now, QString *word
 Library::Library()
     : d(std::make_unique<Private>())
 {
+    d->owner = this;
+}
+
+// L-READFAIL 5: see library_p.h.
+void Library::Private::answered(bool failed, const QString &words, bool whole)
+{
+    if (failed) {
+        ++failedAnswers;
+        if (!said.exchange(true))
+            emit owner->failed(words);
+        return;
+    }
+    if (whole)
+        said = false;
 }
 
 Library::~Library() = default;
@@ -206,30 +220,56 @@ int Library::currentSchemaVersion()
 
 // L-SCAN and L-ADD live in scan.cpp.
 
+// L-READFAIL 3: the old answers, kept for the tests. A failure reads as nothing and says nothing.
 int Library::count() const
 {
-    return d->store.count();
+    const auto read = d->store.readCount();
+    return read.failed() ? 0 : read.value();
 }
 
-// L-READFAIL 3
+// L-READFAIL 3, 5
 LibraryRead<int> Library::readCount()
 {
     LibraryRead<int> read = d->store.readCount();
-    if (read.failed())
-        emit failed(read.words());
+    d->answered(read.failed(), read.words(), true);
     return read;
 }
 
-// L-COUNT: one counting query, every section present, 0 for an empty one.
-// Reads no track, so it counts nothing in tracksRead().
+// L-COUNT: one counting query, every section present, 0 for an empty one. Reads no track, so it
+// counts nothing in tracksRead().
+static void addEmptySections(QMap<QString, int> *counts)
+{
+    for (const QString &name : Library::categories()) {
+        if (!counts->contains(name))
+            counts->insert(name, 0);
+    }
+}
+
+// L-READFAIL 3: the old answer, kept for the tests.
 QMap<QString, int> Library::categoryCounts() const
 {
-    QMap<QString, int> counts = d->store.categoryCounts();
-    for (const QString &name : categories()) {
-        if (!counts.contains(name))
-            counts.insert(name, 0);
-    }
+    const auto read = d->store.readCategoryCounts();
+    QMap<QString, int> counts = read.failed() ? QMap<QString, int>() : read.value();
+    addEmptySections(&counts);
     return counts;
+}
+
+// L-READFAIL 3, 5: the counts are all or nothing, so a failure gives no map to show.
+LibraryRead<QMap<QString, int>> Library::readCategoryCounts()
+{
+    const auto read = d->store.readCategoryCounts();
+    d->answered(read.failed(), read.words(), true);
+    if (read.failed())
+        return read;
+    QMap<QString, int> counts = read.value();
+    addEmptySections(&counts);
+    return LibraryRead<QMap<QString, int>>::ok(std::move(counts));
+}
+
+// L-READFAIL 5
+qint64 Library::failedAnswers() const
+{
+    return d->failedAnswers;
 }
 
 // L-COUNT: every track this object has handed out since it was opened.
@@ -238,40 +278,65 @@ qint64 Library::tracksRead() const
     return d->tracksHandedOut;
 }
 
+// L-READFAIL 3: the old answer, kept for the tests.
 QList<LibraryTrack> Library::tracks(const QString &category) const
 {
-    QList<LibraryTrack> list = d->store.all(category);
-    d->tracksHandedOut += static_cast<qint64>(list.size());
-    return list;
+    const auto read = d->store.readAll(category);
+    if (read.failed())
+        return { };
+    d->tracksHandedOut += static_cast<qint64>(read.value().size());
+    return read.value();
 }
 
-// L-READFAIL 3
+// L-READFAIL 3, 5
 LibraryRead<QList<LibraryTrack>> Library::readTracks(const QString &category)
 {
     LibraryRead<QList<LibraryTrack>> read = d->store.readAll(category);
-    if (read.failed()) {
-        emit failed(read.words());
-        return read;
-    }
-    d->tracksHandedOut += static_cast<qint64>(read.value().size());
+    d->answered(read.failed(), read.words(), true);
+    if (!read.failed())
+        d->tracksHandedOut += static_cast<qint64>(read.value().size());
     return read;
 }
 
+// L-READFAIL 3: the old answer, kept for the tests.
 std::optional<LibraryTrack> Library::track(qint64 id) const
 {
-    std::optional<LibraryTrack> found = d->store.byId(id);
-    if (found)
-        ++d->tracksHandedOut;
-    return found;
+    const auto read = d->store.readById(id);
+    if (read.failed() || !read.value())
+        return std::nullopt;
+    ++d->tracksHandedOut;
+    return read.value();
 }
 
-// L-STORE: paths are stored clean, so a lookup is cleaned the same way.
+// L-READFAIL 3, 5: a look at one track says a failure once and does not end the silence.
+LibraryRead<std::optional<LibraryTrack>> Library::readTrack(qint64 id)
+{
+    LibraryRead<std::optional<LibraryTrack>> read = d->store.readById(id);
+    d->answered(read.failed(), read.words(), false);
+    if (!read.failed() && read.value())
+        ++d->tracksHandedOut;
+    return read;
+}
+
+// L-STORE: paths are stored clean, so a lookup is cleaned the same way. The old answer, kept for
+// the tests.
 std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 {
-    std::optional<LibraryTrack> found = d->store.byPath(libraryPath(path));
-    if (found)
+    const auto read = d->store.readByPath(libraryPath(path));
+    if (read.failed() || !read.value())
+        return std::nullopt;
+    ++d->tracksHandedOut;
+    return read.value();
+}
+
+// L-READFAIL 3, 5
+LibraryRead<std::optional<LibraryTrack>> Library::readTrackByPath(const QString &path)
+{
+    LibraryRead<std::optional<LibraryTrack>> read = d->store.readByPath(libraryPath(path));
+    d->answered(read.failed(), read.words(), false);
+    if (!read.failed() && read.value())
         ++d->tracksHandedOut;
-    return found;
+    return read;
 }
 
 // L-EDIT remove: forgets the tracks. No music file is touched.

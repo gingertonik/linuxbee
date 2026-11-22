@@ -156,6 +156,10 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
         if (d->scanRefused)
             text += tr("; the library could not be changed, and what was not stored will be "
                        "found by the next scan");
+        // L-READFAIL 4: what the library knows could not be read, so no file was looked at and
+        // there is nothing for the next scan to find.
+        if (report.startUnread)
+            text = tr("Could not scan: the library could not be read");
         d->scanning = false;
         d->scanRefused = false;
         showMessage(text);
@@ -352,8 +356,15 @@ void LibraryShell::showNode()
 {
     // SH-EXTEND: the one place the node is read. The kept tracks are
     // replaced, the list follows, and the change is said once.
-    d->kept = readNodeTracks();
-    d->showKept();
+    // L-READFAIL 3: a node that cannot be read, whatever kind it is, leaves the list as it is. The
+    // library counts its failed answers, so the read is judged by that count before and after.
+    const qint64 failedBefore = d->library->failedAnswers();
+    const QList<LibraryTrack> read = readNodeTracks();
+    const bool unread = d->library->failedAnswers() != failedBefore;
+    if (!unread) {
+        d->kept = read;
+        d->showKept();
+    }
     // SH-REMOVE: the Delete key is named for what it does in the view on show.
     if (QAction *remove = d->actions->action(QStringLiteral("file.remove"))) {
         if (d->node == QStringLiteral("playing"))
@@ -361,6 +372,10 @@ void LibraryShell::showNode()
         else
             remove->setText(playlistOf(d->node).isEmpty() ? tr("Remove from Library")
                                                           : tr("Remove from Playlist"));
+    }
+    if (unread) {
+        showMessage(tr("Could not show the tracks: the library could not be read"));
+        return;
     }
     emit nodeTracksChanged();
 }
@@ -376,8 +391,12 @@ QList<LibraryTrack> LibraryShell::readNodeTracks() const
                 return tracks;
         }
     }
-    if (const QString section = sectionOf(d->node); !section.isEmpty())
-        return d->library->tracks(section); // SH-NODE
+    if (const QString section = sectionOf(d->node); !section.isEmpty()) {
+        // SH-NODE, L-READFAIL 3: a list that cannot be read gives none; showNode() sees the
+        // failed answer and keeps the list on show.
+        const auto read = d->library->readTracks(section);
+        return read.failed() ? QList<LibraryTrack>() : read.value();
+    }
     if (const QString playlist = playlistOf(d->node); !playlist.isEmpty())
         return playlistTracks(playlist);
     if (d->node == kPlayingNode)
@@ -393,7 +412,10 @@ QList<LibraryTrack> LibraryShell::playlistTracks(const QString &id) const
     const QStringList paths = d->playlists->tracks(id);
     QList<qint64> seen;
     for (const QString &path : paths) {
-        const auto track = d->library->trackByPath(path);
+        const auto look = d->library->readTrackByPath(path);
+        if (look.failed())
+            return out; // L-READFAIL 3: showNode() sees the failed answer and keeps the list
+        const auto &track = look.value();
         if (!track)
             continue;
         if (seen.contains(track->id))
@@ -409,7 +431,10 @@ QList<LibraryTrack> LibraryShell::playingTracks() const
     QList<LibraryTrack> out;
     QList<qint64> seen;
     for (const QString &path : d->playingPaths) {
-        const auto track = d->library->trackByPath(path);
+        const auto look = d->library->readTrackByPath(path);
+        if (look.failed())
+            return out; // L-READFAIL 3: showNode() sees the failed answer and keeps the list
+        const auto &track = look.value();
         if (!track)
             continue;
         if (seen.contains(track->id))
@@ -424,7 +449,10 @@ void LibraryShell::refreshCounts()
 {
     // SH-COUNTS: every section, how many tracks it holds. The library counts
     // them (L-COUNT); no track is read here.
-    d->navigator->setLibraryCounts(d->library->categoryCounts());
+    // L-READFAIL 3: counts that cannot be read are left as they are.
+    const auto counts = d->library->readCategoryCounts();
+    if (!counts.failed())
+        d->navigator->setLibraryCounts(counts.value());
 }
 
 QStringList LibraryShell::playlistIds() const
@@ -447,10 +475,14 @@ void LibraryShell::onLibraryChanged(const QList<qint64> &ids)
         if (!source)
             continue;
         QList<LibraryTrack> answer;
+        const qint64 failedBefore = d->library->failedAnswers();
         if (source(d->node, &answer)) {
-            d->kept = answer;
-            d->showKept();
-            emit nodeTracksChanged();
+            // L-READFAIL 3: an answer made from a read that failed leaves the list as it is.
+            if (d->library->failedAnswers() == failedBefore) {
+                d->kept = answer;
+                d->showKept();
+                emit nodeTracksChanged();
+            }
             return;
         }
     }
@@ -477,14 +509,25 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
     // now, and a kept track that stops being kept leaves the list.
     // SH-EXTEND: the kept tracks follow the same ids, as the tracks are now
     // (added, replaced in place, or taken out); the section is not read.
+    // L-READFAIL 3: every id is looked up first; one look that cannot be made leaves the kept
+    // tracks and the list as they are.
+    QList<std::optional<LibraryTrack>> looked;
+    looked.reserve(ids.size());
+    for (const qint64 id : ids) {
+        const auto look = d->library->readTrack(id);
+        if (look.failed())
+            return;
+        looked.append(look.value());
+    }
     QHash<qint64, qsizetype> at;
     for (qsizetype i = 0; i < d->kept.size(); ++i)
         at.insert(d->kept.at(i).id, i);
     QSet<qint64> gone;
     QList<LibraryTrack> intoView;
     QList<qint64> outOfView;
-    for (const qint64 id : ids) {
-        const auto track = d->library->track(id);
+    for (qsizetype n = 0; n < ids.size(); ++n) {
+        const qint64 id = ids.at(n);
+        const std::optional<LibraryTrack> &track = looked.at(n);
         const bool inSection = track && track->category == section;
         if (inSection) {
             if (const auto it = at.constFind(id); it != at.constEnd()) {
