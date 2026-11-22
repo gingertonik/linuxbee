@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "library/library.h"
+#include "library/libraryread.h"
 
 // The store: the only code in linuxBee that speaks SQL. The schema and every
 // statement live in store.cpp; everything above this file works with
@@ -47,18 +48,30 @@ public:
     // from one counting query. Reads no track. Empty when the store is closed.
     QMap<QString, int> categoryCounts() const;
 
+    // L-READFAIL: the typed readers. Each gives the value or that the read failed, with the
+    // database's words, and a read that fails part way (checked at the end of the rows as well
+    // as the start) is a failed read. A closed store fails every one. These are what a change
+    // looks through; the plain readers below stay for the answers (R-2, R-3).
+    LibraryRead<std::optional<LibraryTrack>> readById(qint64 id) const;
+    LibraryRead<std::optional<LibraryTrack>> readByPath(const QString &path) const;
+    LibraryRead<QList<LibraryTrack>> readAll(const QString &category) const;
+    LibraryRead<ScanKnown> readScanKnown() const;
+    // L-PARTS: what a scan compares (path, size, modification time and the missing mark) for
+    // these ids only, by id. One light query per few hundred ids: no tags, no track is built,
+    // and the rest of the library is not read. An id the store does not hold has no entry.
+    LibraryRead<QHash<qint64, ScanFindings::Judged>> readHeldById(const QList<qint64> &ids) const;
+    // L-DELETED: the deleted rows whose deleting is at or before `cutoffSecs`, as (id, path), in
+    // ascending order of id.
+    LibraryRead<QList<std::pair<qint64, QString>>> readDeletedUntil(qint64 cutoffSecs) const;
+    // L-DELETED: the id of the deleted row at this exact path, 0 when there is none.
+    LibraryRead<qint64> readDeletedIdAt(const QString &path) const;
+
     std::optional<LibraryTrack> byId(qint64 id) const;
 
     // L-PARTS: every track by its stored path with only what a scan compares:
     // id, size, modification time and the missing mark. One light query, no
     // tags, and no track is built.
     ScanKnown scanKnown() const;
-
-    // L-PARTS: what a scan compares (path, size, modification time and the
-    // missing mark) for these ids only, by id. One light query per few
-    // hundred ids: no tags, no track is built, and the rest of the library is
-    // not read. An id the store does not hold has no entry.
-    QHash<qint64, ScanFindings::Judged> heldById(const QList<qint64> &ids) const;
 
     // The track stored at this exact path, if there is one.
     std::optional<LibraryTrack> byPath(const QString &path) const;
@@ -91,7 +104,8 @@ public:
     // L-FAILED: the database's words when the last setCategory or removeIds was refused
     // (nothing changed then); empty when it went through or had nothing to do.
     QString lastError() const;
-    // L-WAIT: whether the last byId or byPath could look. Empty when the look was made, whatever
+    // L-WAIT: whether the last byId or byPath could look (L-READFAIL: the typed readers say so in
+    // their own answer). Empty when the look was made, whatever
     // it found; the database's words when the statement failed (it was busy, say). Separate from
     // lastError(), which a read never clears.
     QString lastReadError() const;
@@ -101,14 +115,9 @@ public:
     // deleted or unknown id is not one). L-FAILED: a refusal changes nothing, returns nothing and
     // leaves words in lastError().
     QList<qint64> markDeleted(const QList<qint64> &ids, qint64 whenSecs);
-    // L-DELETED: the deleted rows whose deleting is at or before `cutoffSecs`, as (id, path), in
-    // ascending order of id. A plain read.
-    QList<std::pair<qint64, QString>> deletedUntil(qint64 cutoffSecs) const;
     // L-DELETED: removes the deleted rows among `ids` (a live row is never touched), by pieces,
     // in one transaction. Returns the ids removed; a refusal as for markDeleted.
     QList<qint64> removeDeleted(const QList<qint64> &ids);
-    // L-DELETED: the id of the deleted row at this exact path, 0 when there is none.
-    qint64 deletedIdAt(const QString &path) const;
     // L-DELETED: the deleted row `id` is a track again: not deleted, not missing, with this reading
     // of its file (as updateReading). False with lastError() empty: no such deleted row.
     bool restoreDeleted(qint64 id, const LibraryTrack &track);

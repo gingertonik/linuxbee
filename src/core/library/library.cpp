@@ -44,16 +44,28 @@ bool readFresh(const QString &path, LibraryTrack *track)
 // L-MOVED: one track to a new path, with the refusals of setPath. False for a
 // refusal. `touched` says the stored row changed, and `was` is set to the path
 // the track held when its path did. `refused` is set to the database's words only when the store
-// itself refused the change (L-FAILED), and stays empty for every other false.
+// itself refused the change (L-FAILED) or a look it needed could not be made (L-READFAIL), and
+// stays empty for every other false.
 bool moveTrack(library::Store &store, qint64 id, const QString &newPath, QString *was,
     bool *touched, QString *refused)
 {
     *touched = false;
-    const std::optional<LibraryTrack> known = store.byId(id);
+    const auto knownRead = store.readById(id);
+    if (knownRead.failed()) {
+        *refused
+            = knownRead.words(); // L-READFAIL: a look that could not be made is not "no such track"
+        return false;
+    }
+    const std::optional<LibraryTrack> &known = knownRead.value();
     if (!known)
         return false;
     const QString clean = libraryPath(newPath);
-    const std::optional<LibraryTrack> other = store.byPath(clean);
+    const auto otherRead = store.readByPath(clean);
+    if (otherRead.failed()) {
+        *refused = otherRead.words();
+        return false;
+    }
+    const std::optional<LibraryTrack> &other = otherRead.value();
     if (other && other->id != id)
         return false; // L-EDIT: another track has that path
     // L-MISSING: missing is set by whether a file is at the new path.
@@ -75,25 +87,39 @@ bool moveTrack(library::Store &store, qint64 id, const QString &newPath, QString
 // a plain read first. True when some id in `ids` is a track of ours that `wants` accepts. It stops
 // at the first one, so a call that has something to do reads little. The answer is taken outside
 // the lock and can be stale by the time it is acted on; that costs a call that comes a moment late.
+// L-READFAIL: a look that could not be made is a failed read, not "not wanted": the call refuses.
 template <typename Wants>
-bool anyWanted(const library::Store &store, const QList<qint64> &ids, Wants wants)
+LibraryRead<bool> anyWanted(const library::Store &store, const QList<qint64> &ids, Wants wants)
 {
-    return std::any_of(ids.cbegin(), ids.cend(), [&store, &wants](qint64 id) {
-        const std::optional<LibraryTrack> known = store.byId(id);
-        return known && wants(*known);
-    });
+    for (const qint64 id : ids) {
+        const auto known = store.readById(id);
+        if (known.failed())
+            return LibraryRead<bool>::failure(known.words());
+        if (known.value() && wants(*known.value()))
+            return LibraryRead<bool>::ok(true);
+    }
+    return LibraryRead<bool>::ok(false);
 }
 
 } // namespace
 
 // L-DELETED: see library_p.h.
-int expireDeletedRows(library::Store &store, const QDateTime &now)
+int expireDeletedRows(library::Store &store, const QDateTime &now, QString *words)
 {
+    if (words)
+        words->clear();
     if (!now.isValid())
         return 0;
     const qint64 kept = qint64(Library::deletedKeptDays()) * 24 * 60 * 60;
     QList<qint64> goes;
-    for (const auto &row : store.deletedUntil(now.toSecsSinceEpoch() - kept)) {
+    const auto rows = store.readDeletedUntil(now.toSecsSinceEpoch() - kept);
+    if (rows.failed()) {
+        // L-READFAIL: rows that cannot be read are not "no rows to remove"
+        if (words)
+            *words = rows.words();
+        return -1;
+    }
+    for (const auto &row : rows.value()) {
         // A file at the path is the track's, taken back out of the trash: the row stays, and a
         // scan brings the track back. A link counts as something, also one that leads nowhere.
         const QFileInfo there(row.second);
@@ -129,7 +155,7 @@ std::unique_ptr<Library> Library::open(const QString &databasePath, QString *err
     }
     // L-DELETED: rows deleted thirty days ago or more go, with the clock's time. A failure here
     // is no failure of the opening, and is not said.
-    expireDeletedRows(library->d->store, QDateTime::currentDateTimeUtc());
+    expireDeletedRows(library->d->store, QDateTime::currentDateTimeUtc(), nullptr);
     return library;
 }
 
@@ -231,7 +257,12 @@ std::optional<LibraryTrack> Library::trackByPath(const QString &path) const
 int Library::remove(const QList<qint64> &ids)
 {
     // L-FAILED: no id is a track of ours, so there is nothing to refuse.
-    if (!anyWanted(d->store, ids, [](const LibraryTrack &) { return true; }))
+    const auto wanted = anyWanted(d->store, ids, [](const LibraryTrack &) { return true; });
+    if (wanted.failed()) {
+        emit failed(wanted.words()); // L-READFAIL
+        return 0;
+    }
+    if (!wanted.value())
         return 0;
     const QList<qint64> gone = d->store.removeIds(ids);
     // L-FAILED: a refusal changed nothing, so there is no change to announce.
@@ -254,7 +285,12 @@ int Library::markDeleted(const QList<qint64> &ids, const QDateTime &when)
     if (!when.isValid() || when.toSecsSinceEpoch() < 0)
         return 0;
     // L-FAILED: no id is a track of ours, so there is nothing to refuse.
-    if (!anyWanted(d->store, ids, [](const LibraryTrack &) { return true; }))
+    const auto wanted = anyWanted(d->store, ids, [](const LibraryTrack &) { return true; });
+    if (wanted.failed()) {
+        emit failed(wanted.words()); // L-READFAIL
+        return 0;
+    }
+    if (!wanted.value())
         return 0;
     const QList<qint64> marked = d->store.markDeleted(ids, when.toSecsSinceEpoch());
     if (const QString why = d->store.lastError(); !why.isEmpty()) {
@@ -278,10 +314,15 @@ int Library::markDeleted(const QList<qint64> &ids, const QDateTime &when)
 }
 
 // L-DELETED: removes what was deleted thirty days before `now` or longer ago and has no file at
-// its path. Signals nothing, and a refusal is not said: nobody asked for it.
+// its path. Signals nothing, and a refusal of the removing is not said: nobody asked for it.
+// L-READFAIL: deleted rows that cannot be read are said, once, and nothing goes.
 int Library::expireDeleted(const QDateTime &now)
 {
-    return std::max(0, expireDeletedRows(d->store, now));
+    QString words;
+    const int removed = expireDeletedRows(d->store, now, &words);
+    if (!words.isEmpty())
+        emit failed(words);
+    return std::max(0, removed);
 }
 
 // L-EDIT setCategory: counts the tracks it changed, so an id that is unknown,
@@ -292,8 +333,13 @@ int Library::setCategory(const QList<qint64> &ids, const QString &category)
     if (!categories().contains(category))
         return 0;
     // L-FAILED: no id is ours, or every one named is in that section already.
-    if (!anyWanted(d->store, ids,
-            [&category](const LibraryTrack &track) { return track.category != category; }))
+    const auto wanted = anyWanted(d->store, ids,
+        [&category](const LibraryTrack &track) { return track.category != category; });
+    if (wanted.failed()) {
+        emit failed(wanted.words()); // L-READFAIL
+        return 0;
+    }
+    if (!wanted.value())
         return 0;
     const QList<qint64> changed = d->store.setCategory(ids, category);
     if (const QString why = d->store.lastError(); !why.isEmpty()) {
@@ -308,7 +354,12 @@ int Library::setCategory(const QList<qint64> &ids, const QString &category)
 // L-EDIT refresh: the file is read again now, whatever its time says.
 bool Library::refresh(qint64 id)
 {
-    const std::optional<LibraryTrack> known = d->store.byId(id);
+    const auto knownRead = d->store.readById(id);
+    if (knownRead.failed()) {
+        emit failed(knownRead.words()); // L-READFAIL
+        return false;
+    }
+    const std::optional<LibraryTrack> &known = knownRead.value();
     if (!known)
         return false;
     LibraryTrack fresh;
@@ -359,12 +410,19 @@ int Library::relinkPaths(const QString &oldPrefix, const QString &newPrefix)
         return std::any_of(all.cbegin(), all.cend(),
             [&under](const LibraryTrack &track) { return track.path.startsWith(under); });
     };
-    if (!holdsSome(d->store.all(QString())))
+    // L-READFAIL: a list that cannot be read is not an empty one.
+    const auto listed = d->store.readAll(QString());
+    if (listed.failed()) {
+        emit failed(listed.words());
+        return 0;
+    }
+    if (!holdsSome(listed.value()))
         return 0;
     // The change is one, as recordMoves is: the write lock first (L-WAIT), and the first step the
-    // database refuses gives the whole of it up, says so once and stores nothing.
-    const auto refuse = [this]() {
-        const QString why = d->store.lastError();
+    // database refuses, or the first look it cannot make (L-READFAIL, `words`), gives the whole of
+    // it up, says so once and stores nothing.
+    const auto refuse = [this](const QString &words = QString()) {
+        const QString why = words.isEmpty() ? d->store.lastError() : words;
         d->store.rollbackBatch();
         emit failed(why.isEmpty() ? QStringLiteral("the database refused the change") : why);
         return 0;
@@ -375,11 +433,17 @@ int Library::relinkPaths(const QString &oldPrefix, const QString &newPrefix)
     QHash<QString, QString> moves;
     // Looked at again with the lock held, so no other program changes a track between the look
     // and the storing.
-    for (const LibraryTrack &track : d->store.all(QString())) {
+    const auto again = d->store.readAll(QString());
+    if (again.failed())
+        return refuse(again.words());
+    for (const LibraryTrack &track : again.value()) {
         if (!track.path.startsWith(under))
             continue;
         const QString moved = to + QLatin1Char('/') + track.path.mid(from.size() + 1);
-        if (d->store.byPath(moved))
+        const auto held = d->store.readByPath(moved);
+        if (held.failed())
+            return refuse(held.words());
+        if (held.value())
             continue; // L-EDIT: a track whose new path is another's is left alone
         // L-MISSING: missing is set by whether a file is at the new path.
         if (!d->store.setPath(track.id, moved, !QFileInfo::exists(moved)))
@@ -430,8 +494,9 @@ bool Library::recordPlay(qint64 id, const QDateTime &when)
     {
         // L-WAIT: the look-up waits the short wait too.
         const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
-        known = d->store.byId(id).has_value();
-        lookWords = d->store.lastReadError();
+        const auto look = d->store.readById(id);
+        known = !look.failed() && look.value().has_value();
+        lookWords = look.failed() ? look.words() : QString();
         if (known)
             stored = d->store.recordPlay(id, when);
     } // back to the write wait before any signal goes out
@@ -462,8 +527,9 @@ bool Library::recordSkip(qint64 id, const QDateTime &when)
     QString lookWords;
     {
         const QuickWaitScope quick(d->store, d->quickWait, d->writeWait);
-        known = d->store.byId(id).has_value();
-        lookWords = d->store.lastReadError();
+        const auto look = d->store.readById(id);
+        known = !look.failed() && look.value().has_value();
+        lookWords = look.failed() ? look.words() : QString();
         if (known)
             stored = d->store.recordSkip(id);
     } // back to the write wait before any signal goes out
@@ -505,13 +571,14 @@ QList<PlayRecord> Library::recordPlays(const QList<PlayRecord> &records)
             const QString path = libraryPath(record.path);
             auto found = ids.find(path);
             if (found == ids.end()) {
-                const std::optional<LibraryTrack> track = d->store.byPath(path);
-                if (!track && !d->store.lastReadError().isEmpty()) {
-                    refusedWords = d->store.lastReadError(); // the look could not be made
+                const auto look = d->store.readByPath(path);
+                if (look.failed()) {
+                    refusedWords = look.words(); // the look could not be made
                     refused = true;
                     lookFailed = true;
                     break;
                 }
+                const std::optional<LibraryTrack> &track = look.value();
                 found = ids.insert(path, track ? track->id : 0);
             }
             if (found.value() != 0)
@@ -578,7 +645,13 @@ bool Library::setStatistics(qint64 id, const TrackStatistics &statistics)
     // negative count. An unknown id is what the store's no-row answer is.
     if (!statistics.dateAdded.isValid() || statistics.playCount < 0 || statistics.skipCount < 0)
         return false;
-    if (!d->store.byId(id)) // L-FAILED: as recordPlay
+    const auto look = d->store.readById(id);
+    if (look.failed()) {
+        emit failed(
+            look.words()); // L-READFAIL: a look that could not be made is not "no such track"
+        return false;
+    }
+    if (!look.value()) // an unknown id is nothing to do
         return false;
     if (!d->store.setStatistics(id, statistics)) {
         if (const QString why = d->store.lastError(); !why.isEmpty())
@@ -637,13 +710,33 @@ int Library::recordMoves(const QList<FileMove> &moves)
     // L-FAILED: a call with nothing to do asks for no lock. A move has something to do when its two
     // paths differ and one of them is a track of ours (the track to move, or the one replaced). The
     // library has not changed until the first such move, so looking at the start is enough.
-    const bool somethingToDo
-        = std::any_of(moves.cbegin(), moves.cend(), [this](const FileMove &move) {
-              const QString from = libraryPath(move.from);
-              const QString to = libraryPath(move.to);
-              return !from.isEmpty() && !to.isEmpty() && from != to
-                  && (d->store.byPath(from) || d->store.byPath(to));
-          });
+    // L-READFAIL: a path that cannot be looked up is not "not ours": the call stops there and says
+    // so.
+    bool somethingToDo = false;
+    for (const FileMove &move : moves) {
+        const QString from = libraryPath(move.from);
+        const QString to = libraryPath(move.to);
+        if (from.isEmpty() || to.isEmpty() || from == to)
+            continue;
+        const auto atFrom = d->store.readByPath(from);
+        if (atFrom.failed()) {
+            emit failed(atFrom.words());
+            return 0;
+        }
+        if (atFrom.value()) {
+            somethingToDo = true;
+            break;
+        }
+        const auto atTo = d->store.readByPath(to);
+        if (atTo.failed()) {
+            emit failed(atTo.words());
+            return 0;
+        }
+        if (atTo.value()) {
+            somethingToDo = true;
+            break;
+        }
+    }
     if (!somethingToDo)
         return 0;
     QHash<qint64, Start> began; // each track that moved: how it was before the call
@@ -651,8 +744,8 @@ int Library::recordMoves(const QList<FileMove> &moves)
     QList<qint64> gone;
     QSet<qint64> goneSet;
     // A refused step ends the call: the batch is given up, nothing is stored or signalled.
-    const auto refuse = [this]() {
-        const QString why = d->store.lastError();
+    const auto refuse = [this](const QString &words = QString()) {
+        const QString why = words.isEmpty() ? d->store.lastError() : words;
         d->store.rollbackBatch();
         emit failed(why.isEmpty() ? QStringLiteral("the database refused the change") : why);
         return 0;
@@ -664,8 +757,14 @@ int Library::recordMoves(const QList<FileMove> &moves)
         const QString to = libraryPath(move.to);
         if (from.isEmpty() || to.isEmpty() || from == to)
             continue;
-        const std::optional<LibraryTrack> moving = d->store.byPath(from);
-        if (const std::optional<LibraryTrack> held = d->store.byPath(to);
+        const auto movingRead = d->store.readByPath(from);
+        if (movingRead.failed())
+            return refuse(movingRead.words()); // L-READFAIL
+        const std::optional<LibraryTrack> &moving = movingRead.value();
+        const auto heldRead = d->store.readByPath(to);
+        if (heldRead.failed())
+            return refuse(heldRead.words());
+        if (const std::optional<LibraryTrack> &held = heldRead.value();
             held && (!moving || held->id != moving->id)) {
             d->store.removeIds({ held->id });
             if (!d->store.lastError().isEmpty())
@@ -688,7 +787,10 @@ int Library::recordMoves(const QList<FileMove> &moves)
     for (const qint64 id : std::as_const(order)) {
         if (goneSet.contains(id))
             continue;
-        const std::optional<LibraryTrack> now = d->store.byId(id);
+        const auto nowRead = d->store.readById(id);
+        if (nowRead.failed())
+            return refuse(nowRead.words()); // L-READFAIL: the end look too
+        const std::optional<LibraryTrack> &now = nowRead.value();
         if (!now)
             continue;
         // L-MISSING: by whether a file is at the path now.

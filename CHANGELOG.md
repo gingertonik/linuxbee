@@ -63,6 +63,7 @@ settings and the library file may still change.
 - `linuxbeectl settings import` is removed. Reading MusicBee's settings file is not done any more, and the hotkeys are MusicBee's documented defaults.
 - **A skin colour of four numbers was read with its alpha at the wrong end.** Skins put the alpha first (`128,43,43,43` is the grey `43,43,43` at half opacity), and linuxBee took the fourth number as the alpha. Such a colour now reads as the skin means it, and `linuxbeectl skin show` writes a colour with an alpha as `a,r,g,b` (it printed `r,g,b,a`), so a script that reads that output for a colour with alpha gets the new order. Colours of three numbers are unchanged. No saved setting held a colour, so nothing stored reads differently.
 - **A scan no longer holds the window while it stores.** The scan runner stored every part the looking had handed over in one go, so a large library froze the window for up to two seconds at a time. It now stores one part, lets the window have a turn, then stores the next. The scan takes a little longer in all; the window stays answerable.
+- **A library that cannot be read is now said to be so, and nothing is stored.** When the database could not answer a read inside a change (a damaged page, say), the change went on as if the tracks were not there: Remove and Send To said "Removed 0", a move or a relink passed over tracks it could not look up, and a scan began with "the library knows nothing". Such a change or scan is now refused whole, says why once, and stores nothing.
 
 ## 0.8.0 (2026-11-18)
 

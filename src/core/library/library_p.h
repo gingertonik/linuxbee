@@ -25,9 +25,11 @@ inline QString libraryPath(const QString &path)
 
 // L-DELETED: removes the deleted rows whose deleting lies thirty days before `now` or longer ago
 // and at whose path nothing is (asked of the disk once for each such row; a link counts as
-// something). Returns how many; -1 when the database refused, with its words in store.lastError().
-// With nothing to remove no lock is asked for. Inside a batch it is part of the batch.
-int expireDeletedRows(library::Store &store, const QDateTime &now);
+// something). Returns how many; -1 when the database refused or the deleted rows could not be read.
+// L-READFAIL: a failed read leaves its words in *words (when given); a refusal leaves *words empty
+// and its words in store.lastError(). With nothing to remove no lock is asked for. Inside a batch
+// it is part of the batch.
+int expireDeletedRows(library::Store &store, const QDateTime &now, QString *words);
 
 // The library is one open store: the file's own SQLite connection, and
 // nothing else. L-OPEN keeps it open for the life of the Library object.
