@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QSet>
 #include <QString>
@@ -9,9 +10,12 @@
 #include <QTimeZone>
 
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <optional>
 #include <utility>
+
+#include <sys/stat.h>
 
 #include "files/musicfiles.h"
 #include "library/library_p.h"
@@ -86,6 +90,31 @@ bool insideAnyFolder(const QString &path, const QStringList &folders)
     return false;
 }
 
+// L-LOOKIN: what looking at a path says: there, not there (ENOENT or ENOTDIR), or cannot be looked
+// at (any other error). The path is followed as QFileInfo::exists follows it.
+enum class Presence { There, NotThere, CannotLook };
+
+Presence presenceOf(const QString &path)
+{
+    struct stat st;
+    if (::stat(QFile::encodeName(path).constData(), &st) == 0)
+        return Presence::There;
+    return errno == ENOENT || errno == ENOTDIR ? Presence::NotThere : Presence::CannotLook;
+}
+
+// L-LOOKIN: the nearest folder above the path that can be seen.
+QString nearestSeenFolder(const QString &path)
+{
+    QString folder = QFileInfo(path).path();
+    while (!folder.isEmpty() && presenceOf(folder) != Presence::There) {
+        const QString up = QFileInfo(folder).path();
+        if (up == folder)
+            return QString();
+        folder = up;
+    }
+    return folder;
+}
+
 // L-SCAN, the reader's number: the properties of the sound, as the library keeps them.
 bool sameSound(const AudioInfo &a, const AudioInfo &b)
 {
@@ -154,7 +183,9 @@ void lookAtFile(const QString &path, const ScanKnown &known, const FollowRows &r
     if (entry == known.byPath.cend()) {
         LibraryTrack track;
         if (!readAsTrack(path, &track)) {
-            found->notAudio.append(path); // L-SCAN: nothing is stored for it
+            // L-LOOKIN: a file that is not there is not "not music".
+            if (presenceOf(path) == Presence::There)
+                found->notAudio.append(path); // L-SCAN: nothing is stored for it
             return;
         }
         // L-FOLLOW: a file with the size and the time of rows that are missing or gone is held
@@ -175,6 +206,10 @@ void lookAtFile(const QString &path, const ScanKnown &known, const FollowRows &r
         found->fresh.append(track);
         return;
     }
+    // L-LOOKIN: a known file that is not there now is in no count: the second look at what has
+    // gone finds it, or the folder is named.
+    if (presenceOf(path) != Presence::There)
+        return;
     const QFileInfo info(path);
     const bool asStored = info.size() == entry->sizeBytes && fileModified(info) == entry->modified;
     const bool readByOlder = entry->reader < kReaderVersion;
@@ -205,7 +240,9 @@ void lookAtFile(const QString &path, const ScanKnown &known, const FollowRows &r
     again.id = entry->id;
     again.onlyTheReader = asStored;
     if (!readAsTrack(path, &again.reading)) {
-        found->notAudio.append(path); // the file is there and is not audio
+        // L-LOOKIN: only a file that is there and is not audio
+        if (presenceOf(path) == Presence::There)
+            found->notAudio.append(path);
         return;
     }
     found->reread.append(again);
@@ -215,15 +252,26 @@ void lookAtFile(const QString &path, const ScanKnown &known, const FollowRows &r
 // L-SCAN, L-PARTS: every known track that is not missing, lies inside one of
 // the scanned folders, and has no file left; in ascending order of path, the
 // order the store keeps (its bytes, not UTF-16 code units).
-QList<qint64> goneFromFolders(
-    const ScanKnown &known, const QStringList &folders, ScanFindings *found)
+// L-LOOKIN: a track whose file cannot be looked at for any reason but "no such file" is not gone:
+// it is left out, and the nearest folder above it that can be seen goes into `cannotLookIn`.
+// `leaveOut` holds ids already found gone, which a second look does not find again.
+QList<qint64> goneFromFolders(const ScanKnown &known, const QStringList &folders,
+    ScanFindings *found, const QSet<qint64> &leaveOut = { })
 {
     QList<std::pair<QByteArray, qint64>> gone;
     for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
-        if (entry->missing || !insideAnyFolder(entry.key(), folders))
+        if (entry->missing || leaveOut.contains(entry->id)
+            || !insideAnyFolder(entry.key(), folders))
             continue;
-        if (QFileInfo::exists(entry.key()))
+        const Presence presence = presenceOf(entry.key());
+        if (presence == Presence::There)
             continue;
+        if (presence == Presence::CannotLook) {
+            const QString folder = nearestSeenFolder(entry.key());
+            if (!folder.isEmpty() && !found->cannotLookIn.contains(folder))
+                found->cannotLookIn.append(folder);
+            continue;
+        }
         gone.append({ entry.key().toUtf8(), entry->id });
         judge(found, entry.key(), *entry);
     }
@@ -282,7 +330,18 @@ ScanFindings findForScan(
     // L-SCAN, L-NAMES: a cancelled scan leaves out what has gone and claims
     // nothing about names.
     if (!found.cancelled) {
-        found.nowMissing = gone;
+        // L-LOOKIN: what went while the files were looked at is found by a second look, which
+        // leaves out the ids the first one found.
+        ScanFindings goneLater;
+        const QList<qint64> later
+            = goneFromFolders(known, folders, &goneLater, QSet<qint64>(gone.cbegin(), gone.cend()));
+        found.nowMissing = gone + later;
+        found.judged.insert(goneLater.judged);
+        for (const QString &folder : goneJudged.cannotLookIn + goneLater.cannotLookIn) {
+            if (!found.cannotLookIn.contains(folder))
+                found.cannotLookIn.append(folder);
+        }
+        found.cannotLookIn.sort();
         found.maybeMoved = held.files; // L-FOLLOW: the last part only, and none when cancelled
         found.judged.insert(goneJudged.judged);
         found.judged.insert(held.judged.judged);
@@ -304,6 +363,9 @@ ScanReport addedUp(const ScanReport &a, const ScanReport &b)
     sum.unreadableNames += b.unreadableNames;
     sum.unreadableIn += b.unreadableIn;
     sum.passedOver += b.passedOver;
+    sum.cannotLookIn += b.cannotLookIn;
+    sum.cannotLookIn.removeDuplicates();
+    sum.cannotLookIn.sort();
     sum.cancelled = a.cancelled || b.cancelled;
     sum.startUnread = a.startUnread || b.startUnread;
     return sum;
@@ -406,6 +468,7 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         return refuse(heldRead.words());
     const QHash<qint64, ScanFindings::Judged> &held = heldRead.value();
     QSet<qint64> passed;
+    int heldByNow = 0; // L-LOOKIN: files looked at as new that the library holds by now
     auto stillFits = [&findings, &held, &passed](qint64 id) {
         const auto was = findings.judged.constFind(id);
         if (was == findings.judged.cend())
@@ -435,8 +498,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         const auto holder = d->store.readByPath(clean);
         if (holder.failed())
             return refuse(holder.words());
-        if (holder.value())
+        if (holder.value()) {
+            ++heldByNow;
             continue;
+        }
         // L-DELETED: a file at the path of a deleted track is that track's: it comes back, read
         // again, with its id, its section, its date added and its statistics.
         const auto deletedAt = d->store.readDeletedIdAt(clean);
@@ -537,8 +602,10 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
         const auto holder = d->store.readByPath(libraryPath(reading.path));
         if (holder.failed())
             return refuse(holder.words());
-        if (holder.value())
+        if (holder.value()) {
+            ++heldByNow;
             continue;
+        }
         if (deletedHere.at(i) > 0) {
             if (d->store.restoreDeleted(deletedHere.at(i), reading))
                 broughtBack.append(deletedHere.at(i));
@@ -585,7 +652,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     report.unreadableNames = findings.unreadableNames;
     report.unreadableIn = findings.unreadableIn;
     report.cancelled = findings.cancelled;
-    report.passedOver = int(passed.size());
+    report.passedOver = int(passed.size()) + heldByNow;
+    report.cannotLookIn = findings.cannotLookIn;
     if (!d->store.commitBatch())
         return refuse(); // nothing was stored, so nothing is announced
     quick.reset(); // back to the write wait before any signal goes out

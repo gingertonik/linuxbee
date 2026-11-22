@@ -75,6 +75,10 @@ struct ScanReport {
     bool startUnread = false;
     // L-FOLLOW: tracks whose file another program moved; each is at its file's path now.
     QList<qint64> followed;
+    // L-LOOKIN: the nearest folder that can be seen above each track whose file could not be
+    // looked at for any reason but "no such file"; each once, ascending. Those tracks are left as
+    // they are.
+    QStringList cannotLookIn;
 };
 
 // L-SCAN: the reader's number. Raised by one whenever what the reader makes of a file changes
@@ -127,6 +131,8 @@ struct ScanFindings {
     int unreadableNames = 0;
     QStringList unreadableIn;
     bool cancelled = false;
+    // L-LOOKIN: as ScanReport::cannotLookIn; carried by the last part only.
+    QStringList cannotLookIn;
 };
 
 struct ScanFindOptions {

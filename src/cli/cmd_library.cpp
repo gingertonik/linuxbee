@@ -426,6 +426,27 @@ int runLibrary(const QStringList &arguments)
                           .arg(report.followed.size()))
                 << '\n';
         }
+        // L-CLI, L-LOOKIN: the folders it could not look in, then what it passed over.
+        if (!report.cannotLookIn.isEmpty()) {
+            out << (report.cannotLookIn.size() == 1
+                    ? QStringLiteral("could not look in 1 folder; the tracks in it are left as "
+                                     "they are:")
+                    : QStringLiteral("could not look in %1 folders; the tracks in them are left "
+                                     "as they are:")
+                          .arg(report.cannotLookIn.size()))
+                << '\n';
+            for (const QString &folder : report.cannotLookIn)
+                out << QStringLiteral("  ") << folder << '\n';
+        }
+        if (report.passedOver > 0) {
+            out << (report.passedOver == 1
+                    ? QStringLiteral("passed over 1 file the library had changed meanwhile; the "
+                                     "next scan looks again")
+                    : QStringLiteral("passed over %1 files the library had changed meanwhile; "
+                                     "the next scan looks again")
+                          .arg(report.passedOver))
+                << '\n';
+        }
         // L-CLI, L-NAMES: the names passed over, after that line, on standard
         // output; the exit status does not change.
         if (report.unreadableNames > 0) {
