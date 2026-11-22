@@ -229,11 +229,11 @@ int Library::count() const
     return read.failed() ? 0 : read.value();
 }
 
-// L-READFAIL 3, 5
+// L-READFAIL 3, 5: the count does not end the silence.
 LibraryRead<int> Library::readCount()
 {
     LibraryRead<int> read = d->store.readCount();
-    d->answered(read.failed(), read.words(), true);
+    d->answered(read.failed(), read.words(), false);
     return read;
 }
 
@@ -260,7 +260,7 @@ QMap<QString, int> Library::categoryCounts() const
 LibraryRead<QMap<QString, int>> Library::readCategoryCounts()
 {
     const auto read = d->store.readCategoryCounts();
-    d->answered(read.failed(), read.words(), true);
+    d->answered(read.failed(), read.words(), false);
     if (read.failed())
         return read;
     QMap<QString, int> counts = read.value();
@@ -294,7 +294,7 @@ QList<LibraryTrack> Library::tracks(const QString &category) const
 LibraryRead<QList<LibraryTrack>> Library::readTracks(const QString &category)
 {
     LibraryRead<QList<LibraryTrack>> read = d->store.readAll(category);
-    d->answered(read.failed(), read.words(), true);
+    d->answered(read.failed(), read.words(), category.isEmpty());
     if (!read.failed())
         d->tracksHandedOut += static_cast<qint64>(read.value().size());
     return read;
