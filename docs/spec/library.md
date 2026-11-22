@@ -132,7 +132,12 @@ mode. It never writes to the library file:
   with no `-shm` file beside the library, is `the library cannot be
   read here: its folder cannot be written to, and the database needs
   its side files (-wal, -shm) beside it`: the database needs that file
-  to read a library kept with a write-ahead log.
+  to read a library kept with a write-ahead log. A disk mounted read-only, with no
+  `-shm` file beside the library, is `the library cannot be read here:
+  the disk it is on is mounted read-only, and the database needs its
+  side files (-wal, -shm) beside it`, not "not a linuxBee library"; with
+  them beside it, it is read (fix-d2; 70d's review, note 2). It is not
+  read as `immutable`, for the reason above.
 
 Each refusal is exit 3 on the command line, the code every library
 that cannot be opened gets, newer schemas included, so a script sees
