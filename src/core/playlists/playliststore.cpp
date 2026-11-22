@@ -307,7 +307,20 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
         // closed, all before the hook. After the second look the only call is the rename. No
         // step needs a second name for a file (link, linkat, O_TMPFILE), as FAT and exFAT have
         // none.
-        const QString folder = QFileInfo(path).absolutePath();
+        //
+        // fix-p1 (Y-EDIT): a link is written through. The spare name is made beside the file the
+        // link leads to and renamed onto it, so the link stays; a link that leads nowhere fails.
+        // A target this user cannot write to is refused here, before anything is made. The mode
+        // comes from the target, never from the link.
+        QString target = path;
+        if (QFileInfo(path).isSymLink()) {
+            target = QFileInfo(path).canonicalFilePath();
+            if (target.isEmpty())
+                return Written::Failed;
+        }
+        if (::access(QFile::encodeName(target).constData(), W_OK) != 0)
+            return Written::Failed;
+        const QString folder = QFileInfo(target).absolutePath();
         static const char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
         QByteArray spare;
         int fd = -1;
@@ -347,7 +360,7 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
         }
         if (ready) {
             struct stat existing { };
-            const mode_t mode = ::stat(QFile::encodeName(path).constData(), &existing) == 0
+            const mode_t mode = ::stat(QFile::encodeName(target).constData(), &existing) == 0
                 ? (existing.st_mode & 07777)
                 : mode_t(0644);
             ready = ::fchmod(fd, mode) == 0 && ::fsync(fd) == 0;
@@ -362,7 +375,7 @@ Written writeBytesOver(const QString &path, const QByteArray &data,
         const bool same = lookAt(path) == *first;
         // Nothing between the look and the rename.
         const int renamed
-            = same ? ::rename(spare.constData(), QFile::encodeName(path).constData()) : -1;
+            = same ? ::rename(spare.constData(), QFile::encodeName(target).constData()) : -1;
         if (renamed != 0)
             ::unlink(spare.constData());
         if (!same)
