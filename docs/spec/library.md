@@ -786,19 +786,51 @@ there".
    `recordPlays`, `setStatistics`, `recordMoves`, `applyScan` and
    `addFile`. (`expireDeleted` at the opening stays unsaid, as
    L-DELETED has it: the opening is not refused.)
-3. **An answer.** `readCount()` and `readTracks(category)` give the
-   count and the list as a `LibraryRead`, and emit `failed` once when
-   they fail. The list is all or nothing: a list that fails part way
-   gives no rows. The command line answers with them (L-CLI): `count`,
-   `list` and `import` print nothing on standard output, the words on
-   standard error, and exit 3; `import` plans and writes nothing. The
-   window's answers (`categoryCounts`, `tracks`, `track`,
-   `trackByPath`) are R-3's, and keep their old readers until then.
+3. **An answer.** The program reads every answer through a typed
+   reader: `readCount()`, `readTracks(category)`,
+   `readCategoryCounts()`, `readTrack(id)` and `readTrackByPath(path)`.
+   The list is all or nothing: a list that fails part way gives no
+   rows.
+   - **The command line** (L-CLI): `count`, `list` and `import` print
+     nothing on standard output, the words on standard error, and exit
+     3; `import` plans and writes nothing.
+   - **The window keeps what it shows.** A node, the counts, or a
+     library change that cannot be read leaves the list and the counts
+     as they are. A node that cannot be read says on the status bar
+     `Could not show the tracks: the library could not be read`.
+   - **A command that needs a look refuses** before it asks or does
+     anything, and says so on the status bar each time: Delete Files
+     (`Could not delete files: …`), Remove from a playlist (`Could not
+     remove from the playlist: …`), the tag editor and the tagging
+     tools (`Could not edit the tags: …`), each ending `the library
+     could not be read`.
+   - **Undo** has already put the files back when its look fails, so
+     it cannot be refused. Its message adds `; the library could not
+     be read, so it shows the old tags until it can`.
+   - **Playback:** a title or a media-keys answer that cannot be read
+     is empty, as for a path the library does not know. A gain that
+     cannot be read plays at unity and is not kept, so the next play
+     looks again.
+   - **The old answers** (`count`, `categoryCounts`, `tracks`,
+     `track`, `trackByPath`, `scanKnown`) are kept for the tests and
+     marked deprecated. The program builds with warnings as errors, so
+     it cannot call them; the tests build with
+     `-Wno-deprecated-declarations`. They read a failure as nothing and
+     say nothing. The store has no other readers than the typed ones.
 4. **The scan's start.** `readScanKnown()` gives what the library
-   knows for a scan, as a `LibraryRead<ScanKnown>`, and emits `failed`
-   once when it fails. A scan whose start cannot be read looks at no
-   file (scan-runner.md, SR-REFUSED). `scanKnown()` stays for the
-   callers that are not scans, until R-3.
+   knows for a scan, as a `LibraryRead<ScanKnown>`. A scan whose start
+   cannot be read looks at no file (scan-runner.md, SR-REFUSED); its
+   report has `startUnread`, and the window says `Could not scan: the
+   library could not be read`. It does not say that the next scan will
+   find what was not stored: nothing was looked at.
+5. **Said once.** An answer or a scan start that cannot be read emits
+   `failed` once. Until a reading of the whole library (the list, the
+   count, the counts or the scan's start) succeeds again, a further
+   one says nothing more. So the monitor, whose scans start every few
+   seconds, says it once, and a view read again says it once. A
+   change refused for a failed look (2) is always said.
+   `failedAnswers()` counts every answer that could not be read, said
+   or not.
 
 **How a test makes a read fail.** A library file made in the test,
 with one page overwritten by bytes no page has, while no program has

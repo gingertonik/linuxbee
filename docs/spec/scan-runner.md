@@ -136,7 +136,9 @@ What was not stored is found by the next scan.
 knows cannot be read (`readScanKnown` failed). The scan looks at no
 file and gives the library nothing. It ends as a refused scan does:
 `finished` with an empty report whose `refused` is the database's
-words, not `cancelled`. The library has said `failed` once. Only that
+words and whose `startUnread` is set, not `cancelled`. The library has
+said `failed`, once until a reading of the whole library succeeds
+(L-READFAIL 5). Only that
 scan ends; one asked for meanwhile begins as ever.
 
 ## SR-SHELL
