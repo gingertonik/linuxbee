@@ -121,10 +121,18 @@ mode. It never writes to the library file:
   The program never removes them itself (the orchestrator, 2026-11-21:
   removing them rests on the database's private locks, and is the one
   act that could harm a library in use).
-- A folder that cannot be written to, with no `-shm` file beside the
-  library, is answered as in L-OPEN (`The library cannot be written
-  to`): the database needs that file to read a library kept with a
-  write-ahead log.
+- **The wait.** A library another program holds (a writer with the
+  whole file locked, a write-ahead log being recovered) is waited for
+  as L-WAIT waits, up to 5 seconds, and then read. Still held then:
+  `the library is busy: another program holds it; try again`.
+- **Its words.** (Found by the review of the first building.) A file
+  with no `tracks` table, an empty file or another program's database
+  at any version, is `That file is not a linuxBee library: it holds no
+  library`, not "at schema 0". A folder that cannot be written to,
+  with no `-shm` file beside the library, is `the library cannot be
+  read here: its folder cannot be written to, and the database needs
+  its side files (-wal, -shm) beside it`: the database needs that file
+  to read a library kept with a write-ahead log.
 
 Each refusal is exit 3 on the command line, the code every library
 that cannot be opened gets, newer schemas included, so a script sees
