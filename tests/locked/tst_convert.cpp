@@ -643,6 +643,7 @@ void ConvertTest::ifExists()
     change.other = { { s(u"MY KEY"), { } }, { s(u"NEW KEY"), { s(u"n") } } };
     QCOMPARE(linuxbee::writeTags(source, change).status, linuxbee::WriteResult::Status::Ok);
     const int durationBefore = linuxbee::readTags(job.destination).tags.audio.durationMs;
+    QVERIFY(QFile::copy(job.destination, out("song-before.mp3"))); // out("song-before.mp3"), job.destination
     job.source = source;
     job.ifExists = ConvertJob::IfExists::UpdateTags;
     job.ffmpegPath = script("never.sh", "echo should not run >&2\nexit 9\n");
@@ -651,11 +652,13 @@ void ConvertTest::ifExists()
     QVERIFY(r.ok());
     QCOMPARE(r.outputPath, job.destination);
     const linuxbee::TrackTags t = linuxbee::readTags(job.destination).tags;
+    // C-UPDATE (fix-b, the reviewer's change): what the original lost (Genre, MY KEY) stays.
+    const linuxbee::TrackTags converted = linuxbee::readTags(out("song-before.mp3")).tags;
     Fields expected = toneFields();
     expected.insert(s(u"Title"), { s(u"Changed") });
-    expected.remove(s(u"Genre"));
     QCOMPARE(t.fields, expected);
-    QCOMPARE(t.other, Fields({ { s(u"NEW KEY"), { s(u"n") } } }));
+    QCOMPARE(t.other.value(s(u"NEW KEY")), QStringList { s(u"n") });
+    QCOMPARE(t.other.value(s(u"MY KEY")), converted.other.value(s(u"MY KEY")));
     QCOMPARE(t.audio.durationMs, durationBefore);
     QCOMPARE(t.format, s(u"mp3"));
 }

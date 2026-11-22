@@ -208,6 +208,15 @@ The gaps a MusicBee user will notice first:
 - **Compiled skins, and plugins.** Compiled skins (`.xmlc`), and a skin's
   pictures and layout, are not used. Plugins are not built.
 
+## Known issues
+
+- **Converting some MP3 files to WavPack fails with ffmpeg n9.0.2 and
+  n9.1.**
+  ffmpeg stops with `invalid block size: 47`, and the job ends Failed
+  with ffmpeg's words. The fault is in ffmpeg's WavPack encoder, not in
+  linuxBee, and linuxBee does not work around it. Converting to another
+  format works, and so does converting a FLAC to WavPack.
+
 ## Try it
 
 ### Install a release
