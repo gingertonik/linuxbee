@@ -41,23 +41,24 @@ public:
     // this program's, or it cannot be read.
     bool openToRead(const QString &databasePath, QString *error);
 
-    // L-STORE: how many tracks are stored, the missing ones included.
-    int count() const;
-
-    // L-COUNT: how many tracks each category holds, the missing ones included,
-    // from one counting query. Reads no track. Empty when the store is closed.
-    QMap<QString, int> categoryCounts() const;
-
-    // L-READFAIL: the typed readers. Each gives the value or that the read failed, with the
-    // database's words, and a read that fails part way (checked at the end of the rows as well
-    // as the start) is a failed read. A closed store fails every one. These are what a change
-    // looks through; the plain readers below stay for the answers (R-2, R-3).
+    // L-READFAIL: the typed readers, the only readers the store has. Each gives the value or that
+    // the read failed, with the database's words, and a read that fails part way (checked at the
+    // end of the rows as well as the start) is a failed read. A closed store fails every one.
+    //
+    // The track with this id, or none; the track stored at this exact path, or none.
     LibraryRead<std::optional<LibraryTrack>> readById(qint64 id) const;
     LibraryRead<std::optional<LibraryTrack>> readByPath(const QString &path) const;
+    // Every track in ascending order of path. An empty category means all.
     LibraryRead<QList<LibraryTrack>> readAll(const QString &category) const;
-    // L-READFAIL 3: how many tracks are stored (as count()), or that the read failed. A count
-    // with no row is a failed read.
+    // L-READFAIL 3: how many tracks are stored, the missing ones included, or that the read failed.
+    // A count with no row is a failed read.
     LibraryRead<int> readCount() const;
+    // L-COUNT, L-READFAIL 3: how many tracks each category holds, the missing ones included, from
+    // one counting query. Reads no track. All or nothing; a category with no track has no entry.
+    LibraryRead<QMap<QString, int>> readCategoryCounts() const;
+    // L-PARTS: every track by its stored path with only what a scan compares: id, size,
+    // modification time, the missing mark and the reader. One light query, no tags, and no track
+    // is built.
     LibraryRead<ScanKnown> readScanKnown() const;
     // L-PARTS: what a scan compares (path, size, modification time and the missing mark) for
     // these ids only, by id. One light query per few hundred ids: no tags, no track is built,
@@ -68,19 +69,6 @@ public:
     LibraryRead<QList<std::pair<qint64, QString>>> readDeletedUntil(qint64 cutoffSecs) const;
     // L-DELETED: the id of the deleted row at this exact path, 0 when there is none.
     LibraryRead<qint64> readDeletedIdAt(const QString &path) const;
-
-    std::optional<LibraryTrack> byId(qint64 id) const;
-
-    // L-PARTS: every track by its stored path with only what a scan compares:
-    // id, size, modification time and the missing mark. One light query, no
-    // tags, and no track is built.
-    ScanKnown scanKnown() const;
-
-    // The track stored at this exact path, if there is one.
-    std::optional<LibraryTrack> byPath(const QString &path) const;
-
-    // Every track in ascending order of path. An empty category means all.
-    QList<LibraryTrack> all(const QString &category) const;
 
     // L-WAIT: how long a change waits for another program's write lock (5 seconds until set).
     // Sets the busy wait of this library's connection; does nothing while closed.
@@ -107,11 +95,6 @@ public:
     // L-FAILED: the database's words when the last setCategory or removeIds was refused
     // (nothing changed then); empty when it went through or had nothing to do.
     QString lastError() const;
-    // L-WAIT: whether the last byId or byPath could look (L-READFAIL: the typed readers say so in
-    // their own answer). Empty when the look was made, whatever
-    // it found; the database's words when the statement failed (it was busy, say). Separate from
-    // lastError(), which a read never clears.
-    QString lastReadError() const;
 
     // L-DELETED: marks the live tracks among `ids` deleted at `whenSecs` (whole seconds, not
     // before 1970) and missing, by pieces, in one transaction. Returns the ids it marked (a

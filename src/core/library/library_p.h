@@ -2,6 +2,7 @@
 // The library's own state, shared by the two files that implement it
 // (library.cpp and scan.cpp). Not a public header: nothing includes it from
 // outside src/core/library/.
+#include <atomic>
 #include <chrono>
 #include <memory>
 
@@ -43,6 +44,20 @@ struct Library::Private {
     std::chrono::milliseconds quickWait { 250 };
     // L-SCHEMA: what the opening did to a file of an older schema; all empty when no step ran.
     SchemaStep step;
+    // L-READFAIL 5: the library that says `failed` for the answers. Set once the object is made.
+    Library *owner = nullptr;
+    // L-READFAIL 5: an answer that could not be read was said, and no reading of the whole
+    // library has succeeded since. Atomic because a scan's start reads on the runner's thread.
+    std::atomic<bool> said { false };
+    // L-READFAIL 5: every answer that could not be read, said or not.
+    std::atomic<qint64> failedAnswers { 0 };
+
+    // L-READFAIL 5: every typed answer and the scan's start go through this one place. A failure
+    // is counted and, unless one was said already, emitted as `failed`. A `whole` reading (the
+    // list, the count, the counts, the scan's start) that succeeds ends the silence; a look at one
+    // track does not. A change refused for a failed look (L-READFAIL 2) does not come here: it is
+    // always said.
+    void answered(bool failed, const QString &words, bool whole);
 };
 
 } // namespace linuxbee

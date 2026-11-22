@@ -669,7 +669,6 @@ struct Store::Private {
     bool opened = false;
     bool inBatch = false;
     QString lastError; // L-FAILED: the database's words for the last refused edit
-    QString lastReadError; // L-WAIT: the database's words when the last byId or byPath failed
 
     // Never empty, so the library always has words to say.
     void refused(const QString &words)
@@ -732,32 +731,6 @@ bool Store::openToRead(const QString &databasePath, QString *error)
     d->connection = name;
     d->opened = true;
     return true;
-}
-
-int Store::count() const
-{
-    if (!d->opened)
-        return 0;
-    QSqlQuery query(QSqlDatabase::database(d->connection));
-    // L-DELETED: a deleted track is no track.
-    if (!query.exec(QStringLiteral("SELECT count(*) FROM tracks WHERE deleted_secs < 0"))
-        || !query.next())
-        return 0;
-    return query.value(0).toInt();
-}
-
-QMap<QString, int> Store::categoryCounts() const
-{
-    QMap<QString, int> counts;
-    if (!d->opened)
-        return counts;
-    QSqlQuery query(QSqlDatabase::database(d->connection));
-    if (!query.exec(QStringLiteral(
-            "SELECT category, count(*) FROM tracks WHERE deleted_secs < 0 GROUP BY category")))
-        return counts;
-    while (query.next())
-        counts.insert(query.value(0).toString(), query.value(1).toInt());
-    return counts;
 }
 
 // L-READFAIL: the answer of a read that could not be made, or ended in an error part way: Qt's
@@ -845,6 +818,26 @@ LibraryRead<int> Store::readCount() const
     return Read::ok(query.value(0).toInt());
 }
 
+// L-READFAIL 3: how many tracks each category holds, all or nothing. A failure at the start or
+// part way through the rows is a failed read, not a shorter map.
+LibraryRead<QMap<QString, int>> Store::readCategoryCounts() const
+{
+    using Read = LibraryRead<QMap<QString, int>>;
+    if (!d->opened)
+        return Read::failure(QStringLiteral("the library is not open"));
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    // L-DELETED: a deleted track is no track.
+    if (!query.exec(QStringLiteral(
+            "SELECT category, count(*) FROM tracks WHERE deleted_secs < 0 GROUP BY category")))
+        return Read::failure(readWords(query));
+    QMap<QString, int> counts;
+    while (query.next())
+        counts.insert(query.value(0).toString(), query.value(1).toInt());
+    if (endedInError(query))
+        return Read::failure(readWords(query));
+    return Read::ok(std::move(counts));
+}
+
 LibraryRead<ScanKnown> Store::readScanKnown() const
 {
     using Read = LibraryRead<ScanKnown>;
@@ -901,38 +894,6 @@ LibraryRead<QHash<qint64, ScanFindings::Judged>> Store::readHeldById(const QList
             return Read::failure(readWords(query));
     }
     return Read::ok(std::move(held));
-}
-
-// The plain readers stay for the answers (L-READFAIL 3, until R-2 and R-3): each is its typed
-// reader with a failure read as nothing. byId and byPath keep the words in lastReadError.
-std::optional<LibraryTrack> Store::byId(qint64 id) const
-{
-    const auto read = readById(id);
-    d->lastReadError = read.failed() ? read.words() : QString();
-    if (read.failed())
-        return std::nullopt;
-    return read.value();
-}
-
-ScanKnown Store::scanKnown() const
-{
-    const auto read = readScanKnown();
-    return read.failed() ? ScanKnown() : read.value();
-}
-
-std::optional<LibraryTrack> Store::byPath(const QString &path) const
-{
-    const auto read = readByPath(path);
-    d->lastReadError = read.failed() ? read.words() : QString();
-    if (read.failed())
-        return std::nullopt;
-    return read.value();
-}
-
-QList<LibraryTrack> Store::all(const QString &category) const
-{
-    const auto read = readAll(category);
-    return read.failed() ? QList<LibraryTrack>() : read.value();
 }
 
 bool Store::beginBatch()
@@ -1020,7 +981,7 @@ qint64 Store::insert(const LibraryTrack &track)
 
 namespace {
 
-// L-MANY: a long list of ids is asked for in pieces (the same size heldById uses), because the
+// L-MANY: a long list of ids is asked for in pieces (the same size readHeldById uses), because the
 // database refuses an expression that names every id once it is long enough.
 constexpr qsizetype kEditPiece = 400;
 
@@ -1212,11 +1173,6 @@ QList<qint64> Store::removeIds(const QList<qint64> &ids)
 QString Store::lastError() const
 {
     return d->lastError;
-}
-
-QString Store::lastReadError() const
-{
-    return d->lastReadError;
 }
 
 // L-DELETED: the live tracks among `ids` are marked deleted at `whenSecs` and missing. As

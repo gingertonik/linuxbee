@@ -305,20 +305,23 @@ ScanReport addedUp(const ScanReport &a, const ScanReport &b)
     sum.unreadableIn += b.unreadableIn;
     sum.passedOver += b.passedOver;
     sum.cancelled = a.cancelled || b.cancelled;
+    sum.startUnread = a.startUnread || b.startUnread;
     return sum;
 }
 
+// L-READFAIL 3: the old answer, kept for the tests; a failure reads as nothing, said by no one.
 ScanKnown Library::scanKnown() const
 {
-    return d->store.scanKnown();
+    const auto read = d->store.readScanKnown();
+    return read.failed() ? ScanKnown() : read.value();
 }
 
-// L-READFAIL 4: a failure is said once, here; the scan whose start it is looks at no file.
+// L-READFAIL 4, 5: a failure is said once, here (until a whole reading succeeds); the scan whose
+// start it is looks at no file. A scan's start that is read ends the silence.
 LibraryRead<ScanKnown> Library::readScanKnown()
 {
     LibraryRead<ScanKnown> read = d->store.readScanKnown();
-    if (read.failed())
-        emit failed(read.words());
+    d->answered(read.failed(), read.words(), true);
     return read;
 }
 
@@ -615,6 +618,7 @@ ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
     if (known.failed()) {
         ScanReport refused;
         refused.refused = known.words();
+        refused.startUnread = true; // L-READFAIL 4
         return refused;
     }
     return applyScan(findForScan(folders, known.value(), find), options);

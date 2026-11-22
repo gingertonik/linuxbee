@@ -75,7 +75,12 @@ struct AutoPlaylistNodes::Private {
         RuleContext context;
         context.now = hooks.now ? hooks.now() : QDateTime::currentDateTimeUtc();
         // AN-SPEED: the library is read once; the shown tracks come out of that answer.
-        const QList<LibraryTrack> all = library->tracks();
+        // L-READFAIL 3: a library that cannot be read shows no tracks here; it has said so, and
+        // the shell, which counts the failed answers, keeps what it shows.
+        const auto read = library->readTracks();
+        if (read.failed())
+            return true;
+        const QList<LibraryTrack> &all = read.value();
         const QList<qint64> ids = evaluateAutoPlaylist(playlist, all, context, seed);
         QHash<qint64, qsizetype> position;
         position.reserve(all.size());
