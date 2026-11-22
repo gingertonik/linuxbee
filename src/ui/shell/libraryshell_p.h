@@ -61,8 +61,6 @@ struct LibraryShell::Private {
     QString message; // SH-MESSAGE: what the status bar was last told
     ScanRunner *scanner
         = nullptr; // SR-SHELL: the runner "Scan Folders" goes through; the shell is its parent
-    bool scanning = false; // SH-MESSAGE: the library's `failed` counts for the scan from `started`
-    bool scanRefused = false; // the library said `failed` while the shell's scan was running
 };
 
 }
