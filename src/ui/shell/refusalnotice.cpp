@@ -14,7 +14,7 @@ struct RefusalNotice::Private {
     RefusalNotice *owner = nullptr;
     QPointer<QStatusBar> bar;
     QPointer<linuxbee::Library> library;
-    qint64 heardAnswers = 0; // the library's failedAnswers() as last heard
+    int answersWaiting = 0; // `answerFailed` heard that no `failed` has taken yet
     bool changed = false; // one of the refusals gathered is a change (L-WORDS: not a failed read)
     QString lastLine;
     int linesSaid = 0;
@@ -25,20 +25,19 @@ struct RefusalNotice::Private {
     bool saying = false; // the notice is putting its own line there
 
     void gather(const QString &words);
-    bool isRead(); // a `failed` that came with a new failed answer is a read
+    bool isRead(); // a `failed` that has an `answerFailed` waiting is a read
     void onBarChanged(const QString &text);
     void say();
 };
 
-// SH-REFUSED, L-WORDS: a failed answer (L-READFAIL 3) is a read; any other refusal is a change.
+// SH-REFUSED, L-FAILED: a `failed` with an `answerFailed` waiting is a failed answer (a read); any
+// other refusal is a change. Both come from the library, so they keep their order.
 bool RefusalNotice::Private::isRead()
 {
-    if (!library)
+    if (answersWaiting == 0)
         return false;
-    const qint64 now = library->failedAnswers();
-    const bool read = now != heardAnswers;
-    heardAnswers = now;
-    return read;
+    --answersWaiting;
+    return true;
 }
 
 void RefusalNotice::Private::gather(const QString &words)
@@ -103,10 +102,11 @@ RefusalNotice::RefusalNotice(linuxbee::Library *library, QStatusBar *bar, QObjec
     d->owner = this;
     d->bar = bar;
     d->library = library;
-    if (library)
-        d->heardAnswers = library->failedAnswers();
-    if (library)
+    if (library) {
+        connect(library, &Library::answerFailed, this,
+            [this](const QString &) { ++d->answersWaiting; });
         connect(library, &Library::failed, this, [this](const QString &what) { d->gather(what); });
+    }
     if (bar)
         connect(bar, &QStatusBar::messageChanged, this,
             [this](const QString &text) { d->onBarChanged(text); });
