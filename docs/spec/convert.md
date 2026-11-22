@@ -196,7 +196,7 @@ When the destination exists already:
 | Skip (default) | `Skipped`. Nothing is run or written. `outputPath` is the destination. |
 | Overwrite | The conversion runs. The old file is replaced only at step 9, so a failed or cancelled run leaves it as it was. |
 | Rename | The result goes to the first free name from `uniqueRelativePath` (`song_1.mp3`, `song_2.mp3`: P-DUP in `docs/spec/paths.md`). Two conversions started at the same moment into one folder may both choose the same free name; then one of them ends `Failed` and no file is overwritten. Callers that run several at once give each its own destination (convert-batch.md). |
-| UpdateTags | ffmpeg is not run. C-TAGS is applied to the existing file: `TagsUpdated`. With `copyTags` false this is `Skipped`. (W-CF: "skip conversion when the output exists and sync tags only".) |
+| UpdateTags | ffmpeg is not run. C-TAGS is applied to the existing file as C-UPDATE says: `TagsUpdated`. With `copyTags` false this is `Skipped`. (W-CF: "skip conversion when the output exists and sync tags only".) |
 
 **What "exists" is.** The name is asked, not what it leads to
 (`lstat`): a link is there, also one that leads nowhere. (Review of
@@ -226,6 +226,31 @@ makes the job `Failed`.
 With `copyTags` false no tag and no picture is written; the file holds only
 what the encoder put there itself (ffmpeg's Ogg writer adds an `ENCODER`
 comment).
+
+### C-UPDATE
+
+(fix-b; write-path audit part 3, F3. "Update its tags only" emptied
+every field the original lacked, removed every other tag, and put the
+original's pictures (none) in place of the cover: the user's lyrics,
+rating, comment, own keys and cover were gone, and the file was
+counted "converted".)
+
+On the existing file of UpdateTags, C-TAGS **adds and changes, and
+never removes**:
+
+- every field and `other` tag the original has is set to the
+  original's values (the encoding tags apart, as C-TAGS);
+- a field or tag the original lacks is left as the file has it;
+- with `copyPictures` true, an original that has pictures gives them;
+  one that has none leaves the file's pictures as they are.
+
+A tag removed from the original therefore stays on the converted file.
+Overwrite makes a fresh copy.
+
+**A file that is not its conversion is refused.** When the existing
+file's length and the original's differ by more than 500 ms, nothing
+is written to it, and the job is `Failed` with `the file there is not a
+conversion of this one: their lengths differ`.
 
 ### C-TAGS and a file that is not saved
 

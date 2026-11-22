@@ -56,7 +56,7 @@ bool dropRefused(TagChanges &changes, const QString &problem)
 }
 
 QString copyTags(const TrackTags &source, const QString &target, bool pictures,
-    const WriteOptions &options, QStringList *warnings)
+    const WriteOptions &options, QStringList *warnings, bool update)
 {
     // Only the target's other keys matter here, so its pictures are not read.
     ReadOptions readOptions;
@@ -65,11 +65,19 @@ QString copyTags(const TrackTags &source, const QString &target, bool pictures,
     if (current.status != ReadResult::Status::Ok)
         return QStringLiteral("the converted file could not be read");
 
+    // C-UPDATE: a file that is not this one's conversion is not written to.
+    if (update && qAbs(current.tags.audio.durationMs - source.audio.durationMs) > 500)
+        return QStringLiteral(
+            "the file there is not a conversion of this one: their lengths differ");
+
     TagChanges changes;
     // Every catalogue field takes the source's values; a field the source lacks
     // is removed, because an empty list removes it.
-    for (const QString &name : tagFieldNames())
-        changes.fields.insert(name, source.fields.value(name));
+    // With `update`, only the fields the source has.
+    for (const QString &name : tagFieldNames()) {
+        if (!update || source.fields.contains(name))
+            changes.fields.insert(name, source.fields.value(name));
+    }
 
     for (auto it = source.other.cbegin(); it != source.other.cend(); ++it) {
         if (!describesEncoding(it.key()))
@@ -77,12 +85,14 @@ QString copyTags(const TrackTags &source, const QString &target, bool pictures,
     }
     // Every other tag the target has that is not copied goes. That clears the
     // ENCODER comment ffmpeg writes for itself.
-    for (auto it = current.tags.other.cbegin(); it != current.tags.other.cend(); ++it) {
+    // With `update`, nothing is removed.
+    for (auto it = current.tags.other.cbegin(); !update && it != current.tags.other.cend(); ++it) {
         if (!changes.other.contains(it.key()))
             changes.other.insert(it.key(), QStringList());
     }
 
-    if (pictures)
+    // With `update`, the source's pictures go on only when it has some.
+    if (pictures && (!update || !source.pictures.isEmpty()))
         changes.pictures = source.pictures;
 
     for (;;) {
