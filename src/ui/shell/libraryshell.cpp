@@ -145,6 +145,16 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
                            .arg(report.notAudio.size());
         if (report.cancelled)
             text += tr(" (stopped)");
+        // L-LOOKIN: folders the scan could not look in; their tracks are left as they are.
+        if (report.cannotLookIn.size() == 1)
+            text += tr("; could not look in %1, and its tracks are left as they are")
+                        .arg(report.cannotLookIn.first());
+        else if (report.cannotLookIn.size() > 1)
+            text += tr("; could not look in %1 folders, and their tracks are left as they are")
+                        .arg(report.cannotLookIn.size());
+        if (report.passedOver > 0)
+            text += tr("; %1 passed over, changed meanwhile: the next scan looks again")
+                        .arg(report.passedOver);
         if (!report.refused.isEmpty())
             text += tr("; the library could not be changed, and what was not stored will be "
                        "found by the next scan");

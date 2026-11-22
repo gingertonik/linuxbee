@@ -336,6 +336,19 @@ status bar and kept as `lastMessage()`:
 
 The numbers are what the library answered, not what was asked for.
 
+**What the scan could not look in, and what it passed over.**
+(fix-d3; library.md, L-LOOKIN.) After the counts, and after
+` (stopped)` when that is there:
+- one folder in the report's `cannotLookIn`: `; could not look in
+  FOLDER, and its tracks are left as they are`;
+- two or more: `; could not look in N folders, and their tracks are
+  left as they are`;
+- a `passedOver` above 0: `; N passed over, changed meanwhile: the
+  next scan looks again`.
+
+Then the refusal's words, below, when there are any. The folder
+monitor's line (background-shell.md) does not carry these.
+
 **A scan the library refused.** When the scan's own report says it was
 refused (its report's `refused` is not empty; fix-75d: not any `failed`
 heard while it ran, which may be a play or a command), the scan's line is followed by
