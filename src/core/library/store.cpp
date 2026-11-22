@@ -595,7 +595,8 @@ bool openToReadAndCheck(const QString &databasePath, const QString &connection, 
     }
     QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
     database.setDatabaseName(databasePath);
-    database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
+    // L-WAIT: the same five seconds a writing command waits for the write lock.
+    database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY;QSQLITE_BUSY_TIMEOUT=5000"));
     if (!database.open()) {
         setError(error,
             QStringLiteral("Cannot open the library file: %1").arg(database.lastError().text()));
@@ -604,16 +605,35 @@ bool openToReadAndCheck(const QString &databasePath, const QString &connection, 
     QSqlQuery version(database);
     if (!version.exec(QStringLiteral("PRAGMA user_version")) || !version.next()) {
         const QString words = version.lastError().text();
-        if (words.contains(QLatin1String("readonly"), Qt::CaseInsensitive))
+        // L-READ "The wait": still held after the five seconds, the database says "locked".
+        if (words.contains(QLatin1String("locked"), Qt::CaseInsensitive))
+            setError(
+                error, QStringLiteral("the library is busy: another program holds it; try again"));
+        // L-READ "Its words": a folder that cannot be written to, with no -shm beside the file.
+        else if (words.contains(QLatin1String("readonly"), Qt::CaseInsensitive))
             setError(error,
-                QStringLiteral("The library cannot be written to: %1 (%2)")
-                    .arg(databasePath, words));
+                QStringLiteral("the library cannot be read here: its folder cannot be written "
+                               "to, and the database needs its side files (-wal, -shm) beside it"));
         else
             setError(error, QStringLiteral("That file is not a linuxBee library: %1").arg(words));
         return false;
     }
     const int found = version.value(0).toInt();
     version.finish();
+    // L-READ "Its words": a file with no tracks table is no library, whatever its version says.
+    QSqlQuery tables(database);
+    if (!tables.exec(QStringLiteral("SELECT count(*) FROM sqlite_master "
+                                    "WHERE type = 'table' AND name = 'tracks'"))
+        || !tables.next()) {
+        setError(error,
+            QStringLiteral("That file is not a linuxBee library: %1").arg(readWords(tables)));
+        return false;
+    }
+    if (tables.value(0).toInt() == 0) {
+        setError(error, QStringLiteral("That file is not a linuxBee library: it holds no library"));
+        return false;
+    }
+    tables.finish();
     if (found > kSchemaVersionValue) {
         setError(error,
             QStringLiteral("That library was written by a newer linuxBee: schema %1, "
