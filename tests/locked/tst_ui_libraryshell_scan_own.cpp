@@ -1,0 +1,124 @@
+// LOCKED ACCEPTANCE TEST (the library shell's scan line comes from the scan's own report). Written
+// by the reviewer, not the builder. The builder makes these pass by changing src/, never by editing
+// this file. A test believed to be wrong is reported, with the reason, and left alone.
+//
+// Expected values are rules in docs/spec/library-shell.md (SH-MESSAGE). A refusal of something else
+// while the shell's scan runs is not the scan's; a scan that was refused says so from its report.
+#include <QAction>
+#include <QFile>
+#include <QSettings>
+#include <QSignalSpy>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QTemporaryDir>
+#include <QtTest>
+
+#include "actions/actionregistry.h"
+#include "library/library.h"
+#include "mainwindow/mainwindow.h"
+#include "playlists/playliststore.h"
+#include "shell/libraryshell.h"
+#include "shell/scanrunner.h"
+
+using namespace linuxbee;
+using namespace linuxbee::ui;
+
+namespace {
+
+struct Rig {
+    QTemporaryDir dir;
+    QString file;
+    std::unique_ptr<Library> library;
+    PlaylistStore playlists;
+    QSettings settings;
+    ActionRegistry actions;
+    MainWindow window;
+    QDateTime now = QDateTime(QDate(2026, 11, 13), QTime(12, 0), QTimeZone::UTC);
+    std::unique_ptr<LibraryShell> shell;
+    QStringList folders;
+
+    Rig()
+        : file(dir.path() + QStringLiteral("/library.db"))
+        , library(Library::open(file))
+        , playlists(made(QStringLiteral("playlists")))
+        , settings(dir.path() + QStringLiteral("/s.ini"), QSettings::IniFormat)
+        , window(&actions, &settings)
+    {
+        made(QStringLiteral("music"));
+        if (!QFile::copy(QStringLiteral(LINUXBEE_TEST_DATA "/tags/basic.flac"),
+                dir.path() + QStringLiteral("/music/a.flac")))
+            QTest::qFail("could not copy a fixture", __FILE__, __LINE__);
+        folders = { dir.path() + QStringLiteral("/music") };
+        ShellHooks hooks;
+        hooks.now = [this] { return now; };
+        hooks.chooseFolders = [this] { return folders; };
+        shell = std::make_unique<LibraryShell>(
+            &window, &actions, library.get(), &playlists, &settings, hooks);
+    }
+    QString made(const QString &name)
+    {
+        QDir(dir.path()).mkpath(name);
+        return dir.path() + QLatin1Char('/') + name;
+    }
+    void scan()
+    {
+        if (QAction *action = actions.action(QStringLiteral("file.scanFolders")))
+            action->trigger();
+        else
+            QTest::qFail("no such action", __FILE__, __LINE__);
+    }
+};
+
+}
+
+class LibraryShellScanOwnTest : public QObject {
+    Q_OBJECT
+private slots:
+    void anotherRefusalIsNotTheScans();
+    void aRefusedScanSaysItFromItsReport();
+};
+
+void LibraryShellScanOwnTest::anotherRefusalIsNotTheScans()
+{
+    // SH-MESSAGE: something else is refused while the scan runs. The scan stored all it found, and
+    // its line says nothing of a refusal.
+    Rig r;
+    QObject::connect(r.shell->scanner(), &ScanRunner::started, r.shell.get(),
+        [&r] { emit r.library->failed(QStringLiteral("a play was not counted")); });
+    QSignalSpy finished(r.shell->scanner(), &ScanRunner::finished);
+    r.scan();
+    QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 10000);
+    QTRY_VERIFY(!r.shell->scanner()->isRunning());
+    QCOMPARE(
+        r.shell->lastMessage(), QStringLiteral("Scan: 1 added, 0 updated, 0 missing, 0 not audio"));
+}
+
+void LibraryShellScanOwnTest::aRefusedScanSaysItFromItsReport()
+{
+    // SH-MESSAGE: another program holds the library for the whole scan; nothing is stored, and the
+    // line says so, because the scan's report says so.
+    Rig r;
+    r.library->setWriteWait(std::chrono::milliseconds(50));
+    const QString name = QStringLiteral("holder");
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+        db.setDatabaseName(r.file);
+        QVERIFY(db.open());
+        QVERIFY(QSqlQuery(db).exec(QStringLiteral("BEGIN IMMEDIATE")));
+        QSignalSpy finished(r.shell->scanner(), &ScanRunner::finished);
+        r.scan();
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 10000);
+        QTRY_VERIFY(!r.shell->scanner()->isRunning());
+        QVERIFY(!finished.at(0).at(0).value<ScanReport>().refused.isEmpty());
+        QSqlQuery(db).exec(QStringLiteral("ROLLBACK"));
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(name);
+    QCOMPARE(r.shell->lastMessage(),
+        QStringLiteral("Scan: 0 added, 0 updated, 0 missing, 0 not audio; the library could not be "
+                       "changed, and what "
+                       "was not stored will be found by the next scan"));
+}
+
+QTEST_MAIN(LibraryShellScanOwnTest)
+#include "tst_ui_libraryshell_scan_own.moc"
