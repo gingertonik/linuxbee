@@ -43,11 +43,62 @@ void setError(QString *error, const QString &message)
         *error = message;
 }
 
+// L-WORDS: SQLite's primary result code of a failure (the low byte of an extended one), 0 when the
+// error carries none. The sentence is chosen by this number and never by a word of the text.
+int codeOf(const QSqlError &error)
+{
+    bool ok = false;
+    const int code = error.nativeErrorCode().toInt(&ok);
+    return ok ? (code & 0xff) : 0;
+}
+
+// L-WORDS: the database's own words, without the driver's ("Unable to fetch row").
+QString databaseWords(const QSqlError &error)
+{
+    const QString words = error.databaseText();
+    return words.isEmpty() ? error.driverText() : words;
+}
+
+// L-WORDS: a sentence a person reads, by the result code, then the database's own words after a
+// colon. Any other code gives the database's words alone.
+QString wordsFor(const QSqlError &error)
+{
+    const QString words = databaseWords(error);
+    QString sentence;
+    switch (codeOf(error)) {
+    case 5: // SQLITE_BUSY
+    case 6: // SQLITE_LOCKED
+        sentence = QStringLiteral("another program is using the library");
+        break;
+    case 8: // SQLITE_READONLY
+        sentence = QStringLiteral("the library file is read-only");
+        break;
+    case 10: // SQLITE_IOERR
+        sentence = QStringLiteral("the disk could not be read or written");
+        break;
+    case 11: // SQLITE_CORRUPT
+    case 26: // SQLITE_NOTADB
+        sentence = QStringLiteral("the library file is damaged");
+        break;
+    case 13: // SQLITE_FULL
+        sentence = QStringLiteral("the disk is full");
+        break;
+    case 14: // SQLITE_CANTOPEN
+        sentence = QStringLiteral("the library file cannot be opened");
+        break;
+    default:
+        break;
+    }
+    if (sentence.isEmpty())
+        return words;
+    return words.isEmpty() ? sentence : sentence + QStringLiteral(": ") + words;
+}
+
 // L-WAIT: the database's words for a read that failed; never empty, so a failed look is always
 // told from one that was made.
 QString readWords(const QSqlQuery &query)
 {
-    const QString words = query.lastError().text();
+    const QString words = wordsFor(query.lastError());
     return words.isEmpty() ? QStringLiteral("the database could not be read") : words;
 }
 
@@ -222,14 +273,14 @@ bool vacuumInto(const QString &source, const QString &target, QString *reason)
         QSqlDatabase second = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
         second.setDatabaseName(source);
         if (!second.open()) {
-            *reason = second.lastError().text();
+            *reason = wordsFor(second.lastError());
         } else {
             QString quoted = target;
             quoted.replace(QLatin1Char('\''), QStringLiteral("''"));
             QSqlQuery query(second);
             made = query.exec(QStringLiteral("VACUUM INTO '%1'").arg(quoted));
             if (!made)
-                *reason = query.lastError().text();
+                *reason = wordsFor(query.lastError());
             query.finish();
             second.close();
         }
@@ -249,7 +300,7 @@ bool readCopy(const QString &file, int *version, int *tracks, QString *reason)
         QSqlDatabase copy = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
         copy.setDatabaseName(file);
         if (!copy.open()) {
-            *reason = copy.lastError().text();
+            *reason = wordsFor(copy.lastError());
         } else {
             QSqlQuery query(copy);
             if (query.exec(QStringLiteral("PRAGMA user_version")) && query.next()) {
@@ -261,7 +312,7 @@ bool readCopy(const QString &file, int *version, int *tracks, QString *reason)
                 }
             }
             if (!read)
-                *reason = query.lastError().text();
+                *reason = wordsFor(query.lastError());
             query.finish();
             copy.close();
         }
@@ -317,7 +368,7 @@ bool copyBeforeStep(QSqlDatabase &database, const QString &databasePath, int fou
     {
         QSqlQuery counting(database);
         if (!counting.exec(QStringLiteral("SELECT count(*) FROM tracks")) || !counting.next()) {
-            *reason = counting.lastError().text();
+            *reason = wordsFor(counting.lastError());
             return false;
         }
         heldTracks = counting.value(0).toInt();
@@ -432,14 +483,15 @@ bool createSchema(
     QSqlQuery query(database);
     if (!query.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
         setError(error,
-            QStringLiteral("Cannot start writing a new library: %1").arg(query.lastError().text()));
+            QStringLiteral("Cannot start writing a new library: %1")
+                .arg(wordsFor(query.lastError())));
         return false;
     }
     int found = 0;
     {
         QSqlQuery again(database);
         if (!again.exec(QStringLiteral("PRAGMA user_version")) || !again.next()) {
-            const QString reason = again.lastError().text();
+            const QString reason = wordsFor(again.lastError());
             again.finish();
             database.rollback();
             setError(error, QStringLiteral("Cannot read the library version: %1").arg(reason));
@@ -506,7 +558,7 @@ bool createSchema(
     statements += QStringLiteral("PRAGMA user_version = %1").arg(kSchemaVersionValue);
     for (const QString &statement : std::as_const(statements)) {
         if (!query.exec(statement)) {
-            const QString reason = query.lastError().text();
+            const QString reason = wordsFor(query.lastError());
             database.rollback();
             takeCopyAway();
             setError(error,
@@ -516,7 +568,7 @@ bool createSchema(
         }
     }
     if (!database.commit()) {
-        const QString reason = database.lastError().text();
+        const QString reason = wordsFor(database.lastError());
         database.rollback();
         takeCopyAway();
         setError(error, QStringLiteral("Cannot save the new library: %1").arg(reason));
@@ -535,27 +587,50 @@ bool createSchema(
 bool openAndCheckSchema(
     const QString &databasePath, const QString &connection, QString *error, SchemaStep *step)
 {
+    // L-OPEN: a library file that exists and cannot be written to does not open for writing. It is
+    // refused before SQLite opens it, so nothing is made beside it.
+    if (const QFileInfo existing(databasePath); !databasePath.isEmpty()
+        && databasePath != QLatin1String(":memory:") && existing.exists()
+        && !existing.isWritable()) {
+        setError(error,
+            QStringLiteral("The library cannot be written to: %1 (the library file is read-only; "
+                           "chmod u+w on it makes it writable)")
+                .arg(databasePath));
+        return false;
+    }
     QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
     database.setDatabaseName(databasePath);
     // L-OPEN: the folder must exist already; SQLite opens nothing without it.
     if (!database.open()) {
         setError(error,
-            QStringLiteral("Cannot open the library file: %1").arg(database.lastError().text()));
+            QStringLiteral("The library cannot be opened: %1 (%2)")
+                .arg(databasePath, wordsFor(database.lastError())));
         return false;
     }
     // L-OPEN: a file that is not a database opens happily in SQLite, and the
     // first statement is what says so.
     QSqlQuery version(database);
     if (!version.exec(QStringLiteral("PRAGMA user_version")) || !version.next()) {
-        const QString words = version.lastError().text();
-        // L-OPEN: a library that cannot be written to is not a file that is no library. The
-        // database says "readonly" in its own words.
-        if (words.contains(QLatin1String("readonly"), Qt::CaseInsensitive))
+        // L-WORDS, L-OPEN: the sentence is chosen by the database's result code: read-only, then
+        // "not a database", then any other failure is a library that cannot be opened.
+        const QSqlError failure = version.lastError();
+        switch (codeOf(failure)) {
+        case 8: // SQLITE_READONLY
             setError(error,
                 QStringLiteral("The library cannot be written to: %1 (%2)")
-                    .arg(databasePath, words));
-        else
-            setError(error, QStringLiteral("That file is not a linuxBee library: %1").arg(words));
+                    .arg(databasePath, wordsFor(failure)));
+            break;
+        case 26: // SQLITE_NOTADB
+            setError(error,
+                QStringLiteral("That file is not a linuxBee library: %1")
+                    .arg(databaseWords(failure)));
+            break;
+        default:
+            setError(error,
+                QStringLiteral("The library cannot be opened: %1 (%2)")
+                    .arg(databasePath, wordsFor(failure)));
+            break;
+        }
         return false;
     }
     const int found = version.value(0).toInt();
@@ -598,24 +673,33 @@ bool openToReadAndCheck(const QString &databasePath, const QString &connection, 
     // L-WAIT: the same five seconds a writing command waits for the write lock.
     database.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY;QSQLITE_BUSY_TIMEOUT=5000"));
     if (!database.open()) {
-        setError(error,
-            QStringLiteral("Cannot open the library file: %1").arg(database.lastError().text()));
+        setError(error, wordsFor(database.lastError()));
         return false;
     }
     QSqlQuery version(database);
     if (!version.exec(QStringLiteral("PRAGMA user_version")) || !version.next()) {
-        const QString words = version.lastError().text();
-        // L-READ "The wait": still held after the five seconds, the database says "locked".
-        if (words.contains(QLatin1String("locked"), Qt::CaseInsensitive))
+        const QSqlError failure = version.lastError();
+        // L-WORDS, L-READ: chosen by the database's result code, never by a word of its text.
+        switch (codeOf(failure)) {
+        case 5: // SQLITE_BUSY: L-READ "The wait", still held after the five seconds
+        case 6: // SQLITE_LOCKED
             setError(
                 error, QStringLiteral("the library is busy: another program holds it; try again"));
-        // L-READ "Its words": a folder that cannot be written to, with no -shm beside the file.
-        else if (words.contains(QLatin1String("readonly"), Qt::CaseInsensitive))
+            break;
+        case 8: // SQLITE_READONLY: L-READ "Its words", a folder that cannot be written to
             setError(error,
                 QStringLiteral("the library cannot be read here: its folder cannot be written "
                                "to, and the database needs its side files (-wal, -shm) beside it"));
-        else
-            setError(error, QStringLiteral("That file is not a linuxBee library: %1").arg(words));
+            break;
+        case 26: // SQLITE_NOTADB: a file that is no database is no library
+            setError(error,
+                QStringLiteral("That file is not a linuxBee library: %1")
+                    .arg(databaseWords(failure)));
+            break;
+        default:
+            setError(error, wordsFor(failure));
+            break;
+        }
         return false;
     }
     const int found = version.value(0).toInt();
@@ -907,7 +991,7 @@ bool Store::beginBatch()
     // reads first and writes after is refused by SQLite at once.
     QSqlQuery begin(QSqlDatabase::database(d->connection));
     if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
-        d->refused(begin.lastError().text());
+        d->refused(wordsFor(begin.lastError()));
         return false;
     }
     d->inBatch = true;
@@ -937,7 +1021,7 @@ bool Store::commitBatch()
     QSqlDatabase database = QSqlDatabase::database(d->connection);
     if (database.commit())
         return true;
-    d->refused(database.lastError().text());
+    d->refused(wordsFor(database.lastError()));
     database.rollback();
     return false;
 }
@@ -973,7 +1057,7 @@ qint64 Store::insert(const LibraryTrack &track)
     query.bindValue(QStringLiteral(":tags"), tagsToJson(track.tags));
     query.bindValue(QStringLiteral(":reader"), kReaderVersion);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return -1;
     }
     return query.lastInsertId().toLongLong();
@@ -998,13 +1082,13 @@ public:
             QSqlQuery begin(m_database);
             m_open = begin.exec(QStringLiteral("SAVEPOINT linuxbee_edit"));
             if (!m_open)
-                m_error = begin.lastError().text();
+                m_error = wordsFor(begin.lastError());
         } else {
             // L-WAIT: the write lock first, so the wait applies (not Qt's deferred BEGIN).
             QSqlQuery begin(m_database);
             m_open = begin.exec(QStringLiteral("BEGIN IMMEDIATE"));
             if (!m_open)
-                m_error = begin.lastError().text();
+                m_error = wordsFor(begin.lastError());
         }
     }
     ~EditScope() { rollBack(); }
@@ -1030,7 +1114,7 @@ public:
             QSqlQuery release(m_database);
             if (release.exec(QStringLiteral("RELEASE linuxbee_edit")))
                 return true;
-            fail(release.lastError().text());
+            fail(wordsFor(release.lastError()));
             QSqlQuery undo(m_database);
             undo.exec(QStringLiteral("ROLLBACK TO linuxbee_edit"));
             undo.exec(QStringLiteral("RELEASE linuxbee_edit"));
@@ -1038,7 +1122,7 @@ public:
         }
         if (m_database.commit())
             return true;
-        fail(m_database.lastError().text());
+        fail(wordsFor(m_database.lastError()));
         m_database.rollback();
         return false;
     }
@@ -1093,7 +1177,7 @@ QList<qint64> Store::setCategory(const QList<qint64> &ids, const QString &catego
         select.bindValue(QStringLiteral(":category"), category);
         bindIds(&select, placeholders.names, piece);
         if (!select.exec()) {
-            d->refused(select.lastError().text());
+            d->refused(wordsFor(select.lastError()));
             return { };
         }
         QList<qint64> found;
@@ -1109,7 +1193,7 @@ QList<qint64> Store::setCategory(const QList<qint64> &ids, const QString &catego
         update.bindValue(QStringLiteral(":category"), category);
         bindIds(&update, placeholders.names, piece);
         if (!update.exec()) {
-            d->refused(update.lastError().text());
+            d->refused(wordsFor(update.lastError()));
             return { };
         }
         changed += found;
@@ -1144,7 +1228,7 @@ QList<qint64> Store::removeIds(const QList<qint64> &ids)
                 .arg(placeholders.condition));
         bindIds(&select, placeholders.names, piece);
         if (!select.exec()) {
-            d->refused(select.lastError().text());
+            d->refused(wordsFor(select.lastError()));
             return { };
         }
         QList<qint64> found;
@@ -1158,7 +1242,7 @@ QList<qint64> Store::removeIds(const QList<qint64> &ids)
                 .arg(placeholders.condition));
         bindIds(&drop, placeholders.names, piece);
         if (!drop.exec()) {
-            d->refused(drop.lastError().text());
+            d->refused(wordsFor(drop.lastError()));
             return { };
         }
         gone += found;
@@ -1198,7 +1282,7 @@ QList<qint64> Store::markDeleted(const QList<qint64> &ids, qint64 whenSecs)
                 .arg(placeholders.condition));
         bindIds(&select, placeholders.names, piece);
         if (!select.exec()) {
-            d->refused(select.lastError().text());
+            d->refused(wordsFor(select.lastError()));
             return { };
         }
         QList<qint64> found;
@@ -1214,7 +1298,7 @@ QList<qint64> Store::markDeleted(const QList<qint64> &ids, qint64 whenSecs)
         update.bindValue(QStringLiteral(":when"), whenSecs);
         bindIds(&update, placeholders.names, piece);
         if (!update.exec()) {
-            d->refused(update.lastError().text());
+            d->refused(wordsFor(update.lastError()));
             return { };
         }
         marked += found;
@@ -1268,7 +1352,7 @@ QList<qint64> Store::removeDeleted(const QList<qint64> &ids)
                 .arg(placeholders.condition));
         bindIds(&select, placeholders.names, piece);
         if (!select.exec()) {
-            d->refused(select.lastError().text());
+            d->refused(wordsFor(select.lastError()));
             return { };
         }
         QList<qint64> found;
@@ -1282,7 +1366,7 @@ QList<qint64> Store::removeDeleted(const QList<qint64> &ids)
                 .arg(placeholders.condition));
         bindIds(&drop, placeholders.names, piece);
         if (!drop.exec()) {
-            d->refused(drop.lastError().text());
+            d->refused(wordsFor(drop.lastError()));
             return { };
         }
         gone += found;
@@ -1331,7 +1415,7 @@ bool Store::restoreDeleted(qint64 id, const LibraryTrack &track)
     query.bindValue(QStringLiteral(":reader"), kReaderVersion);
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
@@ -1354,7 +1438,7 @@ bool Store::updateReading(qint64 id, const LibraryTrack &track)
     query.bindValue(QStringLiteral(":reader"), kReaderVersion);
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
@@ -1393,7 +1477,7 @@ bool Store::setPath(qint64 id, const QString &newPath, bool missing)
         drop.bindValue(QStringLiteral(":path"), newPath);
         drop.bindValue(QStringLiteral(":id"), id);
         if (!drop.exec()) {
-            d->refused(drop.lastError().text());
+            d->refused(wordsFor(drop.lastError()));
             return false;
         }
     }
@@ -1410,7 +1494,7 @@ bool Store::setPath(qint64 id, const QString &newPath, bool missing)
         }
         return true;
     }
-    d->refused(query.lastError().text());
+    d->refused(wordsFor(query.lastError()));
     return false;
 }
 
@@ -1436,7 +1520,7 @@ bool Store::recordPlay(qint64 id, const QDateTime &when)
     query.bindValue(QStringLiteral(":whenTo"), when.toSecsSinceEpoch());
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
@@ -1453,7 +1537,7 @@ bool Store::recordSkip(qint64 id)
                                  "WHERE id = :id AND deleted_secs < 0"));
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
@@ -1475,7 +1559,7 @@ bool Store::setStatistics(qint64 id, const TrackStatistics &statistics)
     query.bindValue(QStringLiteral(":last"), toSecs(statistics.lastPlayed));
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
@@ -1514,7 +1598,7 @@ bool Store::mergeStatistics(qint64 id, const TrackStatistics &statistics)
         query.bindValue(QLatin1String(name), statistics.skipCount);
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
@@ -1534,7 +1618,7 @@ bool Store::setMissing(qint64 id, bool missing)
     query.bindValue(QStringLiteral(":missing"), missing);
     query.bindValue(QStringLiteral(":id"), id);
     if (!query.exec()) {
-        d->refused(query.lastError().text());
+        d->refused(wordsFor(query.lastError()));
         return false;
     }
     return query.numRowsAffected() == 1;
