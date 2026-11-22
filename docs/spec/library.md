@@ -843,6 +843,59 @@ paths fails every look by path. No hook is built into the program.
 comes after the look at the deleted rows, a scan of the whole table.
 It is the same reader.)
 
+### L-WORDS
+
+(fix-70c. The words of a refusal were the database's own, with the
+driver's tail: "database is locked Unable to fetch row". A read-only
+library file opened and then refused every change; a full disk said
+"That file is not a linuxBee library".)
+
+The library's words for a refusal or a failed read are **a sentence a
+person reads, then the database's own words** after a colon. The
+sentence is chosen by the database's result code, never by a word in
+its text:
+
+| Code | Sentence |
+|---|---|
+| busy, locked | another program is using the library |
+| read-only | the library file is read-only |
+| I/O error | the disk could not be read or written |
+| damaged, not a database | the library file is damaged |
+| full | the disk is full |
+| cannot open | the library file cannot be opened |
+
+Any other code gives the database's words alone. The database's words
+are its own text, without the driver's ("Unable to fetch row").
+
+**Opening to write** (L-OPEN):
+- A library file that exists and cannot be written to does not open:
+  `The library cannot be written to: FILE (the library file is
+  read-only; chmod u+w on it makes it writable)`. Nothing is made
+  beside it. This covers a read-only file in a folder that can be
+  written to, a library without a write-ahead log, and a read-only
+  disk.
+- **The window then does not start** (SH-MAIN, exit 4): it says the
+  sentence, on standard error and in a dialog, and touches nothing.
+  Opening read-only instead, to browse and play, is not in 1.0: the
+  folder monitor's scans and every play would each be refused, and
+  saying those once needs its own design.
+- A first read refused as read-only gives `The library cannot be
+  written to: FILE (WORDS)`.
+- A file that is no database gives `That file is not a linuxBee
+  library: ` and the database's words.
+- Any other failure (a full disk, a busy or damaged file) gives `The
+  library cannot be opened: FILE (WORDS)`. It is not "not a linuxBee
+  library".
+
+**Opening to read** (L-READ) keeps its sentences for a busy library
+and for a folder that cannot be written to, chosen by the code. A file
+that is no database is no library. Any other failure gives the WORDS.
+
+**In the window** (library-shell.md, SH-REFUSED): a failed answer is a
+read, not a change. The notice says `The library could not be read: `
+and the words. A line that already says "the library could not be
+read" is not said over.
+
 ### L-MOVED
 
 (Found by an outside review of the code, 2026-11-16: organised files
