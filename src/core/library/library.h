@@ -200,12 +200,17 @@ public:
     qint64 addFile(const QString &path, const QString &category, const QDateTime &now);
 
     int count() const;
+    // L-READFAIL 3: the count, or that it could not be read; a failure is said once, as `failed`.
+    LibraryRead<int> readCount();
     // L-COUNT: every section and how many tracks it holds; reads no track.
     QMap<QString, int> categoryCounts() const;
     // L-COUNT: how many tracks this object has handed out since it was opened.
     qint64 tracksRead() const;
     // In ascending order of path. An empty category means all.
     QList<LibraryTrack> tracks(const QString &category = { }) const;
+    // L-READFAIL 3: the list, all or nothing, or that it could not be read; a failure is said
+    // once, as `failed`. tracksRead() grows only on success.
+    LibraryRead<QList<LibraryTrack>> readTracks(const QString &category = { });
     std::optional<LibraryTrack> track(qint64 id) const;
     std::optional<LibraryTrack> trackByPath(const QString &path) const;
 

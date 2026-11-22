@@ -44,6 +44,16 @@ int openError(const QString &dbPath, const QString &reason)
     return 3;
 }
 
+// L-CLI, L-READFAIL 3: exit 3, nothing on standard output, when the library opened but its tracks
+// could not be read.
+int readError(const QString &words)
+{
+    QTextStream err(stderr);
+    err << QStringLiteral("linuxbeectl: the library could not be read: %1").arg(words) << '\n';
+    err.flush();
+    return 3;
+}
+
 // L-SCHEMA: one line on standard error when the opening brought the library up to date after a
 // copy of it. Standard output is not touched.
 void sayStep(const linuxbee::Library &library)
@@ -144,7 +154,11 @@ int runImport(const QString &dbPath, const QString &exportPath, const QStringLis
         return openError(dbPath, reason);
     sayStep(*library);
 
-    const QList<linuxbee::LibraryTrack> held = library->tracks();
+    // L-READFAIL 3: the library is read before anything is planned or printed.
+    const linuxbee::LibraryRead<QList<linuxbee::LibraryTrack>> heldRead = library->readTracks();
+    if (heldRead.failed())
+        return readError(heldRead.words());
+    const QList<linuxbee::LibraryTrack> &held = heldRead.value();
     const linuxbee::ImportPlan plan = linuxbee::planImport(imported, held, mapping);
     QHash<qint64, const linuxbee::LibraryTrack *> byId;
     for (const linuxbee::LibraryTrack &track : held)
@@ -374,7 +388,10 @@ int runLibrary(const QStringList &arguments)
     QTextStream out(stdout);
     if (subcommand == QLatin1String("count")) {
         // L-CLI: the number of tracks, missing ones included.
-        out << library->count() << '\n';
+        const linuxbee::LibraryRead<int> counted = library->readCount();
+        if (counted.failed())
+            return readError(counted.words());
+        out << counted.value() << '\n';
         return 0;
     }
     if (subcommand == QLatin1String("scan")) {
@@ -424,8 +441,12 @@ int runLibrary(const QStringList &arguments)
     }
     // L-CLI: one line per track, in ascending order of path, which is the order
     // tracks() gives; an empty category asks for every track.
-    for (const linuxbee::LibraryTrack &track :
-        library->tracks(parser.isSet(categoryOption) ? category : QString())) {
+    // L-READFAIL 3: the whole list is read before the first line is printed.
+    const linuxbee::LibraryRead<QList<linuxbee::LibraryTrack>> listed
+        = library->readTracks(parser.isSet(categoryOption) ? category : QString());
+    if (listed.failed())
+        return readError(listed.words());
+    for (const linuxbee::LibraryTrack &track : listed.value()) {
         if (hasFormat)
             out << format.evaluate(linuxbee::LibraryFieldSource(track)) << '\n';
         else

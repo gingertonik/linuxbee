@@ -831,6 +831,20 @@ LibraryRead<QList<LibraryTrack>> Store::readAll(const QString &category) const
     return Read::ok(std::move(list));
 }
 
+LibraryRead<int> Store::readCount() const
+{
+    using Read = LibraryRead<int>;
+    if (!d->opened)
+        return Read::failure(QStringLiteral("the library is not open"));
+    QSqlQuery query(QSqlDatabase::database(d->connection));
+    // L-DELETED: a deleted track is no track.
+    if (!query.exec(QStringLiteral("SELECT count(*) FROM tracks WHERE deleted_secs < 0")))
+        return Read::failure(readWords(query));
+    if (!query.next())
+        return Read::failure(readWords(query));
+    return Read::ok(query.value(0).toInt());
+}
+
 LibraryRead<ScanKnown> Store::readScanKnown() const
 {
     using Read = LibraryRead<ScanKnown>;
