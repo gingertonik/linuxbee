@@ -72,7 +72,7 @@ Interface `org.mpris.MediaPlayer2.Player`:
 |---|---|
 | `Play`, `Pause`, `PlayPause`, `Stop`, `Next`, `Previous` | the player's function of the same name |
 | `Seek(x)`, `SetPosition(o, x)` | MP-SEEK |
-| `OpenUri(s)` | accepted and ignored |
+| `OpenUri(s)` | a `file` URL of a file that is there: plays it now, alone in the queue (`PlayQueue::playNow`), and the player starts it (X-QUEUE). Anything else (another scheme, no scheme, a missing file, a folder) is accepted and changes nothing |
 
 ## MP-PROPS
 
@@ -145,8 +145,7 @@ the service announces nothing.
 
 - The `TrackList` and `Playlists` interfaces.
 - Cover art (`mpris:artUrl`): it needs artwork written to a cache folder.
-- Opening files handed over by the desktop (`OpenUri`, and files named on
-  the command line of a second linuxBee).
+- Files named on the command line of a second linuxBee.
 - A tray icon. Global hotkeys of linuxBee's own, outside the media keys.
 - `Seeked` for a seek to exactly 0 made in the window.
 
@@ -154,4 +153,5 @@ the service announces nothing.
 
 | Rule | Question for someone with MusicBee |
 |---|---|
+| MP-METHODS `OpenUri` | A file opened from the file manager: does MusicBee replace the queue with it (as here), queue it next, or add it at the end? Is that a setting? |
 | MP-ROOT | Nothing to compare: MusicBee is a Windows program, and its wiki documents no MPRIS. Which of its global hotkeys do you use that media keys do not cover? |
