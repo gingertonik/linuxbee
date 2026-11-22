@@ -52,6 +52,10 @@ tabs) and plus `Exit` on `Ctrl+Q`. Two keys differ from W-HOT on purpose
 (the owner, 2026-11-20): `Ctrl+Z` is Undo, which has no default key there,
 and `F11` is Full Screen, where MusicBee shows the visualiser full screen.
 
+linuxBee reads no MusicBee settings file and knows no MusicBee command
+name (the owner's ruling of 2026-11-20): these defaults, and what the
+person sets on the Hotkeys page, are the only keys.
+
 For any catalogue: ids are unique and look like `group.name`; a menu is
 empty (a hotkey-only command) or starts with File, Edit, View, Controls,
 Tools, Help or Context; a default hotkey is one key combination, written
@@ -311,8 +315,7 @@ Why: two windows over one library each hold their own picture of it,
 and each saves its settings over the other's on the way out.
 `linuxbeectl` takes no such lock for the library; it and a running
 window share the library file by the library's own rules (library.md,
-L-OPEN, L-WAIT). The one command of it that writes the settings file
-does ask this lock (settings-import.md, SI-CLI-RUNNING).
+L-OPEN, L-WAIT), and no command of it writes the settings file.
 
 Not in this version: bringing the running window to the front, and
 handing it the files the second start was given.
@@ -374,7 +377,6 @@ leaves behind is tidied at the next start (tools-shell.md, TS-UNDO).
 |---|---|
 | H-CATALOGUE | The full list of commands on the Hotkeys page of Preferences (over 150, says the wiki). The default keys are answered below. |
 | W-LAYOUT | Default panel widths, and whether a hidden panel's width is remembered. |
-| H-SET | What MusicBee does when a key is already taken: refuse, or move it? |
 | H-CATALOGUE | Search and Replace: "Tools Menu" gives it Ctrl+G; the table of defaults on "Hotkeys" does not list it. linuxBee: Ctrl+G. |
 
 ### Answered from the MusicBee wiki (checked 2026-11-20)

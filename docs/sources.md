@@ -77,7 +77,6 @@ forum topics.
 | https://getmusicbee.com/forum/index.php?topic=18622.0 | tag-reading.md, tag-writing.md |
 | https://getmusicbee.com/forum/index.php?topic=35868.0 | templates.md |
 | https://id3.org | tag-reading.md, tag-writing.md |
-| https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.keys | settings-import.md |
 | https://musicbrainz.org/doc/Cover_Art_Archive/API | auto-tag.md |
 | https://musicbrainz.org/doc/MusicBrainz_API | auto-tag.md |
 | https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting | auto-tag.md |
