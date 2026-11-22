@@ -207,7 +207,11 @@ void LibraryReadFailSaidTest::saidAgainAfterAWholeReadingSucceeds()
     QVERIFY(library->readTracks().failed());
     QVERIFY(library->readTracks().failed());
     QVERIFY2(failed.size() == 1, qPrintable(said(failed)));
+    // fix-r3b, the reviewer's change: one section's list is no whole reading; the scan's start is.
     QVERIFY(!library->readTracks(QStringLiteral("Music")).failed());
+    QVERIFY(library->readTracks().failed());
+    QVERIFY2(failed.size() == 1, qPrintable(said(failed)));
+    QVERIFY(!library->readScanKnown().failed());
     QVERIFY(library->readTracks().failed());
     QVERIFY2(failed.size() == 2, qPrintable(said(failed)));
 }

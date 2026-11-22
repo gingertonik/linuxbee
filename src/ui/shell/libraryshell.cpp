@@ -363,6 +363,13 @@ void LibraryShell::showNode()
     const bool unread = d->library->failedAnswers() != failedBefore;
     if (!unread) {
         d->kept = read;
+        d->shownNode = d->node;
+        d->showKept();
+    } else if (d->node != d->shownNode) {
+        // L-READFAIL 3: a node chosen while the library cannot be read is shown empty, so that no
+        // other node's tracks stand under its name. Keeping is for the node read again.
+        d->kept.clear();
+        d->shownNode = d->node;
         d->showKept();
     }
     // SH-REMOVE: the Delete key is named for what it does in the view on show.
@@ -515,8 +522,10 @@ void LibraryShell::applyLibraryDelta(const QList<qint64> &ids, const QString &se
     looked.reserve(ids.size());
     for (const qint64 id : ids) {
         const auto look = d->library->readTrack(id);
-        if (look.failed())
+        if (look.failed()) {
+            showMessage(tr("Could not show the tracks: the library could not be read"));
             return;
+        }
         looked.append(look.value());
     }
     QHash<qint64, qsizetype> at;

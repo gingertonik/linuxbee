@@ -94,6 +94,12 @@ A 20,000-file scan held the window for up to 2,100 ms at once, while
 no single part took more than about 45 ms (job 079, 2026-11-22). Held
 one a turn, the longest hold is one part's.
 
+## SR-START
+
+The scan's start (L-READFAIL 4) is read on the runner's own thread, the window's, in
+`startLooking()`; the looking thread calls no function of the library (the review of R-3,
+note 3).
+
 ## SR-STOP
 
 `cancel()` stops the scan under way and forgets those waiting. What the
