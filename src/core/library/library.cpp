@@ -211,6 +211,15 @@ int Library::count() const
     return d->store.count();
 }
 
+// L-READFAIL 3
+LibraryRead<int> Library::readCount()
+{
+    LibraryRead<int> read = d->store.readCount();
+    if (read.failed())
+        emit failed(read.words());
+    return read;
+}
+
 // L-COUNT: one counting query, every section present, 0 for an empty one.
 // Reads no track, so it counts nothing in tracksRead().
 QMap<QString, int> Library::categoryCounts() const
@@ -234,6 +243,18 @@ QList<LibraryTrack> Library::tracks(const QString &category) const
     QList<LibraryTrack> list = d->store.all(category);
     d->tracksHandedOut += static_cast<qint64>(list.size());
     return list;
+}
+
+// L-READFAIL 3
+LibraryRead<QList<LibraryTrack>> Library::readTracks(const QString &category)
+{
+    LibraryRead<QList<LibraryTrack>> read = d->store.readAll(category);
+    if (read.failed()) {
+        emit failed(read.words());
+        return read;
+    }
+    d->tracksHandedOut += static_cast<qint64>(read.value().size());
+    return read;
 }
 
 std::optional<LibraryTrack> Library::track(qint64 id) const

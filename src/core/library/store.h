@@ -55,6 +55,9 @@ public:
     LibraryRead<std::optional<LibraryTrack>> readById(qint64 id) const;
     LibraryRead<std::optional<LibraryTrack>> readByPath(const QString &path) const;
     LibraryRead<QList<LibraryTrack>> readAll(const QString &category) const;
+    // L-READFAIL 3: how many tracks are stored (as count()), or that the read failed. A count
+    // with no row is a failed read.
+    LibraryRead<int> readCount() const;
     LibraryRead<ScanKnown> readScanKnown() const;
     // L-PARTS: what a scan compares (path, size, modification time and the missing mark) for
     // these ids only, by id. One light query per few hundred ids: no tags, no track is built,
