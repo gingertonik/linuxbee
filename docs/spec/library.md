@@ -797,7 +797,11 @@ there".
    - **The window keeps what it shows.** A node, the counts, or a
      library change that cannot be read leaves the list and the counts
      as they are. A node that cannot be read says on the status bar
-     `Could not show the tracks: the library could not be read`.
+     `Could not show the tracks: the library could not be read`, and
+     so does a library change that cannot be read. Keeping is for the
+     node on show read again: a node chosen while the library cannot be
+     read is shown empty, with the line, so that no other node's tracks
+     stand under its name (fix-r3b; the review of R-3, note 2).
    - **A command that needs a look refuses** before it asks or does
      anything, and says so on the status bar each time: Delete Files
      (`Could not delete files: …`), Remove from a playlist (`Could not
@@ -824,9 +828,11 @@ there".
    library could not be read`. It does not say that the next scan will
    find what was not stored: nothing was looked at.
 5. **Said once.** An answer or a scan start that cannot be read emits
-   `failed` once. Until a reading of the whole library (the list, the
-   count, the counts or the scan's start) succeeds again, a further
-   one says nothing more. So the monitor, whose scans start every few
+   `failed` once. Until a reading of the whole library's tracks (the
+   list of all of them, or the scan's start) succeeds again, a further
+   one says nothing more. The count, the counts and one section's list
+   do not end the silence: under partial damage they can be read while
+   the tracks cannot (fix-r3b; the review of R-3, note 1). So the monitor, whose scans start every few
    seconds, says it once, and a view read again says it once. A
    change refused for a failed look (2) is always said.
    `failedAnswers()` counts every answer that could not be read, said
