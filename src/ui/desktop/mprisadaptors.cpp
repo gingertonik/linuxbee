@@ -1,6 +1,9 @@
 #include "desktop/mprisservice.h"
 #include "desktop/mprisservice_p.h"
 
+#include <QFileInfo>
+#include <QUrl>
+
 #include <random>
 
 // The two MPRIS interfaces, seen from the bus. They hold no state of their
@@ -224,12 +227,17 @@ void PlayerAdaptor::Previous()
     m_state.player->previous();
 }
 
-// MP-METHODS: opening a file the desktop hands over is not in this version
-// (docs/spec/desktop-mpris.md, "Not in this version"), so the call is
-// accepted and nothing is done with it.
+// MP-METHODS: a file URL of a file that is there plays now, alone in the
+// queue; anything else is accepted and changes nothing.
 void PlayerAdaptor::OpenUri(const QString &uri)
 {
-    Q_UNUSED(uri);
+    const QUrl url(uri);
+    if (url.scheme() != QLatin1String("file") || !url.isLocalFile())
+        return;
+    const QString path = url.toLocalFile();
+    if (!QFileInfo(path).isFile())
+        return;
+    m_state.queue->playNow({ path }, 0);
 }
 
 // MP-SEEK: Seek moves by the offset from where the track is now. Before the
