@@ -874,6 +874,14 @@ are its own text, without the driver's ("Unable to fetch row").
   beside it. This covers a read-only file in a folder that can be
   written to, a library without a write-ahead log, and a read-only
   disk.
+- **Where the fault is** (fix-70d), checked in this order before the
+  file's own mode:
+  - a disk mounted read-only: `The library cannot be written to: FILE
+    (the disk it is on is mounted read-only)`, with no `chmod`;
+  - a file that can be written to in a folder that cannot:
+    `The library cannot be written to: FILE (its folder cannot be
+    written to, and the database needs its side files (-wal, -shm)
+    beside it)`, the reading open's own words.
 - **The window then does not start** (SH-MAIN, exit 4): it says the
   sentence, on standard error and in a dialog, and touches nothing.
   Opening read-only instead, to browse and play, is not in 1.0: the
@@ -892,7 +900,13 @@ and for a folder that cannot be written to, chosen by the code. A file
 that is no database is no library. Any other failure gives the WORDS.
 
 **In the window** (library-shell.md, SH-REFUSED): a failed answer is a
-read, not a change. The notice says `The library could not be read: `
+read, not a change. The library tells which: a failed answer that says
+`failed` says `answerFailed` straight before it, with the same words; a
+refused change says `failed` alone. (fix-70d; the review of 70c, B1:
+the notice had judged by whether `failedAnswers()` had moved. The
+library says `failed` once for a run of failed answers, so the counter
+was always ahead, and a refused change after two failed reads was
+called a read, or was not said at all.) The notice says `The library could not be read: `
 and the words. A line that already says "the library could not be
 read" is not said over.
 
