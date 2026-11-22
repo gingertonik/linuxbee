@@ -757,6 +757,55 @@ no change signal goes out. A write that had nothing to do (the track
 is gone by now) is not a refusal. The same scan made again later
 stores everything it finds.
 
+### L-READFAIL
+
+(Road row 3, the readers audit. A read the database could not answer
+was taken for "nothing there": a damaged library read as empty, a
+scan's start as "nothing known", a look before a change as "no such
+track", so a change went on, or was dropped, with no word.)
+
+A read that the database cannot answer is never taken for "nothing
+there".
+
+1. **The readers say it.** The library reads through typed readers
+   that give a `LibraryRead<T>` (`library/libraryread.h`; the tag
+   reader's own `ReadResult` is another thing): the value, or
+   that the read failed, and the database's words. It is
+   `[[nodiscard]]` and has no conversion to its value, so a caller
+   cannot drop it or use it as the value unnoticed. `value()` of a
+   failed read is a fault of the caller (an assertion). **A read that
+   fails part way is a failed read**, not a shorter answer: the end of
+   the rows is checked as well as the start.
+2. **Inside a change, and before one.** A look that a change, or the
+   check of whether there is anything to do, could not make refuses
+   the change, as a refused write does (L-FAILED): nothing is stored,
+   no change signal goes out, the call answers as for a refusal, and
+   `failed` is emitted once, with the database's words. This holds for
+   `remove`, `markDeleted`, `expireDeleted`, `setCategory`, `refresh`,
+   `setPath`, `relinkPaths`, `recordPlay`, `recordSkip`,
+   `recordPlays`, `setStatistics`, `recordMoves`, `applyScan` and
+   `addFile`. (`expireDeleted` at the opening stays unsaid, as
+   L-DELETED has it: the opening is not refused.)
+3. **An answer** (`count`, `categoryCounts`, `tracks`, `track`,
+   `trackByPath`) is the next package's (R-2, R-3). Until then those
+   keep their old readers.
+4. **The scan's start.** `readScanKnown()` gives what the library
+   knows for a scan, as a `LibraryRead<ScanKnown>`, and emits `failed`
+   once when it fails. A scan whose start cannot be read looks at no
+   file (scan-runner.md, SR-REFUSED). `scanKnown()` stays for the
+   callers that are not scans, until R-3.
+
+**How a test makes a read fail.** A library file made in the test,
+with one page overwritten by bytes no page has, while no program has
+it open: SQLite answers "database disk image is malformed" for each
+read that needs that page and every other read as before. The first
+leaf of the table fails the first tracks by id and every scan of the
+table; the last leaf fails a scan part way; the root of the index of
+paths fails every look by path. No hook is built into the program.
+(One site is not reached alone: a storing's look by id, which always
+comes after the look at the deleted rows, a scan of the whole table.
+It is the same reader.)
+
 ### L-MOVED
 
 (Found by an outside review of the code, 2026-11-16: organised files
