@@ -61,6 +61,35 @@ not looked at). It is there for tests, and to slow a scan down by hand.
   it. It need not be
   emitted for every file.
 
+## SR-TURN
+
+What the looking hands over (each part, and the last findings) waits
+on the runner's thread and is stored **one at a time, one a turn of the
+event loop**: after a part is stored and its change signals have gone
+out, the event loop runs before the next waiting part is stored. So a
+zero timer started while a part's signals go out fires before the next
+part is stored. The order stays the order handed over (SR-SCAN), and
+`finished` still comes after every part is stored.
+
+- **`finished` comes after the last stored part,** not when the
+  looking ends: the looking's last findings wait behind the parts it
+  handed over, and the scan ends when they are stored.
+- **The waiting parts do not outlive their scan.**
+  - `cancel()` keeps SR-STOP: a part handed over before the stop took
+    effect is stored, so what waits is stored one a turn, then the
+    scan ends with `finished` (cancelled). Nothing is stored after it.
+  - A scan asked for meanwhile begins after that `finished` (SR-SCAN),
+    so it never shares the queue.
+  - Destroying the runner (the window closed mid-scan) forgets what
+    waits and stops the store timer: nothing is stored and no signal
+    comes from then on.
+
+Why (road row 33): the looking finds files faster than the window
+stores them, so parts waited together and were all stored in one go.
+A 20,000-file scan held the window for up to 2,100 ms at once, while
+no single part took more than about 45 ms (job 079, 2026-11-22). Held
+one a turn, the longest hold is one part's.
+
 ## SR-STOP
 
 `cancel()` stops the scan under way and forgets those waiting. What the
