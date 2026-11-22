@@ -191,6 +191,18 @@ writes to it. Such a thing is never opened: `editProblem` is `the
 file could not be read`, `tracks` gives none, the four calls do
 nothing, and `relink` passes it over. A link to a file is the file.
 
+**A link, and a file that cannot be written to.** (fix-p1; the
+write-path re-probe, 2026-11-22, N1 and N2. Both came with fix-100's
+spare name and rename, where QSaveFile had followed the link and
+refused a read-only file.)
+- A playlist that is a link is written through it. The spare name of
+  step 3 is made beside the file the link leads to, and step 6 renames
+  it onto that file. The link stays a link, to the same file.
+- A playlist that this user cannot write to (its mode, or the file the
+  link leads to) is not edited. Before step 3, the five calls do
+  nothing and say `the file could not be written`; `relink` passes it
+  over. It is still read, shown and played.
+
 Reading is as it was: `tracks` gives what Y-DECODE makes of the file,
 so such a playlist is still shown and played as far as it can be.
 `relink` works on the bytes and never decodes; it is as it was.
