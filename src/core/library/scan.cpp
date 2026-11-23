@@ -282,6 +282,123 @@ QList<qint64> goneFromFolders(const ScanKnown &known, const QStringList &folders
     return ids;
 }
 
+// L-UNPLUGGED: a mount point as the tables write it: a space, tab, newline or backslash is a
+// backslash and three octal digits (040, 011, 012, 134).
+QString unescapedMountPoint(const QByteArray &field)
+{
+    QByteArray out;
+    for (qsizetype i = 0; i < field.size(); ++i) {
+        const auto digit = [&field](qsizetype at) {
+            return at < field.size() && field.at(at) >= '0' && field.at(at) <= '7';
+        };
+        if (field.at(i) == '\\' && digit(i + 1) && digit(i + 2) && digit(i + 3)) {
+            out.append(char(((field.at(i + 1) - '0') << 6) | ((field.at(i + 2) - '0') << 3)
+                | (field.at(i + 3) - '0')));
+            i += 3;
+        } else {
+            out.append(field.at(i));
+        }
+    }
+    return QDir::cleanPath(QString::fromUtf8(out));
+}
+
+// L-UNPLUGGED: the mount point in field `field` (counted from 0) of every line of a table:
+// field 1 of fstab, field 4 of mountinfo. A file that cannot be read gives nothing.
+QStringList mountFieldOf(const QString &table, int field)
+{
+    QStringList points;
+    QFile file(table);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return points;
+    while (!file.atEnd()) {
+        const QByteArray line = file.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#'))
+            continue;
+        const QList<QByteArray> words = line.simplified().split(' ');
+        if (field < words.size())
+            points.append(unescapedMountPoint(words.at(field)));
+    }
+    return points;
+}
+
+// L-UNPLUGGED: the folders `table` (LINUXBEE_FSTAB or /etc/fstab) names as mount points, other
+// than `/`.
+QStringList tableMountPoints()
+{
+    const QByteArray other = qgetenv("LINUXBEE_FSTAB");
+    const QString table = other.isEmpty() ? QStringLiteral("/etc/fstab") : QFile::decodeName(other);
+    QStringList points = mountFieldOf(table, 1);
+    points.removeAll(QStringLiteral("/"));
+    points.removeDuplicates();
+    return points;
+}
+
+// L-UNPLUGGED: what is mounted now.
+QSet<QString> mountedNow()
+{
+    const QStringList points = mountFieldOf(QStringLiteral("/proc/self/mountinfo"), 4);
+    return QSet<QString>(points.cbegin(), points.cend());
+}
+
+// L-UNPLUGGED: the library folders, and the mount points of the table below them, that look
+// unplugged, each once, in ascending order. Rule 1: a mount point of the table inside a library
+// folder, nothing mounted there now, no music file in it, known tracks in it. Rule 2: a library
+// folder with no music file in it (or not there) where more than half of its known tracks, not
+// marked missing, have no file. `files` is every music file the scan found.
+QStringList unpluggedFolders(const QStringList &folders, const QStringList &files,
+    const ScanKnown &known, const QSet<qint64> &gone)
+{
+    QSet<QString> found;
+    const auto holdsMusic = [&files](const QString &folder) {
+        return std::any_of(files.cbegin(), files.cend(),
+            [&folder](const QString &file) { return insideFolder(file, folder); });
+    };
+    // The known tracks, not marked missing, inside `folder`: how many, and how many have no file.
+    const auto countIn = [&known, &gone](const QString &folder, int *all, int *noFile) {
+        *all = 0;
+        *noFile = 0;
+        for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
+            if (entry->missing || !insideFolder(entry.key(), folder))
+                continue;
+            ++*all;
+            if (gone.contains(entry->id))
+                ++*noFile;
+        }
+    };
+    QStringList points;
+    QSet<QString> mounted;
+    bool tablesRead = false;
+    for (const QString &given : folders) {
+        const QString folder = libraryPath(given);
+        if (folder.isEmpty())
+            continue;
+        int all = 0, noFile = 0;
+        countIn(folder, &all, &noFile);
+        // Rule 2.
+        if (all > 0 && noFile * 2 > all && !holdsMusic(folder))
+            found.insert(folder);
+        // Rule 1: only inside the folder; at or above it rule 2 decides.
+        if (all == 0)
+            continue;
+        if (!tablesRead) {
+            points = tableMountPoints();
+            mounted = mountedNow();
+            tablesRead = true;
+        }
+        for (const QString &point : std::as_const(points)) {
+            if (!insideFolder(point, folder) || mounted.contains(point) || holdsMusic(point))
+                continue;
+            int inPoint = 0, none = 0;
+            countIn(point, &inPoint, &none);
+            if (inPoint > 0)
+                found.insert(point);
+        }
+    }
+    QStringList list(found.cbegin(), found.cend());
+    list.sort();
+    return list;
+}
+
 // L-NAMES: the entries inside the scanned folders whose names are not valid
 // UTF-8, each folder named once in ascending order.
 void findUnreadableNames(const QStringList &folders, ScanFindings *found)
@@ -307,7 +424,25 @@ ScanFindings findForScan(
     const QStringList files = filesToScan(folders);
     // L-FOLLOW: what has gone is found before the files, so that a new file can be matched to it.
     ScanFindings goneJudged;
-    const QList<qint64> gone = goneFromFolders(known, folders, &goneJudged);
+    QList<qint64> gone = goneFromFolders(known, folders, &goneJudged);
+    // L-UNPLUGGED: a folder that looks unplugged is decided before the following, so that none
+    // of its tracks is marked missing or followed. The ids of every track not marked missing
+    // inside such a folder are also left out of the second look.
+    QStringList unplugged;
+    QSet<qint64> unpluggedIds;
+    if (!options.emptyMeansGone) {
+        unplugged
+            = unpluggedFolders(folders, files, known, QSet<qint64>(gone.cbegin(), gone.cend()));
+        for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
+            if (!entry->missing && insideAnyFolder(entry.key(), unplugged))
+                unpluggedIds.insert(entry->id);
+        }
+        if (!unpluggedIds.isEmpty()) {
+            gone.removeIf([&unpluggedIds](qint64 id) { return unpluggedIds.contains(id); });
+            for (const qint64 id : std::as_const(unpluggedIds))
+                goneJudged.judged.remove(id);
+        }
+    }
     const FollowRows rows = followRows(known, gone);
     HeldBack held;
     int sinceHandOver = 0;
@@ -333,8 +468,9 @@ ScanFindings findForScan(
         // L-LOOKIN: what went while the files were looked at is found by a second look, which
         // leaves out the ids the first one found.
         ScanFindings goneLater;
-        const QList<qint64> later
-            = goneFromFolders(known, folders, &goneLater, QSet<qint64>(gone.cbegin(), gone.cend()));
+        QSet<qint64> leaveOut(gone.cbegin(), gone.cend());
+        leaveOut.unite(unpluggedIds);
+        const QList<qint64> later = goneFromFolders(known, folders, &goneLater, leaveOut);
         found.nowMissing = gone + later;
         found.judged.insert(goneLater.judged);
         for (const QString &folder : goneJudged.cannotLookIn + goneLater.cannotLookIn) {
@@ -342,6 +478,7 @@ ScanFindings findForScan(
                 found.cannotLookIn.append(folder);
         }
         found.cannotLookIn.sort();
+        found.unplugged = unplugged; // L-UNPLUGGED: the last part only
         found.maybeMoved = held.files; // L-FOLLOW: the last part only, and none when cancelled
         found.judged.insert(goneJudged.judged);
         found.judged.insert(held.judged.judged);
@@ -366,6 +503,9 @@ ScanReport addedUp(const ScanReport &a, const ScanReport &b)
     sum.cannotLookIn += b.cannotLookIn;
     sum.cannotLookIn.removeDuplicates();
     sum.cannotLookIn.sort();
+    sum.unplugged += b.unplugged;
+    sum.unplugged.removeDuplicates();
+    sum.unplugged.sort();
     sum.cancelled = a.cancelled || b.cancelled;
     sum.startUnread = a.startUnread || b.startUnread;
     return sum;
@@ -654,6 +794,7 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     report.cancelled = findings.cancelled;
     report.passedOver = int(passed.size()) + heldByNow;
     report.cannotLookIn = findings.cannotLookIn;
+    report.unplugged = findings.unplugged;
     if (!d->store.commitBatch())
         return refuse(); // nothing was stored, so nothing is announced
     quick.reset(); // back to the write wait before any signal goes out
@@ -681,6 +822,7 @@ ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
     // L-PARTS: a scan is the two steps, the looking and then the storing.
     ScanFindOptions find;
     find.progress = options.progress;
+    find.emptyMeansGone = options.emptyMeansGone;
     // L-READFAIL 4: what the library knows cannot be read, so no file is looked at.
     const LibraryRead<ScanKnown> known = readScanKnown();
     if (known.failed()) {

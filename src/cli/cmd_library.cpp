@@ -292,6 +292,9 @@ int runLibrary(const QStringList &arguments)
     QCommandLineOption nowOption(QStringLiteral("now"),
         QStringLiteral("The time of the scan, as an ISO 8601 date and time."),
         QStringLiteral("WHEN"));
+    QCommandLineOption emptyMeansGoneOption(QStringLiteral("empty-means-gone"),
+        QStringLiteral(
+            "Scan: a folder with no music in it was emptied on purpose; mark its tracks."));
     QCommandLineOption formatOption(QStringLiteral("format"),
         QStringLiteral("A naming template, evaluated for every track listed."),
         QStringLiteral("TEMPLATE"));
@@ -302,8 +305,8 @@ int runLibrary(const QStringList &arguments)
         QStringLiteral("Import: store what the file brings. Without it nothing is changed."));
     QCommandLineOption listOption(QStringLiteral("list"),
         QStringLiteral("Import: show every entry of every list, not the first ten."));
-    parser.addOptions(
-        { dbOption, categoryOption, nowOption, formatOption, mapOption, applyOption, listOption });
+    parser.addOptions({ dbOption, categoryOption, nowOption, emptyMeansGoneOption, formatOption,
+        mapOption, applyOption, listOption });
 
     // parse(), not process(): process() exits 1 on an unknown option, and L-CLI
     // requires 2. The parser expects the program name first.
@@ -398,6 +401,7 @@ int runLibrary(const QStringList &arguments)
         linuxbee::ScanOptions options;
         options.category = category;
         options.now = now;
+        options.emptyMeansGone = parser.isSet(emptyMeansGoneOption); // L-UNPLUGGED
         const linuxbee::ScanReport report = library->scan(positional.mid(1), options);
         // L-CLI, L-FAILED: a scan that could not be stored prints no result line, which would
         // say "added 0" for what did not happen; the words go to standard error, exit 3.
@@ -437,6 +441,21 @@ int runLibrary(const QStringList &arguments)
                 << '\n';
             for (const QString &folder : report.cannotLookIn)
                 out << QStringLiteral("  ") << folder << '\n';
+        }
+        // L-CLI, L-UNPLUGGED: the folders that look unplugged, after those it could not look in.
+        if (!report.unplugged.isEmpty()) {
+            out << (report.unplugged.size() == 1
+                    ? QStringLiteral("1 folder looks unplugged (not mounted, or empty where it "
+                                     "held tracks); its tracks are left as they are:")
+                    : QStringLiteral("%1 folders look unplugged (not mounted, or empty where "
+                                     "they held tracks); their tracks are left as they are:")
+                          .arg(report.unplugged.size()))
+                << '\n';
+            for (const QString &folder : report.unplugged)
+                out << QStringLiteral("  ") << folder << '\n';
+            out << QStringLiteral("a folder emptied on purpose: scan it again with "
+                                  "--empty-means-gone")
+                << '\n';
         }
         if (report.passedOver > 0) {
             out << (report.passedOver == 1

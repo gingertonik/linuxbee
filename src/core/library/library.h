@@ -53,6 +53,9 @@ struct ScanOptions {
     // L-WAIT: true for a scan nobody asked for (the folder monitor's): it waits the short
     // wait for the library, not the long one.
     bool nobodyWaits = false;
+    // L-UNPLUGGED: true for a folder emptied on purpose (`--empty-means-gone`): neither rule
+    // applies, and the tracks of an empty folder are marked missing as before.
+    bool emptyMeansGone = false;
 };
 
 struct ScanReport {
@@ -79,6 +82,9 @@ struct ScanReport {
     // looked at for any reason but "no such file"; each once, ascending. Those tracks are left as
     // they are.
     QStringList cannotLookIn;
+    // L-UNPLUGGED: the library folders (or mount points below one) that look unplugged; each
+    // once, ascending. Their tracks are left as they are.
+    QStringList unplugged;
 };
 
 // L-SCAN: the reader's number. Raised by one whenever what the reader makes of a file changes
@@ -133,10 +139,13 @@ struct ScanFindings {
     bool cancelled = false;
     // L-LOOKIN: as ScanReport::cannotLookIn; carried by the last part only.
     QStringList cannotLookIn;
+    // L-UNPLUGGED: as ScanReport::unplugged; carried by the last part only.
+    QStringList unplugged;
 };
 
 struct ScanFindOptions {
     std::function<bool(int done, int total)> progress; // as ScanOptions::progress
+    bool emptyMeansGone = false; // as ScanOptions::emptyMeansGone
     int partSize = 0; // above 0, with `part` set: hand over every so many files
     std::function<void(const ScanFindings &part)> part;
 };

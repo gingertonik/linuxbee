@@ -155,6 +155,13 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
         if (report.passedOver > 0)
             text += tr("; %1 passed over, changed meanwhile: the next scan looks again")
                         .arg(report.passedOver);
+        // L-UNPLUGGED: folders that look unplugged; their tracks are not marked.
+        if (report.unplugged.size() == 1)
+            text += tr("; %1 looks unplugged, and its tracks are left as they are")
+                        .arg(report.unplugged.first());
+        else if (report.unplugged.size() > 1)
+            text += tr("; %1 folders look unplugged, and their tracks are left as they are")
+                        .arg(report.unplugged.size());
         if (!report.refused.isEmpty())
             text += tr("; the library could not be changed, and what was not stored will be "
                        "found by the next scan");
