@@ -39,6 +39,7 @@ For each path, in this order:
 | The path is | Outcome | |
 |---|---|---|
 | a symbolic link, whatever it points at, or at nothing | `Refused`, reason `a link` | the link and its target are left |
+| not there because a name in its path is not valid UTF-8 (NM-UTF8) | `Refused`, reason `its name is not valid UTF-8`, or `the name of a folder in its path is not valid UTF-8` | it is left as it is |
 | not there | `NotThere` | no trash entry is made |
 | a folder | `Refused`, reason `a folder` | nothing in it is touched |
 | anything else that is not a regular file (a pipe, a device) | `Refused`, reason `not a regular file` | it is not opened |
@@ -60,6 +61,35 @@ name is taken), and its record names the path it came from, so that
 restoring it puts it back.
 
 A refusal or a failure does not stop the rest.
+
+## FD-NAMES: names the trash cannot take
+
+A trash record is the file's name and `.trashinfo`, and a name in a
+folder is at most 255 bytes. So (fix-c1; Trash F5 of the audit):
+
+- A file whose name is more than 245 bytes is never handed to the
+  trash. It is `Failed`, with the reason `the name is too long for the
+  trash: N bytes, and the trash takes names of up to 245`, and stays
+  where it is, byte for byte.
+- When the trash does not take a file, and a trash it could go to
+  holds a file or a record of its name already, the reason is `a file
+  of this name is in the trash already, and the trash could not give
+  this one a name of its own` (the desktop adds a number to the name,
+  which may then be too long).
+
+### NM-UTF8: a name that is not UTF-8
+
+linuxBee reads every name as UTF-8. A file or folder whose name is not
+valid UTF-8 is read with a stand-in letter (U+FFFD) for each byte that
+is not, and so linuxBee cannot reach it by that name: it would say
+"not there" or "not found" of a file that is there (Trash F4, Convert
+F8). So, for a path at which nothing is: the first name of the path
+that is not there is looked for in the folder above it, by its bytes.
+When that folder holds an entry whose name is not valid UTF-8 and that
+reads as that name, the path is said to be one whose name is not
+valid UTF-8 (`its name is not valid UTF-8`, or for a folder of the path
+`the name of a folder in its path is not valid UTF-8`), and nothing is
+done to it. Nothing is opened to decide this but that folder.
 
 ## FD-TAKEN: a name in the trash with no record
 

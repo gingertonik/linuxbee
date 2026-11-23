@@ -197,7 +197,9 @@ The action's text is set whenever the view changes.
 4. The message: `Moved T files to the trash` (`Moved 1 file to the
    trash`; `No file was moved to the trash` for none). After it, when
    there are any: `; M were not there` (`1 was not there`), then
-   `; K could not be moved` for the refused and the failed together.
+   `; K could not be moved` for the refused and the failed together,
+   with its reason when it is one: `; 1 could not be moved: REASON`
+   (delete-files.md, FD-TRASH and FD-NAMES).
 
    When the library did not take the removal (library.md, L-FAILED),
    the files are in the trash all the same, and the message says

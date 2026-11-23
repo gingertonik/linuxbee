@@ -123,6 +123,26 @@ file managers and scans do not show it. A file name is used as it is:
 brackets, stars, question marks, a leading dot or dash mean nothing
 special.
 
+### NM-SCRATCH: a long name in a scratch name
+
+A name in a folder is at most 255 bytes, and a scratch name (this
+copy's, and the part file of convert.md, C-CLEAN) is 15 bytes longer
+than the file's. So for a file whose name is more than 240 bytes the
+file's name in it is shortened (fix-c1; Convert F7 of the audit):
+
+- the start of the name, cut between two characters, never inside
+  one, so that the scratch name is valid UTF-8;
+- then `~` and the first eight hex digits of the SHA-1 of the whole
+  name's bytes, so that two names that begin alike have scratch names
+  of their own;
+- then the extension, from the last dot, when it is 16 bytes or less,
+  so that the format is still told by it;
+
+as long as the whole fits in 255 bytes. A name of 240 bytes or less is
+used as it is. A leftover is recognised by the same shortened name
+(WS-KILLED, C-CLEAN), so the leftovers of another file whose name begins
+alike are left alone.
+
 ## WS-KEEP
 
 The new version has the original's permission bits and extended
