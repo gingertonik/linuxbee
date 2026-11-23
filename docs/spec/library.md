@@ -536,7 +536,8 @@ not every folder below it.
    unmounted mount point is an ordinary folder on its parent's device,
    and `st_dev` cannot tell it from any other without a record of what
    was there, which the library does not keep. `LINUXBEE_FSTAB` names
-   another table (the tests use it). A folder that holds music is
+   another table, and `LINUXBEE_MOUNTINFO` another table of what is
+   mounted (the tests use them; fix-m1b). A folder that holds music is
    scanned whatever the tables say: what is there is the truth, and in
    a mount namespace (a sandbox, a container) a mount point of the
    table may not appear though its files do. An unmounted mount point
@@ -545,7 +546,16 @@ not every folder below it.
    is in no table.
 2. **Empty where it held tracks.** More than half of the library
    folder's known tracks (not marked missing) have no file, and it
-   holds no music file at all, or is not there.
+   holds no music file at all, or is not there. A track with no file
+   that a music file found elsewhere by the same scan would follow
+   (L-FOLLOW: the same size and time to the second, and not known to
+   the library) was moved, not unplugged, and does not count toward the
+   half (fix-m1b): a watched inbox emptied into another library folder
+   by a file manager is followed.
+
+A library folder inside another library folder is judged on its own:
+emptied, it can look unplugged while the folder around it still holds
+music (fix-m1b).
 
 With `emptyMeansGone` (the command line's `--empty-means-gone`) neither
 rule applies: a folder emptied on purpose has its tracks marked, as
