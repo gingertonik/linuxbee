@@ -349,6 +349,13 @@ The numbers are what the library answered, not what was asked for.
 Then the refusal's words, below, when there are any. The folder
 monitor's line (background-shell.md) does not carry these.
 
+**A library folder that looks unplugged** (fix-m1; library.md,
+L-UNPLUGGED): the scan's line goes on with `; FOLDER looks unplugged,
+and its tracks are left as they are`, or `; N folders look unplugged,
+and their tracks are left as they are`, before the refusal's words.
+Its tracks are not marked, so neither this line nor the folder
+monitor's shows them as lost.
+
 **A scan the library refused.** When the scan's own report says it was
 refused (its report's `refused` is not empty; fix-75d: not any `failed`
 heard while it ran, which may be a play or a command), the scan's line is followed by
