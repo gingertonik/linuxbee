@@ -13,12 +13,14 @@
 #include <cerrno>
 #include <chrono>
 #include <optional>
+#include <set>
 #include <utility>
 
 #include <sys/stat.h>
 
 #include "files/musicfiles.h"
 #include "library/library_p.h"
+#include "library/mounts.h"
 #include "library/store.h"
 #include "tags/tagreader.h"
 
@@ -282,64 +284,6 @@ QList<qint64> goneFromFolders(const ScanKnown &known, const QStringList &folders
     return ids;
 }
 
-// L-UNPLUGGED: a mount point as the tables write it: a space, tab, newline or backslash is a
-// backslash and three octal digits (040, 011, 012, 134).
-QString unescapedMountPoint(const QByteArray &field)
-{
-    QByteArray out;
-    for (qsizetype i = 0; i < field.size(); ++i) {
-        const auto digit = [&field](qsizetype at) {
-            return at < field.size() && field.at(at) >= '0' && field.at(at) <= '7';
-        };
-        if (field.at(i) == '\\' && digit(i + 1) && digit(i + 2) && digit(i + 3)) {
-            out.append(char(((field.at(i + 1) - '0') << 6) | ((field.at(i + 2) - '0') << 3)
-                | (field.at(i + 3) - '0')));
-            i += 3;
-        } else {
-            out.append(field.at(i));
-        }
-    }
-    return QDir::cleanPath(QString::fromUtf8(out));
-}
-
-// L-UNPLUGGED: the mount point in field `field` (counted from 0) of every line of a table:
-// field 1 of fstab, field 4 of mountinfo. A file that cannot be read gives nothing.
-QStringList mountFieldOf(const QString &table, int field)
-{
-    QStringList points;
-    QFile file(table);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-        return points;
-    while (!file.atEnd()) {
-        const QByteArray line = file.readLine().trimmed();
-        if (line.isEmpty() || line.startsWith('#'))
-            continue;
-        const QList<QByteArray> words = line.simplified().split(' ');
-        if (field < words.size())
-            points.append(unescapedMountPoint(words.at(field)));
-    }
-    return points;
-}
-
-// L-UNPLUGGED: the folders `table` (LINUXBEE_FSTAB or /etc/fstab) names as mount points, other
-// than `/`.
-QStringList tableMountPoints()
-{
-    const QByteArray other = qgetenv("LINUXBEE_FSTAB");
-    const QString table = other.isEmpty() ? QStringLiteral("/etc/fstab") : QFile::decodeName(other);
-    QStringList points = mountFieldOf(table, 1);
-    points.removeAll(QStringLiteral("/"));
-    points.removeDuplicates();
-    return points;
-}
-
-// L-UNPLUGGED: what is mounted now.
-QSet<QString> mountedNow()
-{
-    const QStringList points = mountFieldOf(QStringLiteral("/proc/self/mountinfo"), 4);
-    return QSet<QString>(points.cbegin(), points.cend());
-}
-
 // L-UNPLUGGED: the library folders, and the mount points of the table below them, that look
 // unplugged, each once, in ascending order. Rule 1: a mount point of the table inside a library
 // folder, nothing mounted there now, no music file in it, known tracks in it. Rule 2: a library
@@ -353,15 +297,36 @@ QStringList unpluggedFolders(const QStringList &folders, const QStringList &file
         return std::any_of(files.cbegin(), files.cend(),
             [&folder](const QString &file) { return insideFolder(file, folder); });
     };
-    // The known tracks, not marked missing, inside `folder`: how many, and how many have no file.
-    const auto countIn = [&known, &gone](const QString &folder, int *all, int *noFile) {
+    // L-FOLLOW (fix-m1b): the size and time to the second of every music file the library does
+    // not know, looked at once, and only when a gone track is counted.
+    std::set<std::pair<qint64, qint64>> unknownFiles;
+    bool unknownRead = false;
+    const auto movedAway = [&](const ScanKnown::Entry &entry) {
+        if (!entry.modified.isValid())
+            return false;
+        if (!unknownRead) {
+            unknownRead = true;
+            for (const QString &file : files) {
+                if (known.byPath.contains(QDir::cleanPath(file)))
+                    continue;
+                const QFileInfo info(file);
+                const QDateTime stamp = fileModified(info);
+                if (stamp.isValid())
+                    unknownFiles.insert({ info.size(), stamp.toSecsSinceEpoch() });
+            }
+        }
+        return unknownFiles.count({ entry.sizeBytes, entry.modified.toSecsSinceEpoch() }) > 0;
+    };
+    // The known tracks, not marked missing, inside `folder`: how many, and how many have no file
+    // that a file found elsewhere would not follow (a moved track is not an unplugged one).
+    const auto countIn = [&known, &gone, &movedAway](const QString &folder, int *all, int *noFile) {
         *all = 0;
         *noFile = 0;
         for (auto entry = known.byPath.cbegin(); entry != known.byPath.cend(); ++entry) {
             if (entry->missing || !insideFolder(entry.key(), folder))
                 continue;
             ++*all;
-            if (gone.contains(entry->id))
+            if (gone.contains(entry->id) && !movedAway(*entry))
                 ++*noFile;
         }
     };
@@ -381,8 +346,8 @@ QStringList unpluggedFolders(const QStringList &folders, const QStringList &file
         if (all == 0)
             continue;
         if (!tablesRead) {
-            points = tableMountPoints();
-            mounted = mountedNow();
+            points = mounts::tableMountPoints();
+            mounted = mounts::mountedNow();
             tablesRead = true;
         }
         for (const QString &point : std::as_const(points)) {
