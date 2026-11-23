@@ -1,5 +1,7 @@
 #include "tagwriter.h"
 
+#include "files/names.h"
+
 #include <algorithm>
 #include <cerrno>
 #include <memory>
@@ -980,7 +982,7 @@ QString scratchName(const QString &fileName)
     for (int i = 0; i < 6; ++i)
         chosen
             += QLatin1Char(alphabet[QRandomGenerator::global()->bounded(int(sizeof alphabet) - 1)]);
-    return QStringLiteral(".lbsave-") + chosen + QLatin1Char('-') + fileName;
+    return QStringLiteral(".lbsave-") + chosen + QLatin1Char('-') + scratchTail(fileName, 15);
 }
 
 // POSIX: force a saved file's contents, or a folder's entries, to the disk. False when
@@ -1004,7 +1006,7 @@ bool syncToDisk(const QString &path, bool isFolder)
 void clearLeftovers(const QString &folder, const QString &fileName)
 {
     const QString head = QStringLiteral(".lbsave-");
-    const QString tail = QLatin1Char('-') + fileName;
+    const QString tail = QLatin1Char('-') + scratchTail(fileName, 15); // NM-SCRATCH
     const QStringList names = QDir(folder).entryList(QDir::Files | QDir::Hidden, QDir::Name);
     for (const QString &name : names) {
         if (name.size() != head.size() + 6 + tail.size() || !name.startsWith(head)

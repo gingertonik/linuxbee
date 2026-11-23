@@ -1,5 +1,7 @@
 #include "files/trash.h"
 
+#include "files/names.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -186,6 +188,47 @@ private:
 
 }
 
+// Every trash a file in `folder` can go to: the one of the data folder, and the two on the file's
+// own disk, whichever the library picks.
+static QStringList trashesFor(const QString &folder, const QString &trash)
+{
+    QStringList trashes { trash };
+    const QString top = QStorageInfo(folder).rootPath();
+    if (!top.isEmpty()) {
+        const QString uid = QString::number(::getuid());
+        struct stat shared;
+        if (::lstat(QFile::encodeName(QDir::cleanPath(top + QStringLiteral("/.Trash"))).constData(),
+                &shared)
+                == 0
+            && S_ISDIR(shared.st_mode)) {
+            trashes.append(QDir::cleanPath(top + QStringLiteral("/.Trash/") + uid));
+        }
+        trashes.append(QDir::cleanPath(top + QStringLiteral("/.Trash-") + uid));
+    }
+    return trashes;
+}
+
+// FD-NAMES: whether a trash a file in `folder` could go to holds a file or a record of this name.
+// A link or a folder of the name counts, and so does a link that points at nothing.
+static bool nameIsInTheTrash(const QString &folder, const QString &name)
+{
+    const QString dataHome = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    if (dataHome.isEmpty())
+        return false;
+    for (const QString &one : trashesFor(folder, dataHome + QStringLiteral("/Trash"))) {
+        struct stat st;
+        if (::lstat(QFile::encodeName(one + QStringLiteral("/files/") + name).constData(), &st) == 0
+            || ::lstat(QFile::encodeName(
+                           one + QStringLiteral("/info/") + name + QStringLiteral(".trashinfo"))
+                           .constData(),
+                   &st)
+                == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Sends one file to the desktop's trash, or to the stand-in for it, and says what became of it.
 // QFile::moveToTrash fails while the trash folders are missing, as on a fresh account, so they are
 // made first, the way a file manager makes them.
@@ -212,19 +255,7 @@ SendResult sendToTrashWith(const QString &path, QString *pathInTrash, const Tras
     // is held.
     struct stat sent;
     const bool haveSent = ::lstat(QFile::encodeName(real).constData(), &sent) == 0;
-    QStringList trashes { trash };
-    const QString top = QStorageInfo(folder).rootPath();
-    if (!top.isEmpty()) {
-        const QString uid = QString::number(::getuid());
-        struct stat shared;
-        if (::lstat(QFile::encodeName(QDir::cleanPath(top + QStringLiteral("/.Trash"))).constData(),
-                &shared)
-                == 0
-            && S_ISDIR(shared.st_mode)) {
-            trashes.append(QDir::cleanPath(top + QStringLiteral("/.Trash/") + uid));
-        }
-        trashes.append(QDir::cleanPath(top + QStringLiteral("/.Trash-") + uid));
-    }
+    const QStringList trashes = trashesFor(folder, trash);
     NameHolds holds;
     const QByteArray bareName = QFile::encodeName(QFileInfo(path).fileName());
     for (const QString &one : trashes) {
@@ -276,7 +307,14 @@ QList<TrashOutcome> moveFilesToTrashWith(const QStringList &paths, const TrashMo
             outcome.status = TrashOutcome::Status::Refused;
             outcome.reason = QStringLiteral("a link");
         } else if (!info.exists()) {
-            outcome.status = TrashOutcome::Status::NotThere;
+            // NM-UTF8: a name that is not valid UTF-8 is there, but not by the name read.
+            const QString words = notUtf8Words(notUtf8Where(path));
+            if (!words.isEmpty()) {
+                outcome.status = TrashOutcome::Status::Refused;
+                outcome.reason = words;
+            } else {
+                outcome.status = TrashOutcome::Status::NotThere;
+            }
         } else if (info.isDir()) {
             outcome.status = TrashOutcome::Status::Refused;
             outcome.reason = QStringLiteral("a folder");
@@ -288,6 +326,12 @@ QList<TrashOutcome> moveFilesToTrashWith(const QStringList &paths, const TrashMo
             if (usableFolder(path).isEmpty()) {
                 outcome.status = TrashOutcome::Status::Failed;
                 outcome.reason = QStringLiteral("its folder cannot be written");
+            } else if (const qsizetype bytes = info.fileName().toUtf8().size(); bytes > 245) {
+                // FD-NAMES: the record is 10 bytes longer than the name, and 255 is the most.
+                outcome.status = TrashOutcome::Status::Failed;
+                outcome.reason = QStringLiteral("the name is too long for the trash: %1 bytes, and "
+                                                "the trash takes names of up to 245")
+                                     .arg(bytes);
             } else {
                 const SendResult sent = sendToTrashWith(path, &inTrash, mover);
                 if (sent == SendResult::Went) {
@@ -295,9 +339,16 @@ QList<TrashOutcome> moveFilesToTrashWith(const QStringList &paths, const TrashMo
                     outcome.pathInTrash = inTrash;
                 } else {
                     outcome.status = TrashOutcome::Status::Failed;
-                    outcome.reason = sent == SendResult::StillThere
-                        ? QStringLiteral("the file is still in its place")
-                        : QStringLiteral("the trash did not take it");
+                    if (sent == SendResult::StillThere) {
+                        outcome.reason = QStringLiteral("the file is still in its place");
+                    } else if (nameIsInTheTrash(usableFolder(path), info.fileName())) {
+                        // FD-NAMES: the desktop numbers a taken name, and may not find room.
+                        outcome.reason = QStringLiteral(
+                            "a file of this name is in the trash already, and the trash could not "
+                            "give this one a name of its own");
+                    } else {
+                        outcome.reason = QStringLiteral("the trash did not take it");
+                    }
                 }
             }
         }

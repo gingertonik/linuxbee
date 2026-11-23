@@ -12,6 +12,7 @@
 #include "fields/trackfields.h"
 #include "paths/pathbuilder.h"
 #include "tags/tagreader.h"
+#include "files/names.h"
 #include "template/template.h"
 
 namespace {
@@ -286,7 +287,9 @@ int runConvert(const QStringList &arguments)
         } else if (naming) {
             const linuxbee::ReadResult read = linuxbee::readTags(input);
             if (read.status == linuxbee::ReadResult::Status::NotFound) {
-                fail(input, QStringLiteral("not found"));
+                // NM-UTF8: the same words as the conversion itself gives.
+                const QString words = linuxbee::notUtf8Words(linuxbee::notUtf8Where(input));
+                fail(input, words.isEmpty() ? QStringLiteral("not found") : words);
                 continue;
             }
             if (read.status == linuxbee::ReadResult::Status::NotAudio) {

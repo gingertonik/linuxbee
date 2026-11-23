@@ -235,6 +235,7 @@ void LibraryShell::deleteSelected()
     // in any other way.
     int notThere = 0;
     int couldNot = 0; // refused and failed together
+    QString whyNot; // the reason of the last of them
     QList<qint64> gone;
     for (const TrashOutcome &outcome : moveFilesToTrash(paths)) {
         switch (outcome.status) {
@@ -248,6 +249,7 @@ void LibraryShell::deleteSelected()
         case TrashOutcome::Status::Refused:
         case TrashOutcome::Status::Failed:
             ++couldNot;
+            whyNot = outcome.reason;
             break;
         }
     }
@@ -286,7 +288,9 @@ void LibraryShell::deleteSelected()
         text += tr("; 1 was not there");
     else if (notThere > 1)
         text += tr("; %1 were not there").arg(notThere);
-    if (couldNot > 0)
+    if (couldNot == 1 && !whyNot.isEmpty())
+        text += tr("; 1 could not be moved: %1").arg(whyNot); // SH-DELETE step 4, FD-NAMES
+    else if (couldNot > 0)
         text += tr("; %1 could not be moved").arg(couldNot);
     showMessage(text);
 }

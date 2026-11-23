@@ -1,5 +1,6 @@
 #include "converter.h"
 
+#include "files/names.h"
 #include "paths/pathbuilder.h"
 #include "tagcopy.h"
 
@@ -32,7 +33,7 @@ QString partPathFor(const QString &destination)
     static constexpr char alphabet[] = "abcdefghijklmnopqrstuvwxyz0123456789";
     const int slash = destination.lastIndexOf(QLatin1Char('/'));
     const QString folder = destination.left(slash + 1);
-    const QString name = destination.mid(slash + 1);
+    const QString name = scratchTail(destination.mid(slash + 1), 15); // NM-SCRATCH
     for (;;) {
         QString chosen;
         for (int i = 0; i < 6; ++i)
@@ -52,7 +53,7 @@ QString partPathFor(const QString &destination)
 void clearLeftovers(const QString &folder, const QString &fileName)
 {
     const QString head = QStringLiteral(".lbpart-");
-    const QString tail = QLatin1Char('-') + fileName;
+    const QString tail = QLatin1Char('-') + scratchTail(fileName, 15); // NM-SCRATCH
     const QStringList names = QDir(folder).entryList(QDir::Files | QDir::Hidden, QDir::Name);
     for (const QString &name : names) {
         if (name.size() != head.size() + 6 + tail.size() || !name.startsWith(head)
@@ -390,9 +391,14 @@ ConvertResult convertFile(const ConvertJob &job, const ConvertProgress &progress
         return withStatus(ConvertResult::Status::InvalidJob, problems.join(QStringLiteral("; ")));
 
     const ReadResult source = readTags(job.source);
-    if (source.status == ReadResult::Status::NotFound)
+    if (source.status == ReadResult::Status::NotFound) {
+        // NM-UTF8: a name that is not valid UTF-8 is there, but not by the name read.
+        const QString words = notUtf8Words(notUtf8Where(job.source));
+        if (!words.isEmpty())
+            return withStatus(ConvertResult::Status::InvalidJob, words);
         return withStatus(
             ConvertResult::Status::SourceNotFound, QStringLiteral("source not found"));
+    }
     if (source.status == ReadResult::Status::NotAudio)
         return withStatus(
             ConvertResult::Status::SourceNotAudio, QStringLiteral("source is not an audio file"));
