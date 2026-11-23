@@ -2,6 +2,7 @@
 #include "shell/libraryshell_p.h"
 
 #include "actions/actionregistry.h"
+#include "library/setaside.h"
 #include "mainwindow/mainwindow.h"
 #include "navigator/navigatorpanel.h"
 #include "shell/refusalnotice.h"
@@ -162,6 +163,20 @@ LibraryShell::LibraryShell(MainWindow *window, ActionRegistry *actions, Library 
         else if (report.unplugged.size() > 1)
             text += tr("; %1 folders look unplugged, and their tracks are left as they are")
                         .arg(report.unplugged.size());
+        // L-SETASIDE: what Organise had set aside, before the refusal's words.
+        if (report.setAsidePutBack.size() == 1)
+            text += tr("; put back %1, which Organise had set aside")
+                        .arg(report.setAsidePutBack.first());
+        else if (report.setAsidePutBack.size() > 1)
+            text += tr("; put back %1 files Organise had set aside")
+                        .arg(report.setAsidePutBack.size());
+        if (report.setAsideKept.size() == 1)
+            text += tr("; kept %1, which Organise had set aside, beside %2")
+                        .arg(report.setAsideKept.first(),
+                            setaside::realPathOf(report.setAsideKept.first()));
+        else if (report.setAsideKept.size() > 1)
+            text += tr("; kept %1 files Organise had set aside, beside files of their names")
+                        .arg(report.setAsideKept.size());
         if (!report.refused.isEmpty())
             text += tr("; the library could not be changed, and what was not stored will be "
                        "found by the next scan");

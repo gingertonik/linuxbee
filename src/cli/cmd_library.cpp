@@ -8,6 +8,7 @@
 #include "command.h"
 #include "import/itunesxml.h"
 #include "library/library.h"
+#include "library/setaside.h"
 #include "template/template.h"
 
 namespace {
@@ -456,6 +457,29 @@ int runLibrary(const QStringList &arguments)
             out << QStringLiteral("a folder emptied on purpose: scan it again with "
                                   "--empty-means-gone")
                 << '\n';
+        }
+        // L-CLI, L-SETASIDE: what Organise had set aside, put back or kept, after the unplugged
+        // block.
+        if (!report.setAsidePutBack.isEmpty()) {
+            out << (report.setAsidePutBack.size() == 1
+                    ? QStringLiteral("put back 1 file that Organise had set aside:")
+                    : QStringLiteral("put back %1 files that Organise had set aside:")
+                          .arg(report.setAsidePutBack.size()))
+                << '\n';
+            for (const QString &path : report.setAsidePutBack)
+                out << QStringLiteral("  ") << path << '\n';
+        }
+        if (!report.setAsideKept.isEmpty()) {
+            out << (report.setAsideKept.size() == 1
+                    ? QStringLiteral("kept 1 file that Organise had set aside, because a file has "
+                                     "its name now:")
+                    : QStringLiteral("kept %1 files that Organise had set aside, because files "
+                                     "have their names now:")
+                          .arg(report.setAsideKept.size()))
+                << '\n';
+            for (const QString &path : report.setAsideKept)
+                out << QStringLiteral("  ") << path << QStringLiteral(" (beside ")
+                    << linuxbee::setaside::realPathOf(path) << ')' << '\n';
         }
         if (report.passedOver > 0) {
             out << (report.passedOver == 1
