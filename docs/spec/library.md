@@ -519,6 +519,44 @@ F6).
   time it is stored (another writer stored it meanwhile) is left alone
   and counted in `passedOver`.
 
+### L-UNPLUGGED
+
+A library folder that looks unplugged is not looked in, and none of its
+tracks is marked missing (fix-m1; the review of D, note 1). An
+unmounted network share or USB disk leaves an empty folder, or none, and
+a scan that "finds" a whole library gone is worse than one that says it
+could not look. A library folder is one the scan is given (`folders`),
+not every folder below it.
+
+1. **A mount point inside it, not mounted.** A folder inside the
+   library folder that `/etc/fstab` names as a mount point (not `/`),
+   with nothing mounted there now (`/proc/self/mountinfo`), no music
+   file in it, and known tracks in it (a share mounted under the music
+   folder, gone). The table of mounts is read, not device numbers: an
+   unmounted mount point is an ordinary folder on its parent's device,
+   and `st_dev` cannot tell it from any other without a record of what
+   was there, which the library does not keep. `LINUXBEE_FSTAB` names
+   another table (the tests use it). A folder that holds music is
+   scanned whatever the tables say: what is there is the truth, and in
+   a mount namespace (a sandbox, a container) a mount point of the
+   table may not appear though its files do. An unmounted mount point
+   at or above a library folder leaves it empty or absent, which rule 2
+   covers; so does a disk the desktop mounted (`/run/media/...`), which
+   is in no table.
+2. **Empty where it held tracks.** More than half of the library
+   folder's known tracks (not marked missing) have no file, and it
+   holds no music file at all, or is not there.
+
+With `emptyMeansGone` (the command line's `--empty-means-gone`) neither
+rule applies: a folder emptied on purpose has its tracks marked, as
+before.
+
+Such a folder is in `unplugged` (each once, ascending), in the last
+part only. None of its tracks is in `nowMissing`, no file found
+elsewhere follows one of them (L-FOLLOW), and no file in it is looked
+at. A folder that lost some files and still holds music is scanned as
+before.
+
 ### L-NAMES
 
 A file or folder whose name is not valid UTF-8 cannot be opened by
@@ -1094,7 +1132,17 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
   ```
 
   with `could not look in 1 folder; the tracks in it are left as they
-  are:` for one. Then, when it passed something over (L-PARTS):
+  are:` for one. Then, when there are library folders that look
+  unplugged (L-UNPLUGGED):
+
+  ```
+  N folders look unplugged (not mounted, or empty where they held tracks); their tracks are left as they are:
+    FOLDER
+  a folder emptied on purpose: scan it again with --empty-means-gone
+  ```
+
+  with `1 folder looks unplugged (not mounted, or empty where it held
+  tracks); its tracks are left as they are:` for one. Then, when it passed something over (L-PARTS):
   `passed over N files the library had changed meanwhile; the next
   scan looks again` (`1 file` for one). The exit status does not
   change.
