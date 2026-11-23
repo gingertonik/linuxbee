@@ -1,6 +1,6 @@
-// LOCKED ACCEPTANCE TEST (the library shell: Delete Files moves the selected files to the trash). Written by the reviewer, not the builder.
-// The builder makes these pass by changing src/, never by editing this file.
-// A test believed to be wrong is reported, with the reason, and left alone.
+// LOCKED ACCEPTANCE TEST (the library shell: Delete Files moves the selected files to the trash).
+// Written by the reviewer, not the builder. The builder makes these pass by changing src/, never by
+// editing this file. A test believed to be wrong is reported, with the reason, and left alone.
 //
 // Expected values are rules in docs/spec/library-shell.md (SH-DELETE) and
 // docs/spec/delete-files.md. Runs on the offscreen platform with the real
@@ -72,7 +72,8 @@ struct Rig {
                 existedWhenAsked += QFileInfo::exists(p) ? 1 : 0;
             return yes;
         };
-        shell = std::make_unique<LibraryShell>(&window, &actions, library.get(), &playlists, &settings, hooks);
+        shell = std::make_unique<LibraryShell>(
+            &window, &actions, library.get(), &playlists, &settings, hooks);
     }
     QString made(const QString &name)
     {
@@ -82,11 +83,16 @@ struct Rig {
     QString put(const char *from, const char *to)
     {
         const QString target = dir.path() + QLatin1Char('/') + QLatin1String(to);
-        if (!QFile::copy(QStringLiteral(LINUXBEE_TEST_DATA) + QStringLiteral("/tags/") + QLatin1String(from), target))
+        if (!QFile::copy(
+                QStringLiteral(LINUXBEE_TEST_DATA) + QStringLiteral("/tags/") + QLatin1String(from),
+                target))
             QTest::qFail("could not copy a fixture", __FILE__, __LINE__);
         return target;
     }
-    QString trashed(const char *name) const { return dir.path() + QStringLiteral("/xdg-data/Trash/files/") + QLatin1String(name); }
+    QString trashed(const char *name) const
+    {
+        return dir.path() + QStringLiteral("/xdg-data/Trash/files/") + QLatin1String(name);
+    }
     qint64 id(const QString &path) const
     {
         const auto t = library->trackByPath(path);
@@ -108,10 +114,10 @@ struct Rig {
     }
 };
 
-#define NEED_DELETE(r) \
-    do { \
-        if (!(r).shell->trackList() || !(r).actions.isImplemented(QStringLiteral("file.delete"))) \
-            QFAIL("Delete Files has not been built"); \
+#define NEED_DELETE(r)                                                                             \
+    do {                                                                                           \
+        if (!(r).shell->trackList() || !(r).actions.isImplemented(QStringLiteral("file.delete")))  \
+            QFAIL("Delete Files has not been built");                                              \
     } while (false)
 
 }
@@ -128,7 +134,8 @@ private slots:
 
 void LibraryShellDeleteTest::theCommand()
 {
-    // SH-COMMANDS: Delete Files is the shell's while it exists; Remove from Library is still its own command.
+    // SH-COMMANDS: Delete Files is the shell's while it exists; Remove from Library is still its
+    // own command.
     Rig r;
     NEED_DELETE(r);
     QVERIFY(r.actions.isImplemented(s(u"file.remove")));
@@ -163,7 +170,8 @@ void LibraryShellDeleteTest::askedFirst()
 
 void LibraryShellDeleteTest::toTheTrash()
 {
-    // SH-DELETE: yes moves the files to the trash and takes their tracks out of the library, in one go.
+    // SH-DELETE: yes moves the files to the trash and takes their tracks out of the library, in one
+    // go.
     Rig r;
     NEED_DELETE(r);
     r.select({ r.a, r.b });
@@ -176,7 +184,8 @@ void LibraryShellDeleteTest::toTheTrash()
     QVERIFY(!QFileInfo::exists(r.b));
     QVERIFY(QFileInfo(r.trashed("a.flac")).isFile());
     QVERIFY(QFileInfo(r.trashed("b.mp3")).isFile());
-    QCOMPARE(QFileInfo(r.trashed("a.flac")).size(), QFileInfo(QStringLiteral(LINUXBEE_TEST_DATA) + s(u"/tags/basic.flac")).size());
+    QCOMPARE(QFileInfo(r.trashed("a.flac")).size(),
+        QFileInfo(QStringLiteral(LINUXBEE_TEST_DATA) + s(u"/tags/basic.flac")).size());
     // The others are where they were.
     QVERIFY(QFileInfo::exists(r.c) && QFileInfo::exists(r.d));
     QCOMPARE(r.library->count(), 2);
@@ -192,7 +201,8 @@ void LibraryShellDeleteTest::toTheTrash()
     QCOMPARE(r.shell->model()->rowCount(), 2);
     QCOMPARE(r.shell->lastMessage(), s(u"Moved 2 files to the trash"));
     QCOMPARE(r.window.statusBar()->currentMessage(), r.shell->lastMessage());
-    // The folder the files were in stays, though one file is left in it; and one that is emptied stays too.
+    // The folder the files were in stays, though one file is left in it; and one that is emptied
+    // stays too.
     r.select({ r.c });
     r.run();
     QCOMPARE(r.shell->lastMessage(), s(u"Moved 1 file to the trash"));
@@ -202,7 +212,8 @@ void LibraryShellDeleteTest::toTheTrash()
 
 void LibraryShellDeleteTest::whatCouldNotGo()
 {
-    // SH-DELETE: a file that is not there, and one the trash does not take, keep their tracks; the message counts them.
+    // SH-DELETE: a file that is not there, and one the trash does not take, keep their tracks; the
+    // message counts them.
     Rig r;
     NEED_DELETE(r);
     QVERIFY(QFile::remove(r.b)); // gone behind the program's back
@@ -214,12 +225,14 @@ void LibraryShellDeleteTest::whatCouldNotGo()
     QCOMPARE(r.shell->lastMessage(), s(u"Moved 2 files to the trash; 1 was not there"));
     QCOMPARE(removed.count(), 1);
     QCOMPARE(removed.at(0).at(0).value<QList<qint64>>().size(), 2);
-    QVERIFY(r.library->trackByPath(r.b).has_value()); // its track stays: "Remove from Library" is the way
+    QVERIFY(r.library->trackByPath(r.b)
+            .has_value()); // its track stays: "Remove from Library" is the way
     QCOMPARE(r.library->count(), 2);
 
     // The trash is broken: the file stays, byte for byte, and so does its track.
     const qint64 size = QFileInfo(r.d).size();
-    qputenv("XDG_DATA_HOME", QFile::encodeName(r.b + s(u"/not-a-folder"))); // under a path that is no folder
+    qputenv("XDG_DATA_HOME",
+        QFile::encodeName(r.b + s(u"/not-a-folder"))); // under a path that is no folder
     QFile blocker(r.b);
     QVERIFY(blocker.open(QIODevice::WriteOnly));
     blocker.close();
@@ -229,7 +242,8 @@ void LibraryShellDeleteTest::whatCouldNotGo()
     QCOMPARE(QFileInfo(r.d).size(), size);
     QVERIFY(r.library->trackByPath(r.d).has_value());
     QCOMPARE(removed.count(), 0); // nothing went, so the library is not asked
-    QCOMPARE(r.shell->lastMessage(), s(u"No file was moved to the trash; 1 could not be moved"));
+    QCOMPARE(r.shell->lastMessage(),
+        s(u"No file was moved to the trash; 1 could not be moved: the trash did not take it"));
 
     // A link in the library is refused.
     qputenv("XDG_DATA_HOME", QFile::encodeName(r.dir.path() + s(u"/xdg-data")));
@@ -241,7 +255,7 @@ void LibraryShellDeleteTest::whatCouldNotGo()
     QVERIFY(QFileInfo(link).isSymLink());
     QVERIFY(!QFileInfo::exists(r.d)); // the real file went; the link was left
     QVERIFY(r.library->trackByPath(link).has_value());
-    QCOMPARE(r.shell->lastMessage(), s(u"Moved 1 file to the trash; 1 could not be moved"));
+    QCOMPARE(r.shell->lastMessage(), s(u"Moved 1 file to the trash; 1 could not be moved: a link"));
 }
 
 void LibraryShellDeleteTest::nothingSelected()

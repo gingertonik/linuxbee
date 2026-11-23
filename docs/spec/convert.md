@@ -170,7 +170,9 @@ A quality is printed with no trailing zeros: `0`, `6.5`.
 
 1. Invalid settings (C-VALID) or an empty destination: `InvalidJob`, with
    the problems joined by `"; "` in `message`.
-2. Read the source with `readTags`. Not found: `SourceNotFound`. Not audio:
+2. Read the source with `readTags`. Not found: `SourceNotFound`, unless
+   a name in its path is not valid UTF-8 (delete-files.md, NM-UTF8):
+   then `InvalidJob`, with that rule's words as the message. Not audio:
    `SourceNotAudio`.
 3. If the destination names the source file itself: `InvalidJob`.
 4. If the destination exists: C-EXISTS.
@@ -496,7 +498,10 @@ ffmpeg writes to a part file in the destination's folder. Its name is
 `.lbpart-` + six characters chosen at random from `a` to `z` and `0` to
 `9` + `-` + the destination's own file name: for `song.mp3`,
 `.lbpart-k3x9qa-song.mp3`. If a file of that name exists, another is
-chosen. (The same pattern as a safe tag save, tag-safe-save.md.)
+chosen. (The same pattern as a safe tag save, tag-safe-save.md.) For a
+destination whose name is more than 240 bytes, a long name is shortened in it as tag-safe-save.md, NM-SCRATCH
+says, so that the part file's name, and the safe save's copy of it
+when the tags are carried, stays within 255 bytes.
 
 A conversion never removes a file it did not make. In particular a file
 called `song.part.mp3`, `song.part` or anything else is the user's and is
