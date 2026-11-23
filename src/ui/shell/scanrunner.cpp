@@ -146,6 +146,7 @@ void ScanRunner::Private::startLooking()
 
     ScanFindOptions find;
     find.emptyMeansGone = current.options.emptyMeansGone; // L-UNPLUGGED
+    find.sweep = !current.options.nobodyWaits; // L-SETASIDE
     find.partSize = std::max(1, partSize);
     find.progress = [=](int done, int total) {
         // The hook first, then whether it was told to stop (SR-THREADS).

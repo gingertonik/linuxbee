@@ -21,6 +21,7 @@
 #include "files/musicfiles.h"
 #include "library/library_p.h"
 #include "library/mounts.h"
+#include "library/setaside.h"
 #include "library/store.h"
 #include "tags/tagreader.h"
 
@@ -386,6 +387,17 @@ ScanFindings findForScan(
 {
     ScanFindings found;
     const bool inParts = options.partSize > 0 && static_cast<bool>(options.part);
+    // L-SETASIDE: before any file is looked at, so that a file put back is found by this scan.
+    setaside::Swept swept;
+    if (options.sweep) {
+        QStringList clean;
+        for (const QString &folder : folders) {
+            const QString path = libraryPath(folder);
+            if (!path.isEmpty())
+                clean.append(path);
+        }
+        swept = setaside::sweepSetAside(clean);
+    }
     const QStringList files = filesToScan(folders);
     // L-FOLLOW: what has gone is found before the files, so that a new file can be matched to it.
     ScanFindings goneJudged;
@@ -449,6 +461,9 @@ ScanFindings findForScan(
         found.judged.insert(held.judged.judged);
         findUnreadableNames(folders, &found);
     }
+    // L-SETASIDE: the last part only; said even for a stopped scan, since the files have moved.
+    found.setAsidePutBack = swept.putBack;
+    found.setAsideKept = swept.kept;
     return found;
 }
 
@@ -471,6 +486,10 @@ ScanReport addedUp(const ScanReport &a, const ScanReport &b)
     sum.unplugged += b.unplugged;
     sum.unplugged.removeDuplicates();
     sum.unplugged.sort();
+    sum.setAsidePutBack += b.setAsidePutBack;
+    sum.setAsidePutBack.sort();
+    sum.setAsideKept += b.setAsideKept;
+    sum.setAsideKept.sort();
     sum.cancelled = a.cancelled || b.cancelled;
     sum.startUnread = a.startUnread || b.startUnread;
     return sum;
@@ -760,6 +779,8 @@ ScanReport Library::applyScan(const ScanFindings &findings, const ScanOptions &o
     report.passedOver = int(passed.size()) + heldByNow;
     report.cannotLookIn = findings.cannotLookIn;
     report.unplugged = findings.unplugged;
+    report.setAsidePutBack = findings.setAsidePutBack;
+    report.setAsideKept = findings.setAsideKept;
     if (!d->store.commitBatch())
         return refuse(); // nothing was stored, so nothing is announced
     quick.reset(); // back to the write wait before any signal goes out
@@ -788,6 +809,7 @@ ScanReport Library::scan(const QStringList &folders, const ScanOptions &options)
     ScanFindOptions find;
     find.progress = options.progress;
     find.emptyMeansGone = options.emptyMeansGone;
+    find.sweep = !options.nobodyWaits; // L-SETASIDE
     // L-READFAIL 4: what the library knows cannot be read, so no file is looked at.
     const LibraryRead<ScanKnown> known = readScanKnown();
     if (known.failed()) {

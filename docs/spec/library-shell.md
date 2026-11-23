@@ -358,6 +358,13 @@ and their tracks are left as they are`, before the refusal's words.
 Its tracks are not marked, so neither this line nor the folder
 monitor's shows them as lost.
 
+**What Organise had set aside** (fix-h1; library.md, L-SETASIDE): the
+scan's line goes on with `; put back PATH, which Organise had set
+aside` (`; put back N files Organise had set aside` for more), then
+`; kept WAITING-PATH, which Organise had set aside, beside PATH` (`; kept
+N files Organise had set aside, beside files of their names` for more),
+before the refusal's words.
+
 **A scan the library refused.** When the scan's own report says it was
 refused (its report's `refused` is not empty; fix-75d: not any `failed`
 heard while it ran, which may be a play or a command), the scan's line is followed by

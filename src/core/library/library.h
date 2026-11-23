@@ -85,6 +85,11 @@ struct ScanReport {
     // L-UNPLUGGED: the library folders (or mount points below one) that look unplugged; each
     // once, ascending. Their tracks are left as they are.
     QStringList unplugged;
+    // L-SETASIDE: the real paths of files that Organise had set aside, given back their names (also
+    // in `added`, since the same scan found them), and the waiting paths of those kept because a
+    // file has the name; each ascending.
+    QStringList setAsidePutBack;
+    QStringList setAsideKept;
 };
 
 // L-SCAN: the reader's number. Raised by one whenever what the reader makes of a file changes
@@ -141,11 +146,17 @@ struct ScanFindings {
     QStringList cannotLookIn;
     // L-UNPLUGGED: as ScanReport::unplugged; carried by the last part only.
     QStringList unplugged;
+    // L-SETASIDE: as ScanReport::setAsidePutBack and setAsideKept; carried by the last part only.
+    QStringList setAsidePutBack;
+    QStringList setAsideKept;
 };
 
 struct ScanFindOptions {
     std::function<bool(int done, int total)> progress; // as ScanOptions::progress
     bool emptyMeansGone = false; // as ScanOptions::emptyMeansGone
+    // L-SETASIDE: put back what Organise set aside before looking at any file; false for a scan
+    // nobody asked for.
+    bool sweep = false;
     int partSize = 0; // above 0, with `part` set: hand over every so many files
     std::function<void(const ScanFindings &part)> part;
 };
