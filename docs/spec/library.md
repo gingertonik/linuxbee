@@ -567,6 +567,39 @@ elsewhere follows one of them (L-FOLLOW), and no file in it is looked
 at. A folder that lost some files and still holds music is scanned as
 before.
 
+### L-SETASIDE
+
+What Organise set aside and a kill left behind is put back by a scan,
+or kept and named; it is never removed (fix-h1; Organise F7 of the
+audit, and the orchestrator's ruling on H). Organise sets the file it
+replaces aside in a folder `.linuxbee-replaced-N` beside it (O-REPLACED)
+before it goes to the trash. A kill between the two leaves the owner's
+old file there, hidden, and it may be the only copy of it.
+
+A scan somebody asked for (not the folder monitor's, L-WAIT, which has
+no line to say it on), before it looks at any file:
+
+1. Looks below each folder it is given, and nowhere else: links are
+   never followed, and hidden folders are not gone into. A folder named
+   exactly `.linuxbee-replaced-N`, N from 1 to 9999 written as Organise
+   writes it, is a waiting folder.
+2. Each regular file directly in a waiting folder (not a link, not a
+   folder), whose last change is more than 10 minutes old (an Organise
+   may be at work on a newer one; `LINUXBEE_LEFTOVER_AGE` names another
+   age in seconds, for the tests), is given back its name in the folder
+   above, by the never-replacing move of O-SPARE (`renameat2` with
+   `RENAME_NOREPLACE`, or a second name and then the first taken away).
+   It never takes the place of anything: when the name is taken, a link
+   that leads nowhere included, it stays where it is and is kept.
+3. A waiting folder left empty is taken away; one that is not empty
+   stays.
+
+The files put back are in `setAsidePutBack` (their names, ascending),
+and found by this same scan; the files kept are in `setAsideKept`
+(where they are, ascending). Both are carried by the last part only. A
+file that is kept is named again by every scan until the owner moves
+one of the two. Commands that only read (L-READ) never do this.
+
 ### L-NAMES
 
 A file or folder whose name is not valid UTF-8 cannot be opened by
@@ -1152,7 +1185,19 @@ linuxbeectl library --db FILE list [--category C] [--format TEMPLATE]
   ```
 
   with `1 folder looks unplugged (not mounted, or empty where it held
-  tracks); its tracks are left as they are:` for one. Then, when it passed something over (L-PARTS):
+  tracks); its tracks are left as they are:` for one. Then, when files
+  that Organise had set aside were put back or kept (L-SETASIDE):
+
+  ```
+  put back N files that Organise had set aside:
+    PATH
+  kept N files that Organise had set aside, because files have their names now:
+    WAITING-PATH (beside PATH)
+  ```
+
+  with `put back 1 file that Organise had set aside:` and `kept 1 file
+  that Organise had set aside, because a file has its name now:` for
+  one. Then, when it passed something over (L-PARTS):
   `passed over N files the library had changed meanwhile; the next
   scan looks again` (`1 file` for one). The exit status does not
   change.

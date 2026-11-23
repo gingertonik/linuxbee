@@ -442,6 +442,9 @@ told that a file was replaced.
 - If the old file could be neither trashed nor deleted, the entry is still
   `Done`; `replacedNow` is where the old file was left and `message` says
   so.
+- If the organiser is killed while the old file waits, a scan puts it back (library.md, L-SETASIDE)
+  under its name when nothing has taken it, or keeps it and names both
+  files. It is never removed.
 
 ### O-OTHER
 
